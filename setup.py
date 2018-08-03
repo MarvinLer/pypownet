@@ -9,5 +9,6 @@ setup(name='gym_powernetwork',
                         'setuptools>=38.5.1',
                         'oct2py>=4.0.6',
                         'pygame>=1.9.3',
-                        'numpy>=1.14.0',]
+                        'numpy>=1.14.0',
+                        'scipy==1.1.0',]
 )
