@@ -239,16 +239,9 @@ class RunEnv(object):
         self.game.reset(restart=restart)
         return self._get_obs()
 
-    def _render(self, mode='human', close=False):
+    def render(self, mode='human', close=False):
         if mode == 'human':
-            try:
-                import pygame
-            except ImportError as e:
-                raise ImportError("{}. (HINT: install pygame using `pip install pygame`)".format(e))
-            if close:
-                pygame.quit()
-            else:
-                self.game._render(self.last_rewards)
+            self.game._render(self.last_rewards, close)
         else:
             raise ValueError("Unsupported render mode: " + mode)
 

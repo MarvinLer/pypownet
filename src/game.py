@@ -181,11 +181,14 @@ class Game(object):
 
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
 
-    def _render(self, rewards):
+    def _render(self, rewards, close=False):
         try:
             import pygame
         except ImportError as e:
             raise ImportError("{}. (HINT: install pygame using `pip install pygame`)".format(e))
+
+        if close:
+            pygame.quit()
 
         if self.gui is None:
             pygame.init()
@@ -209,8 +212,8 @@ class Game(object):
             are_loads = np.logical_or(self.grid.are_loads[:len(mpcbus)//2],
                                       self.grid.are_loads[len(nodes_ids)//2:])
 
-            from src.graphical_user_interface import GraphicalUserInterface
-            self.gui = GraphicalUserInterface(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
+            from src.renderer import Renderer
+            self.gui = Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
 
         # Retrieve relative thermal limits (for plotting power lines with appropriate colors and widths)
         relative_thermal_limits = self.grid.export_relative_thermal_limits()

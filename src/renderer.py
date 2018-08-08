@@ -53,7 +53,7 @@ case_layouts = {
 }
 
 
-class GraphicalUserInterface(object):
+class Renderer(object):
     def __init__(self, grid_case, or_ids, ex_ids, are_prods, are_loads):
         self.grid_case = grid_case
         self.grid_layout = np.asarray(case_layouts[grid_case])
