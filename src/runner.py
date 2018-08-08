@@ -73,8 +73,6 @@ class BatchRunner(object):
         self.runners = [Runner(env, agent, verbose=False) for (env, agent) in zip(environments, agents)]
 
         self.verbose = verbose
-        if self.verbose:
-            print("Running", count, "instances of the game simultaneously")
 
     def step(self):
         batch_reward = 0.
