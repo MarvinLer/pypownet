@@ -143,6 +143,20 @@ class Game(object):
 
         return self.grid.apply_topology(new_topology)
 
+    def first_step(self, action):
+        # Performs the P_1 function when s_t+1=P_2(P_1(s_t))
+        self.apply_action(action)
+
+        # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
+        try:
+            success = self.compute_loadflow(cascading_failure=True)
+        except (src.grid.GridNotConnexeException, LoadCutException) as e:
+            raise e
+
+        # If the loadflow computation has not converged (success is 0), then game over
+        if not success:
+            raise src.grid.DivergingLoadflowException('The loadflow computation diverged')
+
     def compute_loadflow(self, cascading_failure):
         return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure)
 
@@ -211,3 +225,13 @@ class Game(object):
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
 class NoMoreScenarios(Exception):
     pass
+
+
+class IllegalActionException(Exception):
+    pass
+
+
+class LoadCutException(Exception):
+    pass
+
+

@@ -1,3 +1,5 @@
+from src.game import IllegalActionException, LoadCutException
+
 __author__ = 'marvinler'
 import numpy as np
 import src.game
@@ -82,27 +84,6 @@ class RunEnv(object):
             if not set(action).issubset([0, 1]):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
-        def sample_line_switch(self):
-            """
-            Random line service status switch (if disco, then reco and vice versa): action has a unique 1 for one
-            of the lines status (n_lines last values of the action).
-            """
-            action = np.zeros(self.n)
-            random_line = np.random.randint(self.n_lines)
-            action[-random_line] = 1  # Switch selected line status
-
-            return action
-
-        def sample_topological_change(self):
-            """
-            Action had a unique 1 value for one of the topological values (size-n_lines first values of the action).
-            """
-            action = np.zeros(self.n)
-            random_element = np.random.randint(self.n - self.n_lines)
-            action[random_element] = 1  # Switch selected element current node
-
-            return action
-
     def __init__(self, grid_case=118):
         # Instantiate game & action space
         """
@@ -143,7 +124,7 @@ class RunEnv(object):
         # Load cut reward: TODO
         load_cut_reward = 0
 
-        # Reference grid distance reward: TODO
+        # Reference grid distance reward
         initial_topology = self.game.get_initial_topology(as_array=True)
         current_topology = self._get_obs().topology
         n_differed_nodes = np.sum(np.where(
@@ -179,17 +160,12 @@ class RunEnv(object):
 
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
-            success = self.game.compute_loadflow(cascading_failure=True)
-        except (src.grid.GridNotConnexeException, LoadCutException) as e:
+            self.game.first_step(action)
+        except (src.grid.GridNotConnexeException, src.grid.DivergingLoadflowException, LoadCutException) as e:
             return self.__game_over(reward=self.connexity_exception_reward, info=e)
 
-        # If the loadflow computation has not converged (success is 0), then game over
-        if not success:
-            return self.__game_over(reward=self.loadflow_exception_reward,
-                                    info=src.grid.DivergingLoadflowException('The loadflow computation diverged'))
-
         # Retrieve the latent state (pre modifications of injections)
-        latent_state = self.game.get_observation()
+        latent_state = self._get_obs()
 
         # Compute reward
         reward1 = self.get_reward(latent_state, action)
@@ -278,14 +254,6 @@ class RunEnv(object):
 
     def get_current_scenario_id(self):
         return self.game.get_current_scenario_id()
-
-
-class IllegalActionException(Exception):
-    pass
-
-
-class LoadCutException(Exception):
-    pass
 
 
 # TODO
