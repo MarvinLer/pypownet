@@ -14,10 +14,9 @@ class Agent(object):
         assert isinstance(observation, RunEnv.Observation)
 
         # Implement your policy here.
-
         return None
 
     def feed_reward(self, observation, action, reward):
-        """Here, the Agent upgrades his policy given the previous observation, its produced action, and the associated
-        reward. This is where the Agent learns."""
+        """ Here, the Agent upgrades his policy given the previous observation, its subsequently produced action, and
+        the associated reward. This is where the Agent learns. """
         pass

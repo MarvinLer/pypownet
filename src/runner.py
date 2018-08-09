@@ -66,7 +66,7 @@ def iter_or_loopcall(o, count):
 
 
 class BatchRunner(object):
-    """ Runs several instances of the same RL problem simultaneously and aggregates the results. """
+    """ Runs several instances of the game simultaneously and aggregates the results. """
     def __init__(self, env_maker, agent_maker, count, verbose=False):
         environments = iter_or_loopcall(env_maker, count)
         agents = iter_or_loopcall(agent_maker, count)

@@ -28,4 +28,4 @@ RUN pip install --trusted-host pypi.python.org -r requirements.txt
 EXPOSE 80
 
 # Run the sample experiments when the container launches
-CMD ["python3.6", "-m", "src.runner"]
+CMD ["python3.6", "-m", "src.main", "--niter", "10", "--verbose"]
