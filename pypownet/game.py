@@ -4,9 +4,9 @@ import datetime
 import os
 import copy
 import numpy as np
-import src.grid
-from src.scenarios_chronic import ScenariosChronic
-from src import root_path, ARTIFICIAL_NODE_STARTING_STRING
+import pypownet.grid
+from pypownet.scenarios_chronic import ScenariosChronic
+from pypownet import root_path, ARTIFICIAL_NODE_STARTING_STRING
 
 
 class Game(object):
@@ -55,7 +55,7 @@ class Game(object):
         self.current_scenario_id = None
 
         # Loads the grid in a container for the EmulGrid object given the current scenario + current RL state container
-        self.grid = src.grid.Grid(src_filename=self.reference_grid_file,
+        self.grid = pypownet.grid.Grid(src_filename=self.reference_grid_file,
                                   dc_loadflow=dc_loadflow,
                                   new_slack_bus=new_slack_bus,
                                   new_imaps=self.chronic.get_imaps())
@@ -132,10 +132,10 @@ class Game(object):
         # Convert the action into the corresponding topology vector
         prods_nodes, loads_nodes, lines_or_nodes, line_ex_nodes, lines_service = self.grid.get_topology().get_unzipped()
         a_prods_nodes, a_loads_nodes, a_lines_or_nodes, a_line_ex_nodes, a_lines_service = \
-            src.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
+            pypownet.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
                                     self.grid.get_topology().invert_mapping_permutation)
 
-        new_topology = src.grid.Topology(prods_nodes=np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes),
+        new_topology = pypownet.grid.Topology(prods_nodes=np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes),
                                          loads_nodes=np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes),
                                          lines_or_nodes=np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes),
                                          lines_ex_nodes=np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes),
@@ -150,12 +150,12 @@ class Game(object):
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
             success = self.compute_loadflow(cascading_failure=True)
-        except (src.grid.GridNotConnexeException, LoadCutException) as e:
+        except (pypownet.grid.GridNotConnexeException, LoadCutException) as e:
             raise e
 
         # If the loadflow computation has not converged (success is 0), then game over
         if not success:
-            raise src.grid.DivergingLoadflowException('The loadflow computation diverged')
+            raise pypownet.grid.DivergingLoadflowException('The loadflow computation diverged')
 
     def compute_loadflow(self, cascading_failure):
         return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure)
@@ -212,7 +212,7 @@ class Game(object):
             are_loads = np.logical_or(self.grid.are_loads[:len(mpcbus)//2],
                                       self.grid.are_loads[len(nodes_ids)//2:])
 
-            from src.renderer import Renderer
+            from pypownet.renderer import Renderer
             self.gui = Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
 
         # Retrieve relative thermal limits (for plotting power lines with appropriate colors and widths)

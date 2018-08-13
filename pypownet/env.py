@@ -1,9 +1,9 @@
-from src.game import IllegalActionException, LoadCutException
+from pypownet.game import IllegalActionException, LoadCutException
 
 __author__ = 'marvinler'
 import numpy as np
-import src.game
-import src.grid
+import pypownet.game
+import pypownet.grid
 
 
 class RunEnv(object):
@@ -92,7 +92,7 @@ class RunEnv(object):
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
             case14 and case118.
         """
-        self.game = src.game.Game(grid_case=grid_case)
+        self.game = pypownet.game.Game(grid_case=grid_case)
         self.action_space = self.ActionSpace(grid_case)
         self.observation_space = self.ObservationSpace(grid_case)
 
@@ -161,7 +161,7 @@ class RunEnv(object):
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
             self.game.first_step(action)
-        except (src.grid.GridNotConnexeException, src.grid.DivergingLoadflowException, LoadCutException) as e:
+        except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException, LoadCutException) as e:
             return self.__game_over(reward=self.connexity_exception_reward, info=e)
 
         # Retrieve the latent state (pre modifications of injections)
@@ -176,7 +176,7 @@ class RunEnv(object):
             reward = reward1 + self.get_reward(observation, None)
             done = False
             info = None
-        except src.game.NoMoreScenarios as e:  # All input have been played
+        except pypownet.game.NoMoreScenarios as e:  # All input have been played
             observation = None
             reward = reward1 + 0
             done = True
@@ -185,10 +185,10 @@ class RunEnv(object):
         except LoadCutException as e:
             reward = reward1 + self.load_cut_exception_reward
             return self.__game_over(reward=reward, info=e)
-        except src.grid.GridNotConnexeException as e:
+        except pypownet.grid.GridNotConnexeException as e:
             reward = reward1 + self.connexity_exception_reward
             return self.__game_over(reward=reward, info=e)
-        except src.grid.DivergingLoadflowException as e:
+        except pypownet.grid.DivergingLoadflowException as e:
             reward = reward1 + self.loadflow_exception_reward
             return self.__game_over(reward=reward, info=e)
 
@@ -210,7 +210,7 @@ class RunEnv(object):
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
             success = self.game.compute_loadflow(cascading_failure=True)
-        except (src.grid.GridNotConnexeException, LoadCutException) as e:
+        except (pypownet.grid.GridNotConnexeException, LoadCutException) as e:
             self.game.apply_action(action)
             self.game.compute_loadflow(cascading_failure=False)
             return self.connexity_exception_reward

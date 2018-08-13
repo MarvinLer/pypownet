@@ -6,8 +6,8 @@ the reward signal to the appropriate function (feed_reward) of the Agent.
 
 This is not intented to be modified during the practical.
 """
-from src.env import RunEnv
-from src.agent import Agent
+from pypownet.env import RunEnv
+from pypownet.agent import Agent
 
 
 class Runner(object):

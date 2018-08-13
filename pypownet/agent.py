@@ -1,5 +1,5 @@
 __author__ = 'marvinler'
-from src.env import RunEnv
+from pypownet.env import RunEnv
 
 
 class Agent(object):

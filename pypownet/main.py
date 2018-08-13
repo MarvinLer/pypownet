@@ -1,8 +1,8 @@
 __author__ = 'marvinler'
 import argparse
-from src.env import RunEnv
-from src.runner import Runner, BatchRunner
-import src.agent
+from pypownet.env import RunEnv
+from pypownet.runner import Runner, BatchRunner
+import pypownet.agent
 
 parser = argparse.ArgumentParser(description='RL running machine')
 parser.add_argument('--agent', metavar='AGENT_CLASS', default='Agent', type=str,
@@ -17,7 +17,7 @@ parser.add_argument('--verbose', action='store_true',
 
 def main():
     args = parser.parse_args()
-    agent_class = eval('src.agent.{}'.format(args.agent))
+    agent_class = eval('pypownet.agent.{}'.format(args.agent))
     env_class = RunEnv
 
     if args.batch is not None:

@@ -16,13 +16,16 @@ RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 RUN useradd -ms /bin/bash octave
 
 # Git get matpower6.0 and l2rpn
-RUN git clone https://github.com/MarvinLer/l2rpn.git /l2rpn
 RUN git clone https://github.com/MATPOWER/matpower.git /matpower6.0
+RUN git clone https://github.com/MarvinLer/l2rpn.git /l2rpn
+
+# Install l2rpn (including necessary packages installation)
+RUN cd /l2rpn && python /l2rpn/setup.py install
 
 WORKDIR /l2rpn
 
 # Install packages
-RUN pip install --trusted-host pypi.python.org -r requirements.txt
+# RUN pip install --trusted-host pypi.python.org -r requirements.txt
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
