@@ -58,7 +58,7 @@ Otherwise, you need to specify the path to the matpower6.0 folder within the quo
 matpower_path = 'path_to_matpower6.0_folder'
 ```
 
-#### Step 5: Run pip on the required libraries
+#### Step 5: Run this package installation script
 Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
 ```
 python setup.py install
