@@ -9,7 +9,7 @@ The simulator comes with an Reinforcement Learning-focused environement, which i
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/l2rpn
+sudo docker pull marvinler/pypownet
 ```
 
 ## Without using Docker
@@ -70,7 +70,7 @@ After this, this simulator is available under the name pypownet.
 ## Using Docker
 Launch with (display is shared for running the renderer):
 ```
-sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/l2rpn:1.0.4
+sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet
 ```
 By default, this will run the main program which can be used to launch experiments using the simulator with CLI (the default agent is a do-nothing agent, which produces no action at each step).
 
@@ -80,7 +80,7 @@ Experiments can be conducted using the CLI.
 ```
 python -m pypownet.main
 ```
-### Controling some experiments parameters
+### Using CLI experiments arguments
 Some experiements parameters are available via the CLI; please use `python -m pypownet.main --help` for further information on these arguments. Example running 4 simultaneous experiments for 100 iterations each with verbose:
 ```
 python -m pypownet.main --batch 4 --niter 100 --verbose
