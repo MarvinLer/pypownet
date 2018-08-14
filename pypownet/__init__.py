@@ -31,3 +31,20 @@ octave.addpath(os.path.abspath(matpower_path))
 octave.addpath(os.path.abspath(os.path.join(matpower_path, 'most/')))
 #octave.addpath(os.path.abspath(os.path.join(matpower_path, os.path.join('most/', 't/'))))
 octave.addpath(os.path.abspath(os.path.join(matpower_path, 'lib/')))
+
+try:
+    from gym.envs.registration import register
+
+    register(
+        id='PowNet118-v1',
+        entry_point='pypownet.env:RunEnv',
+        kwargs={'grid_case': 118}
+    )
+
+    register(
+        id='PowNet14-v1',
+        entry_point='pypownet.env:RunEnv',
+        kwargs={'grid_case': 14}
+    )
+except ImportError:
+    pass

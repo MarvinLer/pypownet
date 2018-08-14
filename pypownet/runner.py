@@ -11,7 +11,7 @@ from pypownet.agent import Agent
 
 
 class Runner(object):
-    def __init__(self, environment, agent, verbose=False):
+    def __init__(self, environment, agent, verbose=False, render=False):
         # Sanity checks: both environment and agent should inherit resp. RunEnv and Agent
         assert isinstance(environment, RunEnv)
         assert isinstance(agent, Agent)
@@ -19,6 +19,7 @@ class Runner(object):
         self.environment = environment
         self.agent = agent
         self.verbose = verbose
+        self.render = render
 
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()
@@ -29,6 +30,9 @@ class Runner(object):
 
         # Update the environment with the chosen action
         observation, reward, done, info = self.environment.step(action)
+
+        if self.render:
+            self.environment.render()
 
         # Feed the reward signal to the Agent along with last observation and its resulting action
         self.agent.feed_reward(self.last_observation, action, reward)
@@ -67,12 +71,13 @@ def iter_or_loopcall(o, count):
 
 class BatchRunner(object):
     """ Runs several instances of the game simultaneously and aggregates the results. """
-    def __init__(self, env_maker, agent_maker, count, verbose=False):
+    def __init__(self, env_maker, agent_maker, count, verbose=False, render=False):
         environments = iter_or_loopcall(env_maker, count)
         agents = iter_or_loopcall(agent_maker, count)
-        self.runners = [Runner(env, agent, verbose=False) for (env, agent) in zip(environments, agents)]
+        self.runners = [Runner(env, agent, verbose=False, render=False) for (env, agent) in zip(environments, agents)]
 
         self.verbose = verbose
+        self.render = render
 
     def step(self):
         batch_reward = 0.
