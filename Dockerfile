@@ -5,30 +5,28 @@ MAINTAINER Marvin LEROUSSEAU <marvin.lerousseau@gmail.com>
 
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN apt-get update && apt-get install -y less apt-transport-https
+RUN apt-get update && \
+    apt-get install -y \
+    less \
+    apt-transport-https \
+    software-properties-common
+    
 # Install octave
-RUN apt-get install -y software-properties-common
-RUN apt-get install -y octave
-RUN apt-get remove -y software-properties-common
-# cleanup package manager
-RUN apt-get autoclean && apt-get clean
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-RUN useradd -ms /bin/bash octave
+RUN apt-get install -y octave && \
+    apt-get remove -y software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
 
-# Git get matpower6.0 and l2rpn
-RUN git clone https://github.com/MATPOWER/matpower.git /matpower6.0
-RUN git clone https://github.com/MarvinLer/l2rpn.git /l2rpn
+# Git get matpower6.0 and pypownet
+RUN git clone https://github.com/MATPOWER/matpower.git /matpower6.0 && \
+    git clone https://github.com/MarvinLer/pypownet.git /pypownet
 
-# Install l2rpn (including necessary packages installation)
-RUN cd /l2rpn && python /l2rpn/setup.py install
+# Install pypownet (including necessary packages installation)
+WORKDIR /pypownet
+RUN python /pypownet/setup.py install
 
-WORKDIR /l2rpn
-
-# Install packages
-# RUN pip install --trusted-host pypi.python.org -r requirements.txt
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
 # Run the sample experiments when the container launches
-CMD ["python3.6", "-m", "src.main", "--niter", "10", "--verbose"]
+#CMD ["python3.6", "-m", "pypownet.main", "--niter", "10", "--verbose"]
