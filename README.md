@@ -34,36 +34,20 @@ sudo apt-get install python3.6
 ```
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
-#### Step 3: Download matpower
-A matpower .zip file can be downloaded on the official matpower repository (select version 6.0): http://www.pserc.cornell.edu/matpower/
-
-The archive file should be uncompressed such that the resulting matpower6.0 folder should be in the parent folder of this project folder with a resulting architecture similar to:
+#### Step 3: Get Matpower
+The latest sources of matpower need to be installed for computing loadflows. This can be done using the command that should be run within the parent folder of this file:
 ```
-parent_folder
-   gym-powernetwork/
-      README.md (the current file)
-      setup.py
-      matpower_path.config
-      gym_powernetwork/
-         __init__.py
-         envs/
-   matpower6.0/
+git clone https://github.com/MATPOWER/matpower.git
 ```
 
-#### Step 4: Update the matpower path
-The matpower path is already set by default if your folder architecture is the same as above.
+In any case, you can update the path of matpower download folder within the ```matpower_path.config``` file.
 
-Otherwise, you need to specify the path to the matpower6.0 folder within the quotes of the matpower_path.config file (relative or absolute) according to the following template:
-```
-matpower_path = 'path_to_matpower6.0_folder'
-```
-
-#### Step 5: Run this package installation script
+#### Step 4: Run the installation script of PyPowNet
 Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
 ```
-python setup.py install
+python3.6 setup.py install
 ```
-After this, this simulator is available under the name pypownet.
+After this, this simulator is available under the name pypownet (e.g. ```import pypownet```).
 
 
 # Basic usage
@@ -76,12 +60,13 @@ By default, this will run the main program which can be used to launch experime
 
 ## Without using Docker
 Experiments can be conducted using the CLI.
-### Simple usage
+### Simple usage for launching experiments
+You can use the command line to make an agent play a game. The simplest usage will launch the agent within the __Agent__ class of the file pypownet/agent.py on 100 timesteps for the grid with 118 substations, and with only one simultaneous game:
 ```
 python -m pypownet.main
 ```
-### Using CLI experiments arguments
-Some experiements parameters are available via the CLI; please use `python -m pypownet.main --help` for further information on these arguments. Example running 4 simultaneous experiments for 100 iterations each with verbose:
+### Using CLI arguments
+Some experiements parameters are available via the CLI; you can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 4 simultaneous experiments for 100 iterations each with verbose:
 ```
 python -m pypownet.main --batch 4 --niter 100 --verbose
 ```
