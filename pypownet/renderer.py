@@ -108,6 +108,13 @@ class Renderer(object):
         self.loads = []
         self.relative_thermal_limits = []
 
+        self.game_over_font = pygame.font.SysFont("monospace", 40)
+        red = (255, 0, 0)
+        self.game_over_font.set_bold(True)
+        self.game_over_render = lambda s: self.game_over_font.render(s, False, red)
+        black = (0, 0, 0)
+        self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
+
     def draw_nodes(self, scenario_id, date, prods, loads):
         self.loads.append(loads)
         surface = self.nodes_surface
@@ -415,6 +422,13 @@ class Renderer(object):
         #               (64, 64, 64))
         return surface
 
+    def draw_plot_game_over(self):
+        game_over_surface = pygame.Surface((500, 200), pygame.SRCALPHA, 32).convert_alpha()
+        game_over_text = 'Game over!'
+        game_over_surface.blit(self.game_over_shadow_render(game_over_text), (2, 2))
+        game_over_surface.blit(self.game_over_render(game_over_text), (0, 0))
+
+        return game_over_surface
 
     def _update_left_menu(self, epoch, timestep, rewards):
         self.left_menu = pygame.Surface(self.left_menu_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -443,7 +457,7 @@ class Renderer(object):
         self.left_menu.blit(rtl_curves_surface, (0, 380))
         self.left_menu.blit(n_overflows_surface, (0, 560))
 
-    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, prods, loads, rewards):
+    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, prods, loads, rewards, game_over):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -467,14 +481,19 @@ class Renderer(object):
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
+        # Print a game over message if game has been lost
+        if game_over:
+            game_over_surface = self.draw_plot_game_over()
+            self.topology_layout.blit(game_over_surface, (300, 200))
+
     def render(self, relative_thermal_limits, lines_por,
-               epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date):
+               epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date, game_over=False):
         plt.close('all')
         self.screen.fill(self.background_color)
 
         # Execute full ploting mechanism: order is important
         self._update_topology(scenario_id, date, relative_thermal_limits, lines_por, prods, loads,
-                              last_timestep_rewards)
+                              last_timestep_rewards, game_over=game_over)
         self._update_left_menu(epoch, timestep, last_timestep_rewards)
 
         # Blit all macro surfaces on screen

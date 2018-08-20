@@ -160,9 +160,6 @@ class RunEnv(object):
         except IllegalActionException as e:
             return self.__game_over(reward=self.illegal_action_exception_reward, info=e)
 
-        # Apply the action to the current grid and compute the new consequent loadflow
-        self.game.apply_action(action)
-
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
             self.game.first_step(action)
@@ -244,9 +241,9 @@ class RunEnv(object):
         self.game.reset(restart=restart)
         return self._get_obs()
 
-    def render(self, mode='human', close=False):
+    def render(self, mode='human', close=False, game_over=False):
         if mode == 'human':
-            self.game._render(self.last_rewards, close)
+            self.game._render(self.last_rewards, close, game_over=game_over)
         else:
             raise ValueError("Unsupported render mode: " + mode)
 

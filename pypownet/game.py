@@ -56,9 +56,9 @@ class Game(object):
 
         # Loads the grid in a container for the EmulGrid object given the current scenario + current RL state container
         self.grid = pypownet.grid.Grid(src_filename=self.reference_grid_file,
-                                  dc_loadflow=dc_loadflow,
-                                  new_slack_bus=new_slack_bus,
-                                  new_imaps=self.chronic.get_imaps())
+                                       dc_loadflow=dc_loadflow,
+                                       new_slack_bus=new_slack_bus,
+                                       new_imaps=self.chronic.get_imaps())
         # Save the initial topology to potentially reset the game (=reset topology)
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
 
@@ -133,13 +133,18 @@ class Game(object):
         prods_nodes, loads_nodes, lines_or_nodes, line_ex_nodes, lines_service = self.grid.get_topology().get_unzipped()
         a_prods_nodes, a_loads_nodes, a_lines_or_nodes, a_line_ex_nodes, a_lines_service = \
             pypownet.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
-                                    self.grid.get_topology().invert_mapping_permutation)
+                                         self.grid.get_topology().invert_mapping_permutation)
 
-        new_topology = pypownet.grid.Topology(prods_nodes=np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes),
-                                         loads_nodes=np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes),
-                                         lines_or_nodes=np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes),
-                                         lines_ex_nodes=np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes),
-                                         lines_service=np.where(a_lines_service, 1 - lines_service, lines_service))
+        prods_nodes = np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes)
+        loads_nodes = np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes)
+        lines_or_nodes = np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
+        lines_ex_nodes = np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes)
+        lines_service = np.where(a_lines_service, 1 - lines_service, lines_service)
+        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes,
+                                              loads_nodes=loads_nodes,
+                                              lines_or_nodes=lines_or_nodes,
+                                              lines_ex_nodes=lines_ex_nodes,
+                                              lines_service=lines_service)
 
         return self.grid.apply_topology(new_topology)
 
@@ -175,13 +180,13 @@ class Game(object):
         """
         self.reset_grid()
         self.epoch += 1
-        self.timestep = 0
         if restart:  # If restart, put current id to None so that load_next will load first timestep
             self.current_scenario_id = None
+            self.timestep = 1
 
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
 
-    def _render(self, rewards, close=False):
+    def _render(self, rewards, close=False, game_over=False):
         try:
             import pygame
         except ImportError as e:
@@ -207,12 +212,13 @@ class Game(object):
             mpcgen = self.grid.mpc['gen']
             nodes_ids = mpcbus[:, 0]
             prods_ids = mpcgen[:, 0]
-            are_prods = np.logical_or([node_id in prods_ids for node_id in nodes_ids[:len(nodes_ids)//2]],
-                                      [node_id in prods_ids for node_id in nodes_ids[len(nodes_ids)//2:]])
-            are_loads = np.logical_or(self.grid.are_loads[:len(mpcbus)//2],
-                                      self.grid.are_loads[len(nodes_ids)//2:])
+            are_prods = np.logical_or([node_id in prods_ids for node_id in nodes_ids[:len(nodes_ids) // 2]],
+                                      [node_id in prods_ids for node_id in nodes_ids[len(nodes_ids) // 2:]])
+            are_loads = np.logical_or(self.grid.are_loads[:len(mpcbus) // 2],
+                                      self.grid.are_loads[len(nodes_ids) // 2:])
 
             from pypownet.renderer import Renderer
+
             self.gui = Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
 
         # Retrieve relative thermal limits (for plotting power lines with appropriate colors and widths)
@@ -222,7 +228,7 @@ class Game(object):
         lines_por_values = self.grid.mpc['branch'][:, 13]
         self.gui.render(relative_thermal_limits, lines_por_values, self.epoch, self.timestep, self.current_scenario_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                        date=self.current_date)
+                        date=self.current_date, game_over=game_over)
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)

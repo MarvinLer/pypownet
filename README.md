@@ -34,7 +34,7 @@ sudo apt-get install python3.6
 ```
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
-#### (Step 3 if not already done): Get these sources
+#### (Step 3 if not already done: Get these sources)
 In a parent folder, clone the current sources:
 ```
 mkdir parent_folder && cd parent_folder
