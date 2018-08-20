@@ -226,7 +226,9 @@ class Game(object):
         prods_values = self.grid.mpc['gen'][:, 1]
         loads_values = self.grid.mpc['bus'][self.grid.are_loads, 2]
         lines_por_values = self.grid.mpc['branch'][:, 13]
-        self.gui.render(relative_thermal_limits, lines_por_values, self.epoch, self.timestep, self.current_scenario_id,
+        lines_service_status = self.grid.mpc['branch'][:, 10]
+        self.gui.render(relative_thermal_limits, lines_por_values, lines_service_status,
+                        self.epoch, self.timestep, self.current_scenario_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                         date=self.current_date, game_over=game_over)
 

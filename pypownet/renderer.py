@@ -149,7 +149,7 @@ class Renderer(object):
         surface.blit(self.text_render('Date'), (330, 10))
         surface.blit(self.value_render(date.strftime("%a, %d %b %H:%M")), (400, 10))
 
-    def draw_lines(self, relative_thermal_limits, lines_por):
+    def draw_lines(self, relative_thermal_limits, lines_por, lines_service_status):
         def draw_arrow_head(x, y, angle, color, thickness):
             head_angle = math.pi / 8.
             width = 8 + thickness
@@ -162,13 +162,44 @@ class Renderer(object):
             gfxdraw.aapolygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
             gfxdraw.filled_polygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
 
+        def draw_dashed_line(ori, ext):
+            length_x = ori[0] - ext[0]
+            length_y = ori[1] - ext[1]
+            total_length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
+            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
+            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
+
+            tick_length = 5
+            grey_color = (200, 200, 200)
+            thickness = 1
+            n_ticks = int(total_length / (2 * tick_length)) + 1
+            for i in range(n_ticks):
+                tick_center = (center[0] + (i - n_ticks / 2.) / n_ticks * length_x,
+                               center[1] + (i - n_ticks / 2.) / n_ticks * length_y)
+                UL = (x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
+                      y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(angle))
+                UR = (x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
+                      y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(angle))
+                BL = (x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
+                      y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(angle))
+                BR = (x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
+                      y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(angle))
+                gfxdraw.aapolygon(surface, (UL, UR, BR, BL), grey_color)
+                gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), grey_color)
+
         self.relative_thermal_limits.append(relative_thermal_limits)
         surface = self.lines_surface
         layout = self.grid_layout
         x_offset = int(self.topology_layout_shape[0] / 2.)
         y_offset = int(self.topology_layout_shape[1] / 2.)
-        for or_id, ex_id, rtl, line_por in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
-                                               lines_por):
+        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
+                                                      lines_por, lines_service_status):
+            # If line disconnected, call special drawing function
+            if not is_on:
+                draw_dashed_line(layout[or_id], layout[ex_id])
+                continue
+
+            # Otherwise, plot one straight line, with custom width, color, and arrow heads
             thickness = 1 if rtl < .3 else 2 if rtl < .7 else 4
             color = (51, 204, 51) if rtl < .9 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
             if line_por >= 0:
@@ -395,11 +426,11 @@ class Renderer(object):
 
         # Lines legend
         xs, ys, thi, lrg = 30, 30, 1, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs+lrg, ys), (xs+lrg, ys+thi), (xs, ys+thi)), (51, 204, 51))
-        xs, ys, thi, lrg = xs+lrg, 30, 2, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs+lrg, ys), (xs+lrg, ys+thi), (xs, ys+thi)), (51, 204, 51))
-        xs, ys, thi, lrg = xs+lrg, 30, 4, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs+lrg, ys), (xs+lrg, ys+thi), (xs, ys+thi)), (51, 204, 51))
+        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
+        xs, ys, thi, lrg = xs + lrg, 30, 2, 40
+        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
+        xs, ys, thi, lrg = xs + lrg, 30, 4, 40
+        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
         # thickness = 1 if rtl < .3 else 2 if rtl < .7 else 4
         # color = (51, 204, 51) if rtl < .9 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
         #
@@ -457,7 +488,8 @@ class Renderer(object):
         self.left_menu.blit(rtl_curves_surface, (0, 380))
         self.left_menu.blit(n_overflows_surface, (0, 560))
 
-    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, prods, loads, rewards, game_over):
+    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
+                         prods, loads, rewards, game_over):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -465,7 +497,7 @@ class Renderer(object):
         gfxdraw.vline(self.topology_layout, 0, 0, self.left_menu_shape[1], (20, 20, 20))
 
         # Lines
-        self.draw_lines(relative_thermal_limits, lines_por)
+        self.draw_lines(relative_thermal_limits, lines_por, lines_service_status)
 
         # Injections
         last_rewards_surface = self.draw_surface_rewards(rewards)
@@ -486,14 +518,14 @@ class Renderer(object):
             game_over_surface = self.draw_plot_game_over()
             self.topology_layout.blit(game_over_surface, (300, 200))
 
-    def render(self, relative_thermal_limits, lines_por,
+    def render(self, relative_thermal_limits, lines_por, lines_service_status,
                epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date, game_over=False):
         plt.close('all')
         self.screen.fill(self.background_color)
 
         # Execute full ploting mechanism: order is important
-        self._update_topology(scenario_id, date, relative_thermal_limits, lines_por, prods, loads,
-                              last_timestep_rewards, game_over=game_over)
+        self._update_topology(scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
+                              prods, loads, last_timestep_rewards, game_over=game_over)
         self._update_left_menu(epoch, timestep, last_timestep_rewards)
 
         # Blit all macro surfaces on screen

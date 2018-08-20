@@ -20,8 +20,8 @@ parser.add_argument('-r', '--render', action='store_true',
 
 def main():
     args = parser.parse_args()
-    agent_class = eval('pypownet.agent.{}'.format(args.agent))
     env_class = RunEnv
+    agent_class = eval('pypownet.agent.{}'.format(args.agent))
 
     if args.batch is not None:
         print("Running a batched simulation with {} agents in parallel...".format(args.batch))
@@ -30,7 +30,11 @@ def main():
         print("Obtained a final average reward of {}".format(final_reward))
     else:
         print("Running a single instance simulation...")
-        runner = Runner(env_class(), agent_class(), args.verbose, args.render)
+        # Instantiate environment and agent
+        env = env_class()
+        agent = agent_class(env)
+        # Instantiate game runner and loop
+        runner = Runner(env, agent, args.verbose, args.render)
         final_reward = runner.loop(iterations=args.niter)
         print("Obtained a final reward of {}".format(final_reward))
 
