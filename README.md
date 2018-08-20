@@ -34,7 +34,15 @@ sudo apt-get install python3.6
 ```
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
-#### Step 3: Get Matpower
+#### (Step 3 if not already done): Get these sources
+In a parent folder, clone the current sources:
+```
+mkdir parent_folder && cd parent_folder
+git clone https://github.com/MarvinLer/pypownet
+```
+This should create a folder pypownet with the current sources.
+
+#### Step 4: Get Matpower
 The latest sources of matpower need to be installed for computing loadflows. This can be done using the command that should be run within the parent folder of this file:
 ```
 git clone https://github.com/MATPOWER/matpower.git
@@ -42,7 +50,7 @@ git clone https://github.com/MATPOWER/matpower.git
 
 In any case, you can update the path of matpower download folder within the ```matpower_path.config``` file.
 
-#### Step 4: Run the installation script of PyPowNet
+#### Step 5: Run the installation script of PyPowNet
 Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
 ```
 python3.6 setup.py install
@@ -51,13 +59,6 @@ After this, this simulator is available under the name pypownet (e.g. ```import 
 
 
 # Basic usage
-## Using Docker
-Launch with (display is shared for running the renderer):
-```
-sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet
-```
-By default, this will run the main program which can be used to launch experiments using the simulator with CLI (the default agent is a do-nothing agent, which produces no action at each step).
-
 ## Without using Docker
 Experiments can be conducted using the CLI.
 ### Simple usage for launching experiments
@@ -70,3 +71,9 @@ Some experiements parameters are available via the CLI; you can use `python -m p
 ```
 python -m pypownet.main --batch 4 --niter 100 --verbose
 ```
+## Using Docker
+You can use the command line of the image with shared display (for running the renderer):
+```
+sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
+```
+This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
