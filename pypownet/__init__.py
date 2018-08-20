@@ -4,7 +4,7 @@ import os
 #import re
 ARTIFICIAL_NODE_STARTING_STRING = '666'
 
-# root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 # os.chdir(root_path)
 
 # # Add matpower to octave path
