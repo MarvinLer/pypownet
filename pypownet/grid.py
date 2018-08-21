@@ -25,7 +25,7 @@ class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow
-        self.save_io = True
+        self.save_io = False
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values
         self.mpc = octave.loadcase(self.filename, verbose=False)

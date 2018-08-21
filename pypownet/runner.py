@@ -60,7 +60,8 @@ class Runner(object):
                 print(" -> cumulative reward: {}".format(cumul_reward))
 
         # Close pygame
-        self.environment.render(close=True)
+        if self.render:
+            self.environment.render(close=True)
 
         return cumul_reward
 
