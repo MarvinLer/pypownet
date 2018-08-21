@@ -17,16 +17,16 @@ RUN apt-get install -y octave && \
     && rm -rf /var/lib/apt/lists/*
 
 # Git get matpower6.0 and pypownet
-RUN git clone https://github.com/MATPOWER/matpower.git /matpower6.0 && \
-    git clone https://github.com/MarvinLer/pypownet.git /pypownet
+RUN git clone https://github.com/MATPOWER/matpower.git && \
+    git clone https://github.com/MarvinLer/pypownet.git
 
 # Install pypownet (including necessary packages installation)
-WORKDIR /pypownet
-RUN python /pypownet/setup.py install
-
+RUN cd /pypownet && python setup.py install && cd ..
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
+WORKDIR pypownet/
+
 # Run the sample experiments when the container launches
-#CMD ["python3.6", "-m", "pypownet.main", "--niter", "10", "--verbose"]
+CMD ["python3.6", "-m", "pypownet.main"]
