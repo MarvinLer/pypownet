@@ -115,7 +115,7 @@ class Renderer(object):
         black = (0, 0, 0)
         self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
 
-    def draw_nodes(self, scenario_id, date, prods, loads):
+    def draw_surface_nodes(self, scenario_id, date, prods, loads):
         self.loads.append(loads)
         surface = self.nodes_surface
         x_offset = int(self.topology_layout_shape[0] / 2.)
@@ -149,7 +149,7 @@ class Renderer(object):
         surface.blit(self.text_render('Date'), (330, 10))
         surface.blit(self.value_render(date.strftime("%a, %d %b %H:%M")), (400, 10))
 
-    def draw_lines(self, relative_thermal_limits, lines_por, lines_service_status):
+    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
         def draw_arrow_head(x, y, angle, color, thickness):
             head_angle = math.pi / 8.
             width = 8 + thickness
@@ -431,26 +431,7 @@ class Renderer(object):
         gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
         xs, ys, thi, lrg = xs + lrg, 30, 4, 40
         gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
-        # thickness = 1 if rtl < .3 else 2 if rtl < .7 else 4
-        # color = (51, 204, 51) if rtl < .9 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
-        #
-        #
-        # reward_offset = (50, 40)
-        # x_offset = 180
-        # line_spacing = 20
-        # rewards_labels = ['Line capacity usage', 'Cost of action', 'Distance to initial grid', 'Connexity valuation']
-        # for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
-        #     surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
-        #     surface.blit(self.value_render('%.1f' % reward),
-        #                               (reward_offset[0] + x_offset, reward_offset[1] + i * line_spacing))
-        # surface.blit(self.text_render('Total'),
-        #                           (reward_offset[0], reward_offset[1] + (i + 1) * line_spacing))
-        # surface.blit(self.value_render('%.1f' % np.sum(rewards)),
-        #                           (reward_offset[0] + x_offset, reward_offset[1] + (i + 1) * line_spacing))
-        #
-        # gfxdraw.hline(surface, 0, surface_shape[0], 0, (64, 64, 64))
-        # gfxdraw.hline(surface, 0, surface_shape[0], surface_shape[1] - 1,
-        #               (64, 64, 64))
+        
         return surface
 
     def draw_plot_game_over(self):
@@ -488,6 +469,7 @@ class Renderer(object):
         self.left_menu.blit(rtl_curves_surface, (0, 380))
         self.left_menu.blit(n_overflows_surface, (0, 560))
 
+    # noinspection PyArgumentList
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
                          prods, loads, rewards, game_over):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -497,7 +479,7 @@ class Renderer(object):
         gfxdraw.vline(self.topology_layout, 0, 0, self.left_menu_shape[1], (20, 20, 20))
 
         # Lines
-        self.draw_lines(relative_thermal_limits, lines_por, lines_service_status)
+        self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
 
         # Injections
         last_rewards_surface = self.draw_surface_rewards(rewards)
@@ -506,7 +488,7 @@ class Renderer(object):
         #legend_surface = self.draw_surface_legend()
 
         # Nodes
-        self.draw_nodes(scenario_id, date, prods, loads)
+        self.draw_surface_nodes(scenario_id, date, prods, loads)
 
         self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(last_rewards_surface, (1, 570))
@@ -533,6 +515,8 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
 
         pygame.display.flip()
+        # Bugfix for mac
+        pygame.event.get()
 
 
 def scale(u, t):

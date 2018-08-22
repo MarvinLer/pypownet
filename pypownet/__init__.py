@@ -13,7 +13,7 @@ mp_path_config = os.path.join(root_path, 'matpower_path.config')
 if not os.path.exists(mp_path_config):
     raise FileNotFoundError('The matpower path configuration file is not found at', mp_path_config)
 with open(mp_path_config, 'r') as f:
-    relative_path = f.read()
+    relative_path = f.read().splitlines()[0]
 
 matpower_path = os.path.abspath(relative_path)
 # Check that the matpower path does exist
