@@ -24,18 +24,19 @@ def compute_flows_a(active, reactive, voltage):
 class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
-        self.dc_loadflow = dc_loadflow
-        self.save_io = False
-        self.verbose = verbose
+        self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
-        # Container output of Matpower usual functions (mpc structure); contains all grid params/values
+        # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
         self.mpc = octave.loadcase(self.filename, verbose=False)
-        # Change thermal limits
+        # Change thermal limits: in IEEE format, they are contaied in 'branch'
         self.mpc['branch'][:, 5] = new_imaps
         self.mpc['branch'][:, 6] = new_imaps
         self.mpc['branch'][:, 7] = new_imaps
 
-        self.new_slack_bus = new_slack_bus
+        self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
+        # Containers that keep in mind the PQ nodes (consumers)
         self.are_loads = np.logical_or(self.mpc['bus'][:, 2] != 0, self.mpc['bus'][:, 3] != 0)
 
         # Instantiate once and for all matpower options, and change algo if AC
@@ -54,41 +55,6 @@ class Grid(object):
                                  lines_or_nodes=np.zeros((self.n_lines,)), lines_ex_nodes=np.zeros((self.n_lines,)),
                                  lines_service=self.mpc['branch'][:, 10],
                                  mapping_permutation=self.compute_topological_mapping_permutation())
-
-    def compute_topological_mapping_permutation(self):
-        """ Compute a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex) into a
-            representation where all elements of a substation are consecutives values (same order, but locally)."""
-        prods_ids = self.mpc['gen'][:, 0]
-        loads_ids = self.mpc['bus'][self.are_loads, 0]
-        lines_or = self.mpc['branch'][:, 0]
-        lines_ex = self.mpc['branch'][:, 0]
-        loads_offset = self.n_prods
-        lines_or_offset = self.n_prods + self.n_loads
-        lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
-
-        mapping = []
-        for node_id in self.mpc['bus'][:self.n_nodes // 2, 0]:
-            node_mapping = []
-            if node_id in prods_ids:
-                node_index = np.where(prods_ids == node_id)[0][0]  # Only one prod per substation
-                node_mapping.append(node_index)
-            if node_id in loads_ids:
-                node_index = np.where(loads_ids == node_id)[0][0] + loads_offset  # Only one load per subst.
-                node_mapping.append(node_index)
-            if node_id in lines_or:
-                node_index = np.where(lines_or == node_id)[0] + lines_or_offset  # Possible multiple lines per subst
-                node_mapping.extend(node_index)
-            if node_id in lines_ex:
-                node_index = np.where(lines_ex == node_id)[0] + lines_ex_offset
-                node_mapping.extend(node_index)
-            mapping.append(node_mapping)
-
-        # Verify that the mapping array has unique values
-        assert len(np.concatenate(mapping)) == len(
-            np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
-        assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
-
-        return mapping
 
     def _synchronize_bus_types(self):
         """ Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus
@@ -120,29 +86,102 @@ class Grid(object):
                     bus[b, 1] = 1
 
     def __vanilla_matpower_callback(self, mpc, pprint=None, fname=None, verbose=False):
-        # DC loadflow
-        if self.dc_loadflow:
-            if pprint and fname:
-                octave.savecase(fname, mpc)
-                output = octave.rundcpf(mpc, octave.mpoption(), pprint, fname, verbose=verbose)
-            else:
-                output = octave.rundcpf(mpc, octave.mpoption(), verbose=verbose)
-        else:  # AC loadflow
-            if pprint and fname:
-                output = octave.runpf(mpc, octave.mpoption(), pprint, fname, verbose=verbose)
-            else:
-                output = octave.runpf(mpc, octave.mpoption(), verbose=verbose)
+        """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
+        from matpower). This function uses default octave mpoption (they control in certain ways how matpower behaves
+        for the loadflow computation.
 
-        loadflow_success = output['success']
+        :param mpc: mpc format from octave, typically a dictionary with various items including 'bus', 'gen' etc
+        :param pprint: path to the output prettyprint file (produced by matpower) or None to not save this file
+        :param fname: path to the output grid IEEE file (produced by matpower) or None to not save this file
+        :param verbose: this verbose refers to the matpower verbose: if enabled, will plot the output grid in terminal
+        :return: the ouput of matpower (typically mpc structure), and a boolean success of loadflow indicator
+        """
+        # Fonction of matpower to compute loadflow
+        matpower_function = octave.rundcpf if self.dc_loadflow else octave.runpf
+
+        # pprint is None or the path to the prettyprint output file; fname is None or the path to the output IEEE grid
+        # file (those are related to self.save_io)
+        if pprint and fname:
+            octave.savecase(fname, mpc)
+            output = matpower_function(mpc, self.mpoption, pprint, fname, verbose=verbose)
+        else:
+            output = matpower_function(mpc, self.mpoption, verbose=verbose)
+
+        loadflow_success = output['success']  # 0 = failed, 1 = successed
         return output, loadflow_success
 
-    def compute_loadflow(self, perform_cascading_failure):
+    def _simulate_cascading_failure(self, mpc_copy, pprint, fname):
+        """ Performs a simulation of cascading failure i.e. an algorithm that successively performs:
+        1. switch off every line overflowed in the current grid
+        2. compute a loadflow of the resulting grid
+        3. loop to 1. with the current grid as the resulted loadflow-computed grid
+        This emulates what happens in real life: an overflowed line can break, leading to new overflowed lines that
+        can break and so on (cascading lines failures).
+
+        :param mpc_copy: a matpower mpc structure (dic-style); should be a copy for pointer-issue
+        :param pprint: if self.save_io, then used for pretty-print file dest path
+        :param fname: if self.save_io, then used for loadflow output file dest path
+        :raise GridNotConnexeException: a grid not connexe is equivalent to an outage, so raise exception
+        """
+        if self.verbose:
+            print('  Simulating cascading failure')
+
+        loadflow_success = True  # True by default, until an error is raised then False
+        depth = 0
+        # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
+        while True:
+            bus = mpc_copy['bus']
+            branch = mpc_copy['branch']
+
+            # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
+            active = branch[:, 13]  # P
+            reactive = branch[:, 14]  # Q
+            voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+            branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage)
+
+            branches_thermal_limits = branch[:, 5]  # thermal limits are the rateA, rateB and rateC columns of IEEE
+
+            # Sanity check: check flows and angles are not NaN: overwise it is a sign that previous loadflow diverged
+            if np.isnan(branch[:, 13]).any() or np.isnan(bus[:, 8]).any():
+                raise DivergingLoadflowException('Loadflow of has diverged')
+
+            n_overflows = np.sum(branches_flows_a > branches_thermal_limits)
+            # If no lines are overflowed, end the cascading failure simulation
+            if n_overflows == 0:
+                if self.verbose:
+                    print('  ok')
+                break
+
+            if self.verbose:
+                print(u'    depth {0:d}: {1:d} overflowed lines'.format(depth, n_overflows))
+
+            # Otherwise, switch off overflowed lines
+            branch[branches_flows_a > branches_thermal_limits, 10] = 0
+
+            if self.save_io:
+                fname = fname[:-2] + '_cascading%d.m' % depth
+                pprint = pprint[:-2] + '_cascading%d.m' % depth
+            else:
+                fname, pprint = None, None
+            mpc_copy, loadflow_success = self.__vanilla_matpower_callback(mpc_copy, pprint, fname, False)
+
+            if not loadflow_success:
+                raise GridNotConnexeException(
+                    'Cascading failure of depth %d lead to a non-connexe grid' % (depth + 1))
+            depth += 1
+
+        return mpc_copy, loadflow_success
+
+    def compute_loadflow(self, perform_cascading_failure, apply_cascading_output=True):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
         """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
         function subtreats the Octave pipeline to self.__vanilla_matpower_callback.
 
         :param perform_cascading_failure: True to compute a loadflow after loading the new injections
-        :return: :raise GridNotConnexeException: If the grid is not connex, matpower raises an error; when an error is
+        :param apply_cascading_output: True will effectively apply the output of the cascading failure computation as
+        the new grid state; False will only *simulate* the cascading failure and the current state would be the loadflow
+        output before the cascading failure. Only works when perform_cascading_failure is True.
+        :return: :raise GridNotConnexeException: If the grid is not connexe, matpower raises an error; when an error is
         raised after a matpower callback, this exception is raised.
         """
         self._synchronize_bus_types()
@@ -163,49 +202,17 @@ class Grid(object):
         if not loadflow_success:
             raise GridNotConnexeException('The grid is not connexe')
 
-        # Simulate cascading failure: success. switches off overflowed lines, then compute loadflow and loop until
-        # no lines are overflowed or an error is raised
         if perform_cascading_failure:
-            if self.verbose:
-                print('  Simulating cascading failure')
-            pf = copy.deepcopy(output)
-            depth = 0
-            while True:
-                bus = pf['bus']
-                branch = pf['branch']
-                # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
-                voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
-                #voltage = bus[branch[:, 0], 7]
-                branches_flows_a = compute_flows_a(active=branch[:, 13], reactive=branch[:, 14], voltage=voltage)
-                branches_thermal_limits = branch[:, 5]
+            # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
+            # of the cascading failure
+            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(copy.deepcopy(output),
+                                                                                       pprint, fname)
+            if apply_cascading_output:
+                # Save last cascading failure loadflow output as new self state
+                self.mpc = cascading_output_mpc
+                return cascading_success
 
-                # Sanity check: check flows and angles are not NaN
-                if np.isnan(branch[:, 13]).any() or np.isnan(bus[:, 8]).any():
-                    raise DivergingLoadflowException('Loadflow of has diverged')
-
-                # If no lines are overflowed, end the cascading failure simulation (flows a > 0)
-                if np.sum(branches_flows_a > branches_thermal_limits) == 0:
-                    if self.verbose:
-                        print('  ok')
-                    break
-                if self.verbose:
-                    print('    depth %d: %d overflowed lines' % (depth, np.sum(branches_flows_a > branches_thermal_limits)))
-
-                # Otherwise, switch off overflowed lines
-                branch[branches_flows_a > branches_thermal_limits, 10] = 0
-
-                if self.save_io:
-                    fname = fname[:-2] + '_cascading%d.m' % depth
-                    pprint = pprint[:-2] + '_cascading%d.m' % depth
-                else:
-                    fname, pprint = None, None
-                pf, pf_success = self.__vanilla_matpower_callback(pf, pprint, fname, False)
-
-                if not pf_success:
-                    raise GridNotConnexeException(
-                        'Cascading failure of depth %d lead to a non-connexe grid' % (depth + 1))
-                depth += 1
-
+        # Save the loadflow output before the cascading failure *simulation*
         self.mpc = output
         return loadflow_success
 
@@ -321,6 +328,41 @@ class Grid(object):
 
     def get_topology(self):
         return self.topology
+
+    def compute_topological_mapping_permutation(self):
+        """ Compute a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex) into a
+            representation where all elements of a substation are consecutives values (same order, but locally)."""
+        prods_ids = self.mpc['gen'][:, 0]
+        loads_ids = self.mpc['bus'][self.are_loads, 0]
+        lines_or = self.mpc['branch'][:, 0]
+        lines_ex = self.mpc['branch'][:, 0]
+        loads_offset = self.n_prods
+        lines_or_offset = self.n_prods + self.n_loads
+        lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
+
+        mapping = []
+        for node_id in self.mpc['bus'][:self.n_nodes // 2, 0]:
+            node_mapping = []
+            if node_id in prods_ids:
+                node_index = np.where(prods_ids == node_id)[0][0]  # Only one prod per substation
+                node_mapping.append(node_index)
+            if node_id in loads_ids:
+                node_index = np.where(loads_ids == node_id)[0][0] + loads_offset  # Only one load per subst.
+                node_mapping.append(node_index)
+            if node_id in lines_or:
+                node_index = np.where(lines_or == node_id)[0] + lines_or_offset  # Possible multiple lines per subst
+                node_mapping.extend(node_index)
+            if node_id in lines_ex:
+                node_index = np.where(lines_ex == node_id)[0] + lines_ex_offset
+                node_mapping.extend(node_index)
+            mapping.append(node_mapping)
+
+        # Verify that the mapping array has unique values
+        assert len(np.concatenate(mapping)) == len(
+            np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
+        assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
+
+        return mapping
 
     def export_to_observation(self):
         """ Exports the current grid state into an observation. """
