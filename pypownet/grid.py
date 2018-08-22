@@ -22,7 +22,7 @@ def compute_flows_a(active, reactive, voltage):
 
 
 class Grid(object):
-    def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps):
+    def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow
         self.save_io = False

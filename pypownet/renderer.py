@@ -11,9 +11,8 @@ import matplotlib.pyplot as plt
 import pylab
 
 case_layouts = {
-    14: [(0.0, 210.0), (150.0, 0.0), (540.0, 0.0), (540.0, 240.0), (180.0, 240.0), (180.0, 360.0), (540.0, 300.0),
-         (600.0, 300.0), (540.0, 360.0), (420.0, 420.0), (300.0, 480.0), (90.0, 600.0), (180.0, 600.0),
-         (420.0, 540.0)],
+    14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
+         (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216)],
 
     30: [(-452.0, -423.0), (-315.0, -558.0), (-318.0, -430.0), (-187.0, -428.0), (44.0, -561.0), (112.0, -446.0),
          (106.0, -509.0), (294.0, -452.0), (88.0, -315.0), (128.0, -285.0), (-29.0, -312.0), (-183.0, -267.0),
@@ -151,7 +150,7 @@ class Renderer(object):
 
     def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
         def draw_arrow_head(x, y, angle, color, thickness):
-            head_angle = math.pi / 8.
+            head_angle = math.pi / 6.
             width = 8 + thickness
             x -= width / 2. * math.cos(angle)
             y -= width / 2. * math.sin(angle)
@@ -163,6 +162,7 @@ class Renderer(object):
             gfxdraw.filled_polygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
 
         def draw_dashed_line(ori, ext):
+            # TODO: refacto
             length_x = ori[0] - ext[0]
             length_y = ori[1] - ext[1]
             total_length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
@@ -176,14 +176,26 @@ class Renderer(object):
             for i in range(n_ticks):
                 tick_center = (center[0] + (i - n_ticks / 2.) / n_ticks * length_x,
                                center[1] + (i - n_ticks / 2.) / n_ticks * length_y)
-                UL = (x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
-                      y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(angle))
-                UR = (x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
-                      y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(angle))
-                BL = (x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
-                      y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(angle))
-                BR = (x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
-                      y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(angle))
+                UL = (
+                    x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(
+                        angle),
+                    y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(
+                        angle))
+                UR = (
+                    x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(
+                        angle),
+                    y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(
+                        angle))
+                BL = (
+                    x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(
+                        angle),
+                    y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(
+                        angle))
+                BR = (
+                    x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(
+                        angle),
+                    y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(
+                        angle))
                 gfxdraw.aapolygon(surface, (UL, UR, BR, BL), grey_color)
                 gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), grey_color)
 
@@ -198,19 +210,28 @@ class Renderer(object):
             if not is_on:
                 draw_dashed_line(layout[or_id], layout[ex_id])
                 continue
-
             # Otherwise, plot one straight line, with custom width, color, and arrow heads
+
+            # Compute line thickness + color based on its thermal usage
             thickness = 1 if rtl < .3 else 2 if rtl < .7 else 4
             color = (51, 204, 51) if rtl < .9 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+
+            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
             if line_por >= 0:
                 ori = layout[or_id]
                 ext = layout[ex_id]
             else:
                 ori = layout[ex_id]
                 ext = layout[or_id]
+
+            # Compute the line characteristics: draxing is done by plotting two lines starting from the center
+            # with a specific angle and semi-length
             length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
             center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
             angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
+
+            # Compute the four cardinal positions of the rectangle representing a power line (rectangle to have thicker
+            # lines)
             UL = (x_offset + center[0] + (length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
                   y_offset + center[1] + (thickness / 2.) * math.cos(angle) + (length / 2.) * math.sin(angle))
             UR = (x_offset + center[0] - (length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
@@ -219,15 +240,13 @@ class Renderer(object):
                   y_offset + center[1] - (thickness / 2.) * math.cos(angle) + (length / 2.) * math.sin(angle))
             BR = (x_offset + center[0] - (length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
                   y_offset + center[1] - (thickness / 2.) * math.cos(angle) - (length / 2.) * math.sin(angle))
-            #pygame.draw.aaline(surface, color, start, end, 0)
+
+            # Anti-alisasing: draw the contour of lines, then the contour of polygon then the filled-one
             pygame.draw.aalines(surface, color, 1, (UL, UR, BR, BL), 0)
             gfxdraw.aapolygon(surface, (UL, UR, BR, BL), color)
             gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), color)
-            #pygame.draw.polygon(surface, color, (UL, UR, BR, BL), 0)
-            #gfxdraw.aapolygon(surface, (UL, UR, BR, BL), color)
-            #gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), color)
-            #gfxdraw.line(surface, x_or + x_offset, y_or + y_offset, x_ex + x_offset, y_ex + y_offset, (255, 255, 255))
 
+            # First, draw the arrow heads; lines will be drawn on top
             distance_arrow_heads = 30
             n_arrow_heads = int(max(1, length // distance_arrow_heads))
             for a in range(n_arrow_heads):
@@ -431,7 +450,7 @@ class Renderer(object):
         gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
         xs, ys, thi, lrg = xs + lrg, 30, 4, 40
         gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
-        
+
         return surface
 
     def draw_plot_game_over(self):
@@ -519,10 +538,10 @@ class Renderer(object):
         pygame.event.get()
 
 
-def scale(u, t):
+def scale(u, z, t):
     for k, v in case_layouts.items():
         print(k)
-        print([(int(a * u + +20), int(b * u + +50)) for a, b in v])
+        print([(int(a * u + +30), int(b * z + -0)) for a, b in v])
 
 
 def recenter():
@@ -540,4 +559,14 @@ def recenter():
 
 
 if __name__ == '__main__':
-    scale(1., -10)
+    a = np.asarray(case_layouts[118])
+    print(np.min(a[:, 0]))
+    print(np.max(a[:, 0]))
+    print(np.min(a[:, 1]))
+    print(np.max(a[:, 1]))
+    a = np.asarray(case_layouts[14])
+    print(np.min(a[:, 0]))
+    print(np.max(a[:, 0]))
+    print(np.min(a[:, 1]))
+    print(np.max(a[:, 1]))
+    scale(1., 1., 0)

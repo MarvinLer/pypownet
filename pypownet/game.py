@@ -187,15 +187,8 @@ class Game(object):
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
 
     def _render(self, rewards, close=False, game_over=False):
-        try:
-            import pygame
-        except ImportError as e:
-            raise ImportError("{}. (HINT: install pygame using `pip install pygame`)".format(e))
-
-        if close:
-            pygame.quit()
-
-        if self.gui is None:
+        def initialize_renderer():
+            """ initializes the pygame gui with the parameters necessary to e.g. plot colors of productions """
             pygame.init()
 
             # Compute an id mapping helper for line plotting
@@ -219,7 +212,17 @@ class Game(object):
 
             from pypownet.renderer import Renderer
 
-            self.gui = Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
+            return Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
+        try:
+            import pygame
+        except ImportError as e:
+            raise ImportError("{}. (HINT: install pygame using `pip install pygame`)".format(e))
+
+        if close:
+            pygame.quit()
+
+        if self.gui is None:
+            self.gui = initialize_renderer()
 
         # Retrieve relative thermal limits (for plotting power lines with appropriate colors and widths)
         relative_thermal_limits = self.grid.export_relative_thermal_limits()
