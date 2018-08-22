@@ -26,6 +26,7 @@ class Grid(object):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow
         self.save_io = False
+        self.verbose = verbose
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values
         self.mpc = octave.loadcase(self.filename, verbose=False)
@@ -90,8 +91,8 @@ class Grid(object):
         return mapping
 
     def _synchronize_bus_types(self):
-        """Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus
-        type to 4 for the current self."""
+        """ Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus
+        type to 4 for the current self. """
         mpc = self.mpc
         bus = mpc['bus']
         gen = mpc['gen']
@@ -137,6 +138,13 @@ class Grid(object):
 
     def compute_loadflow(self, perform_cascading_failure):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
+        """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This function
+        subtreats the Octave pipeline to self.__vanilla_matpower_callback.
+
+        :param perform_cascading_failure: True to compute a loadflow after loading the new injections
+        :return: :raise GridNotConnexeException: If the grid is not connex, matpower raises an error; when an error is
+            raised after a matpower callback, this exception is raised.
+        """
         self._synchronize_bus_types()
 
         mpc = self.mpc
@@ -158,7 +166,8 @@ class Grid(object):
         # Simulate cascading failure: success. switches off overflowed lines, then compute loadflow and loop until
         # no lines are overflowed or an error is raised
         if perform_cascading_failure:
-            print('  Simulating cascading failure')
+            if self.verbose:
+                print('  Simulating cascading failure')
             pf = copy.deepcopy(output)
             depth = 0
             while True:
@@ -176,9 +185,11 @@ class Grid(object):
 
                 # If no lines are overflowed, end the cascading failure simulation (flows a > 0)
                 if np.sum(branches_flows_a > branches_thermal_limits) == 0:
-                    print('  ok')
+                    if self.verbose:
+                        print('  ok')
                     break
-                print('    depth %d: %d overflowed lines' % (depth, np.sum(branches_flows_a > branches_thermal_limits)))
+                if self.verbose:
+                    print('    depth %d: %d overflowed lines' % (depth, np.sum(branches_flows_a > branches_thermal_limits)))
 
                 # Otherwise, switch off overflowed lines
                 branch[branches_flows_a > branches_thermal_limits, 10] = 0
@@ -199,6 +210,13 @@ class Grid(object):
         return loadflow_success
 
     def load_scenario(self, scenario, do_trigger_lf_computation=True, cascading_failure=False):
+        """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.
+
+        :param scenario: an instance of class Scenario
+        :param do_trigger_lf_computation: True to compute a loadflow after loading the new injections
+        :param cascading_failure: True to simulate a cascading failure after loading the new injections
+        :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
+        """
         assert isinstance(scenario, Scenario), 'Trying to load a scenario which is not an instance of class Scenario'
 
         # Change the filename of self to pretty print middle-end created temporary files
@@ -236,6 +254,11 @@ class Grid(object):
 
     def apply_topology(self, new_topology):
         # Verify new specified topology is of good number of elements and only 0 or 1
+        """ Applies a new topology to self. topology should be an instance of class Topology, with computed values to
+        be replaced in self.
+
+        :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
+        """
         assert new_topology.get_length() == self.get_topology().get_length()
         assert set(new_topology.get_zipped()).issubset([0, 1])
 
@@ -300,16 +323,14 @@ class Grid(object):
         return self.topology
 
     def export_to_observation(self):
-        """
-        Export the current grid state into an observation.
-        """
+        """ Exports the current grid state into an observation. """
         mpc = self.mpc
         bus = mpc['bus']
         gen = mpc['gen']
         branch = mpc['branch']
 
         to_array = lambda array: np.asarray(array)
-        # Gen data
+        # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
         voltage_prods = to_array(gen[:, 5])  # Vg
@@ -340,22 +361,28 @@ class Grid(object):
                                                relative_thermal_limit, topology)
 
     def export_relative_thermal_limits(self):
+        """ Computes and returns the relative thermal limits, i.e. the elementwise division of the flows in Ampere by the
+        lines nominal thermal limit.
+
+        :return: a list of size the number of lines of positive values
+        """
         mpc = self.mpc
         bus = mpc['bus']
         branch = mpc['branch']
         to_array = lambda array: np.asarray(array)
+
+        # Retrieve P, Q and V value
         active_flows_origin = to_array(branch[:, 13])  # Pf
         reactive_flows_origin = to_array(branch[:, 14])  # Qf
         voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
+        # Compute flows in Ampere using formula compute_flows_a
         flows_a = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
-        relative_thermal_limit = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
+        relative_thermal_limits = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
 
-        return relative_thermal_limit
+        return relative_thermal_limits
 
     def _snapshot(self, dst_fname=None):
-        """
-        Saves a snapshot of current grid state into IEEE format file with path dst_fname.
-        """
+        """ Saves a snapshot of current grid state into IEEE format file with path dst_fname. """
         self._synchronize_bus_types()
         if dst_fname is None:
             dst_fname = os.path.abspath(os.path.join('tmp', 'snapshot_' + os.path.basename(self.filename)))
@@ -421,6 +448,9 @@ class Topology(object):
 
 
 if __name__ == '__main__':
+    # For testing purposes... might be outdated
+    ###########################################
+
     source = '/home/marvin/Documents/pro/stagemaster_inria/PowerGrid-UI/input/reference_grid118.m'
     grid = Grid(source, False, 69, new_imaps=3900)
     grid._snapshot(os.path.join('tmp', 'snapshot_before.m'))
