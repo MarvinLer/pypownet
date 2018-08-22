@@ -1,0 +1,362 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pypownet.scenarios_chronic &mdash; pypownet 2.0.3 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> pypownet
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction.html">Introduction</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">pypownet</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>pypownet.scenarios_chronic</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pypownet.scenarios_chronic</h1><div class="highlight"><pre>
+<span></span><span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;marvinler&#39;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+
+
+<div class="viewcode-block" id="Scenario"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario">[docs]</a><span class="k">class</span> <span class="nc">Scenario</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_id</span><span class="p">,</span> <span class="n">loads_p</span><span class="p">,</span> <span class="n">loads_q</span><span class="p">,</span> <span class="n">prods_p</span><span class="p">,</span> <span class="n">prods_v</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">scenario_id</span>
+
+        <span class="c1"># Prods container</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_p</span> <span class="o">=</span> <span class="n">prods_p</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_v</span> <span class="o">=</span> <span class="n">prods_v</span>
+        <span class="c1"># Loads container</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_p</span> <span class="o">=</span> <span class="n">loads_p</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_q</span> <span class="o">=</span> <span class="n">loads_q</span>
+
+<div class="viewcode-block" id="Scenario.get_prods_p"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario.get_prods_p">[docs]</a>    <span class="k">def</span> <span class="nf">get_prods_p</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prods_p</span></div>
+
+<div class="viewcode-block" id="Scenario.get_prods_v"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario.get_prods_v">[docs]</a>    <span class="k">def</span> <span class="nf">get_prods_v</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prods_v</span></div>
+
+<div class="viewcode-block" id="Scenario.get_loads_q"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario.get_loads_q">[docs]</a>    <span class="k">def</span> <span class="nf">get_loads_q</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_q</span></div>
+
+<div class="viewcode-block" id="Scenario.get_loads_p"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario.get_loads_p">[docs]</a>    <span class="k">def</span> <span class="nf">get_loads_p</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_p</span></div>
+
+<div class="viewcode-block" id="Scenario.get_id"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.Scenario.get_id">[docs]</a>    <span class="k">def</span> <span class="nf">get_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span></div></div>
+
+
+<div class="viewcode-block" id="ScenariosChronic"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic">[docs]</a><span class="k">class</span> <span class="nc">ScenariosChronic</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source_folder</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">source_folder</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Source folder </span><span class="si">%s</span><span class="s1"> does not exist&#39;</span> <span class="o">%</span> <span class="n">source_folder</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span> <span class="o">=</span> <span class="n">source_folder</span>
+
+        <span class="c1"># Containers for the ROI files paths</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_loads_p</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_loads_q</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_prods_p</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_prods_v</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_ids</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_imaps</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Containers for the productions and loads data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_p</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_v</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_p</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_q</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">imaps</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Overall ordered container for the Scenarios</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenarios</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Retrieve the input files of the chronic</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retrieve_input_files</span><span class="p">()</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">retrieve_data</span><span class="p">()</span>
+        <span class="c1"># Save data into self containers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">import_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># Create scenarios based on the imported values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_scenarios</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ScenariosChronic.retrieve_input_files"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.retrieve_input_files">[docs]</a>    <span class="k">def</span> <span class="nf">retrieve_input_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Retrieve all the csv files within the folder</span>
+        <span class="n">csv_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">)</span> <span class="k">if</span>
+                     <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.csv&#39;</span><span class="p">)]</span>
+
+        <span class="c1"># Expected loads and prods files name</span>
+        <span class="n">fname_loads_p</span> <span class="o">=</span> <span class="s1">&#39;_N_loads_p.csv&#39;</span>
+        <span class="n">fname_loads_q</span> <span class="o">=</span> <span class="s1">&#39;_N_loads_q.csv&#39;</span>
+        <span class="n">fname_prods_p</span> <span class="o">=</span> <span class="s1">&#39;_N_prod_p.csv&#39;</span>
+        <span class="n">fname_prods_v</span> <span class="o">=</span> <span class="s1">&#39;_N_prod_v.csv&#39;</span>
+        <span class="c1"># Expected ID file name</span>
+        <span class="n">fname_ids</span> <span class="o">=</span> <span class="s1">&#39;_N_simu_ids.csv&#39;</span>
+        <span class="n">imaps</span> <span class="o">=</span> <span class="s1">&#39;_N_imaps.csv&#39;</span>
+
+        <span class="n">mandatory_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">fname_loads_p</span><span class="p">,</span> <span class="n">fname_loads_q</span><span class="p">,</span> <span class="n">fname_prods_p</span><span class="p">,</span> <span class="n">fname_prods_v</span><span class="p">,</span> <span class="n">fname_ids</span><span class="p">,</span> <span class="n">imaps</span><span class="p">]</span>
+        <span class="c1"># Check whether all mandatory files are present within the source directory</span>
+        <span class="k">for</span> <span class="n">mandatory_file</span> <span class="ow">in</span> <span class="n">mandatory_files</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">mandatory_file</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">csv_files</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="s1">&#39;File </span><span class="si">%s</span><span class="s1"> does not exist but is mandatory&#39;</span> <span class="o">%</span> <span class="n">mandatory_file</span><span class="p">)</span>
+
+        <span class="c1"># At this point, all the necesarry files are present within the source folder: save their absolute paths</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_loads_p</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">fname_loads_p</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_loads_q</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">fname_loads_q</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_prods_p</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">fname_prods_p</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_prods_v</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">fname_prods_v</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_ids</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">fname_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpath_imaps</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_folder</span><span class="p">,</span> <span class="n">imaps</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_csv_content"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_csv_content">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_csv_content</span><span class="p">(</span><span class="n">csv_absolute_fpath</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">genfromtxt</span><span class="p">(</span><span class="n">csv_absolute_fpath</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;;&#39;</span><span class="p">,</span> <span class="n">skip_header</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.retrieve_data"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.retrieve_data">[docs]</a>    <span class="k">def</span> <span class="nf">retrieve_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Keys: name of attribute; value: data of the associated attribute</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Retrieve all the attributes of this class representing an input file (starts with &#39;fpath_&#39;)</span>
+        <span class="n">attributes</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="ow">not</span> <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">isroutine</span><span class="p">(</span><span class="n">a</span><span class="p">)))</span>
+        <span class="n">attributes</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">attributes</span> <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;fpath_&#39;</span><span class="p">)]</span>
+
+        <span class="k">for</span> <span class="n">attribute_name</span><span class="p">,</span> <span class="n">attribute_path</span> <span class="ow">in</span> <span class="n">attributes</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_csv_content</span><span class="p">(</span><span class="n">attribute_path</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">data</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.import_data"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.import_data">[docs]</a>    <span class="k">def</span> <span class="nf">import_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1"># Save productions and loads data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_p</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_prods_p&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_v</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_prods_v&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_p</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_loads_p&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_q</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_loads_q&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imaps</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_imaps&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+        <span class="c1"># Scenarios ids</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;fpath_ids&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="c1"># Verify that all the ids are unique</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span><span class="p">),</span> <span class="s1">&#39;There are scenarios with same id&#39;</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.construct_scenarios"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.construct_scenarios">[docs]</a>    <span class="k">def</span> <span class="nf">construct_scenarios</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loop over all the pertinent data row by row creating scenarios that are stored within the self.scenarios</span>
+<span class="sd">        container.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">scen_id</span><span class="p">,</span> <span class="n">loads_p</span><span class="p">,</span> <span class="n">loads_q</span><span class="p">,</span> <span class="n">prods_p</span><span class="p">,</span> <span class="n">prods_v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_p</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_q</span><span class="p">,</span>
+                                                               <span class="bp">self</span><span class="o">.</span><span class="n">prods_p</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prods_v</span><span class="p">):</span>
+            <span class="n">scenario</span> <span class="o">=</span> <span class="n">Scenario</span><span class="p">(</span><span class="n">scen_id</span><span class="p">,</span> <span class="n">loads_p</span><span class="p">,</span> <span class="n">loads_q</span><span class="p">,</span> <span class="n">prods_p</span><span class="p">,</span> <span class="n">prods_v</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scenarios</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scenario</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_scenarios"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_scenarios">[docs]</a>    <span class="k">def</span> <span class="nf">get_scenarios</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenarios</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_scenario"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_scenario">[docs]</a>    <span class="k">def</span> <span class="nf">get_scenario</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_id</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">scenario_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Could not find scenario with id&#39;</span><span class="p">,</span> <span class="n">scenario_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenarios</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">scenario_id</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_scenarios_ids"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_scenarios_ids">[docs]</a>    <span class="k">def</span> <span class="nf">get_scenarios_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenarios_ids</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_number_scenarios"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_number_scenarios">[docs]</a>    <span class="k">def</span> <span class="nf">get_number_scenarios</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_scenarios_ids</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="ScenariosChronic.get_imaps"><a class="viewcode-back" href="../../index.html#pypownet.scenarios_chronic.ScenariosChronic.get_imaps">[docs]</a>    <span class="k">def</span> <span class="nf">get_imaps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">imaps</span></div></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">ScenariosChronic</span><span class="p">(</span><span class="s1">&#39;/home/marvin/Documents/pro/stagemaster_rte_lri/resources_project/118&#39;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Marvin Lerousseau.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0.3',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

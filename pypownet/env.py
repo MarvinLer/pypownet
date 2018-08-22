@@ -11,11 +11,11 @@ class RunEnv(object):
         """
         The class State is a container for all the values representing the state of a given grid at a given time. It
         contains the following values:
-            - The active and reactive power values of the loads
-            - The active power values and the voltage setpoints of the productions
-            - The values of the power through the lines: the active and reactive values at the origin/extremity of the
-                lines as well as the relative thermal limit usage
-            - The exhaustive topology of the grid, as a stacked vector of one-hot vectors
+        * The active and reactive power values of the loads
+        * The active power values and the voltage setpoints of the productions
+        * The values of the power through the lines: the active and reactive values at the origin/extremity of the
+        lines as well as the relative thermal limit usage
+        * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
         """
 
         def __init__(self, active_loads, reactive_loads, voltage_loads,

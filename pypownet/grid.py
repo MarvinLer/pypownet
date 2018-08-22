@@ -115,6 +115,7 @@ class Grid(object):
         1. switch off every line overflowed in the current grid
         2. compute a loadflow of the resulting grid
         3. loop to 1. with the current grid as the resulted loadflow-computed grid
+
         This emulates what happens in real life: an overflowed line can break, leading to new overflowed lines that
         can break and so on (cascading lines failures).
 
@@ -330,8 +331,8 @@ class Grid(object):
         return self.topology
 
     def compute_topological_mapping_permutation(self):
-        """ Compute a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex) into a
-            representation where all elements of a substation are consecutives values (same order, but locally)."""
+        """ Compute a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
+        into a representation where all elements of a substation are consecutives values (same order, but locally)."""
         prods_ids = self.mpc['gen'][:, 0]
         loads_ids = self.mpc['bus'][self.are_loads, 0]
         lines_or = self.mpc['branch'][:, 0]

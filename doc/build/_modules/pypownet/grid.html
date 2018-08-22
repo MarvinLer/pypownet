@@ -1,0 +1,690 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pypownet.grid &mdash; pypownet 2.0.3 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> pypownet
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction.html">Introduction</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">pypownet</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>pypownet.grid</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pypownet.grid</h1><div class="highlight"><pre>
+<span></span><span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;marvinler&#39;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">oct2py</span> <span class="k">import</span> <span class="n">octave</span>
+<span class="kn">from</span> <span class="nn">pypownet</span> <span class="k">import</span> <span class="n">ARTIFICIAL_NODE_STARTING_STRING</span>
+<span class="kn">from</span> <span class="nn">pypownet.scenarios_chronic</span> <span class="k">import</span> <span class="n">Scenario</span>
+<span class="kn">import</span> <span class="nn">pypownet.env</span>
+
+
+<div class="viewcode-block" id="DivergingLoadflowException"><a class="viewcode-back" href="../../index.html#pypownet.grid.DivergingLoadflowException">[docs]</a><span class="k">class</span> <span class="nc">DivergingLoadflowException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="GridNotConnexeException"><a class="viewcode-back" href="../../index.html#pypownet.grid.GridNotConnexeException">[docs]</a><span class="k">class</span> <span class="nc">GridNotConnexeException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="compute_flows_a"><a class="viewcode-back" href="../../index.html#pypownet.grid.compute_flows_a">[docs]</a><span class="k">def</span> <span class="nf">compute_flows_a</span><span class="p">(</span><span class="n">active</span><span class="p">,</span> <span class="n">reactive</span><span class="p">,</span> <span class="n">voltage</span><span class="p">):</span>
+    <span class="c1"># TODO: verify that the formula is correct</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">active</span> <span class="o">**</span> <span class="mf">2.</span> <span class="o">+</span> <span class="n">reactive</span> <span class="o">**</span> <span class="mf">2.</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3</span> <span class="o">**</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">voltage</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src_filename</span><span class="p">,</span> <span class="n">dc_loadflow</span><span class="p">,</span> <span class="n">new_slack_bus</span><span class="p">,</span> <span class="n">new_imaps</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="n">src_filename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc_loadflow</span> <span class="o">=</span> <span class="n">dc_loadflow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_io</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+
+        <span class="c1"># Container output of Matpower usual functions (mpc structure); contains all grid params/values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">loadcase</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># Change thermal limits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_imaps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_imaps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_imaps</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">new_slack_bus</span> <span class="o">=</span> <span class="n">new_slack_bus</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">][:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">][:,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># Instantiate once and for all matpower options, and change algo if AC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpoption</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">()</span> <span class="k">if</span> <span class="n">dc_loadflow</span> <span class="k">else</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">(</span><span class="s1">&#39;pf.alg&#39;</span><span class="p">,</span> <span class="s1">&#39;NR&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Fixed ids of substations associated with prods, loads and lines (init.,  all elements on real substation id)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_prods</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_loads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_lines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Topology container: initially, all elements are on the node 0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">topology</span> <span class="o">=</span> <span class="n">Topology</span><span class="p">(</span><span class="n">prods_nodes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_prods</span><span class="p">,)),</span> <span class="n">loads_nodes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_loads</span><span class="p">,)),</span>
+                                 <span class="n">lines_or_nodes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_lines</span><span class="p">,)),</span> <span class="n">lines_ex_nodes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_lines</span><span class="p">,)),</span>
+                                 <span class="n">lines_service</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">10</span><span class="p">],</span>
+                                 <span class="n">mapping_permutation</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compute_topological_mapping_permutation</span><span class="p">())</span>
+
+<div class="viewcode-block" id="Grid.compute_topological_mapping_permutation"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.compute_topological_mapping_permutation">[docs]</a>    <span class="k">def</span> <span class="nf">compute_topological_mapping_permutation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Compute a permutation that shuffles the construction order of a topology (prods-&gt;loads-&gt;lines or-&gt;lines ex) into a</span>
+<span class="sd">            representation where all elements of a substation are consecutives values (same order, but locally).&quot;&quot;&quot;</span>
+        <span class="n">prods_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">loads_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">lines_or</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">lines_ex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">loads_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_prods</span>
+        <span class="n">lines_or_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_prods</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_loads</span>
+        <span class="n">lines_ex_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_prods</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_loads</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_lines</span>
+
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">][:</span><span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]:</span>
+            <span class="n">node_mapping</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">prods_ids</span><span class="p">:</span>
+                <span class="n">node_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">prods_ids</span> <span class="o">==</span> <span class="n">node_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># Only one prod per substation</span>
+                <span class="n">node_mapping</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">loads_ids</span><span class="p">:</span>
+                <span class="n">node_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">loads_ids</span> <span class="o">==</span> <span class="n">node_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">loads_offset</span>  <span class="c1"># Only one load per subst.</span>
+                <span class="n">node_mapping</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">lines_or</span><span class="p">:</span>
+                <span class="n">node_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">lines_or</span> <span class="o">==</span> <span class="n">node_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">lines_or_offset</span>  <span class="c1"># Possible multiple lines per subst</span>
+                <span class="n">node_mapping</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">node_index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">lines_ex</span><span class="p">:</span>
+                <span class="n">node_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">lines_ex</span> <span class="o">==</span> <span class="n">node_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">lines_ex_offset</span>
+                <span class="n">node_mapping</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">node_index</span><span class="p">)</span>
+            <span class="n">mapping</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_mapping</span><span class="p">)</span>
+
+        <span class="c1"># Verify that the mapping array has unique values</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">mapping</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">mapping</span><span class="p">))),</span> <span class="s1">&#39;Mapping does not have unique values, should not happen&#39;</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapping</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;Mapping does not have one configuration per substation&#39;</span>
+
+        <span class="k">return</span> <span class="n">mapping</span></div>
+
+<div class="viewcode-block" id="Grid._synchronize_bus_types"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid._synchronize_bus_types">[docs]</a>    <span class="k">def</span> <span class="nf">_synchronize_bus_types</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus</span>
+<span class="sd">        type to 4 for the current self. &quot;&quot;&quot;</span>
+        <span class="n">mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span>
+        <span class="n">bus</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">]</span>
+        <span class="n">branch</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Compute the buses origin or extremity of at least one connected line</span>
+        <span class="n">branch_online</span> <span class="o">=</span> <span class="n">branch</span><span class="p">[</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># Retrieves non-disconnected branches</span>
+        <span class="n">bus_orex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">branch_online</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+        <span class="n">bus_prods</span> <span class="o">=</span> <span class="n">gen</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">bus_loads</span> <span class="o">=</span> <span class="n">bus</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">non_isolated_bus</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">bus_prods</span><span class="p">,</span> <span class="n">bus_loads</span><span class="p">,</span> <span class="n">bus_orex</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+        <span class="c1"># Replace type of isolated bus (i.e. not extremity of line, and does not have prod or load) by 4</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">bus_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)):</span>
+            <span class="c1"># If bus is isolated, put the value 4 for its type</span>
+            <span class="k">if</span> <span class="n">bus_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">non_isolated_bus</span><span class="p">:</span>
+                <span class="n">bus</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># Otherwise, put 2 for PV node, 1 else</span>
+                <span class="k">if</span> <span class="n">bus_id</span> <span class="ow">in</span> <span class="n">bus_prods</span><span class="p">:</span>
+                    <span class="c1"># If this is the slack bus and a production, then put its type to 3 (slack bus)</span>
+                    <span class="k">if</span> <span class="n">bus_id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_slack_bus</span><span class="p">:</span>
+                        <span class="n">bus</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">3</span>
+                        <span class="k">continue</span>
+                    <span class="n">bus</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">bus</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span></div>
+
+    <span class="k">def</span> <span class="nf">__vanilla_matpower_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mpc</span><span class="p">,</span> <span class="n">pprint</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fname</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># DC loadflow</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dc_loadflow</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pprint</span> <span class="ow">and</span> <span class="n">fname</span><span class="p">:</span>
+                <span class="n">octave</span><span class="o">.</span><span class="n">savecase</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">mpc</span><span class="p">)</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">rundcpf</span><span class="p">(</span><span class="n">mpc</span><span class="p">,</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">(),</span> <span class="n">pprint</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">rundcpf</span><span class="p">(</span><span class="n">mpc</span><span class="p">,</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">(),</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># AC loadflow</span>
+            <span class="k">if</span> <span class="n">pprint</span> <span class="ow">and</span> <span class="n">fname</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">runpf</span><span class="p">(</span><span class="n">mpc</span><span class="p">,</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">(),</span> <span class="n">pprint</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">octave</span><span class="o">.</span><span class="n">runpf</span><span class="p">(</span><span class="n">mpc</span><span class="p">,</span> <span class="n">octave</span><span class="o">.</span><span class="n">mpoption</span><span class="p">(),</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+
+        <span class="n">loadflow_success</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s1">&#39;success&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">output</span><span class="p">,</span> <span class="n">loadflow_success</span>
+
+<div class="viewcode-block" id="Grid.compute_loadflow"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.compute_loadflow">[docs]</a>    <span class="k">def</span> <span class="nf">compute_loadflow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">perform_cascading_failure</span><span class="p">):</span>
+        <span class="c1"># Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)</span>
+        <span class="sd">&quot;&quot;&quot; Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This function</span>
+<span class="sd">        subtreats the Octave pipeline to self.__vanilla_matpower_callback.</span>
+
+<span class="sd">        :param perform_cascading_failure: True to compute a loadflow after loading the new injections</span>
+<span class="sd">        :return: :raise GridNotConnexeException: If the grid is not connex, matpower raises an error; when an error is</span>
+<span class="sd">            raised after a matpower callback, this exception is raised.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_synchronize_bus_types</span><span class="p">()</span>
+
+        <span class="n">mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span>
+
+        <span class="c1"># Compute one matpower loadflow computation given the current grid state</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_io</span><span class="p">:</span>  <span class="c1"># Paths for grid s_t+0.5 and s_t+1</span>
+            <span class="n">pprint</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="s1">&#39;pp&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)))</span>
+            <span class="n">fname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pprint</span><span class="p">,</span> <span class="n">fname</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">loadflow_success</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__vanilla_matpower_callback</span><span class="p">(</span><span class="n">mpc</span><span class="p">,</span> <span class="n">pprint</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
+
+        <span class="c1"># If matpower returned a diverging computation, raise proper exception</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">loadflow_success</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GridNotConnexeException</span><span class="p">(</span><span class="s1">&#39;The grid is not connexe&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Simulate cascading failure: success. switches off overflowed lines, then compute loadflow and loop until</span>
+        <span class="c1"># no lines are overflowed or an error is raised</span>
+        <span class="k">if</span> <span class="n">perform_cascading_failure</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;  Simulating cascading failure&#39;</span><span class="p">)</span>
+            <span class="n">pf</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+            <span class="n">depth</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">bus</span> <span class="o">=</span> <span class="n">pf</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+                <span class="n">branch</span> <span class="o">=</span> <span class="n">pf</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">]</span>
+                <span class="c1"># Compute the per-line Ampere values; column 13 is Pf, 14 Qf</span>
+                <span class="n">voltage</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">bus</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">origin</span><span class="p">),</span> <span class="mi">7</span><span class="p">]</span> <span class="k">for</span> <span class="n">origin</span> <span class="ow">in</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+                <span class="c1">#voltage = bus[branch[:, 0], 7]</span>
+                <span class="n">branches_flows_a</span> <span class="o">=</span> <span class="n">compute_flows_a</span><span class="p">(</span><span class="n">active</span><span class="o">=</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">13</span><span class="p">],</span> <span class="n">reactive</span><span class="o">=</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">14</span><span class="p">],</span> <span class="n">voltage</span><span class="o">=</span><span class="n">voltage</span><span class="p">)</span>
+                <span class="n">branches_thermal_limits</span> <span class="o">=</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">]</span>
+
+                <span class="c1"># Sanity check: check flows and angles are not NaN</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">13</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">8</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                    <span class="k">raise</span> <span class="n">DivergingLoadflowException</span><span class="p">(</span><span class="s1">&#39;Loadflow of has diverged&#39;</span><span class="p">)</span>
+
+                <span class="c1"># If no lines are overflowed, end the cascading failure simulation (flows a &gt; 0)</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">branches_flows_a</span> <span class="o">&gt;</span> <span class="n">branches_thermal_limits</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;  ok&#39;</span><span class="p">)</span>
+                    <span class="k">break</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;    depth </span><span class="si">%d</span><span class="s1">: </span><span class="si">%d</span><span class="s1"> overflowed lines&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">depth</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">branches_flows_a</span> <span class="o">&gt;</span> <span class="n">branches_thermal_limits</span><span class="p">)))</span>
+
+                <span class="c1"># Otherwise, switch off overflowed lines</span>
+                <span class="n">branch</span><span class="p">[</span><span class="n">branches_flows_a</span> <span class="o">&gt;</span> <span class="n">branches_thermal_limits</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_io</span><span class="p">:</span>
+                    <span class="n">fname</span> <span class="o">=</span> <span class="n">fname</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_cascading</span><span class="si">%d</span><span class="s1">.m&#39;</span> <span class="o">%</span> <span class="n">depth</span>
+                    <span class="n">pprint</span> <span class="o">=</span> <span class="n">pprint</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_cascading</span><span class="si">%d</span><span class="s1">.m&#39;</span> <span class="o">%</span> <span class="n">depth</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">fname</span><span class="p">,</span> <span class="n">pprint</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+                <span class="n">pf</span><span class="p">,</span> <span class="n">pf_success</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__vanilla_matpower_callback</span><span class="p">(</span><span class="n">pf</span><span class="p">,</span> <span class="n">pprint</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">pf_success</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">GridNotConnexeException</span><span class="p">(</span>
+                        <span class="s1">&#39;Cascading failure of depth </span><span class="si">%d</span><span class="s1"> lead to a non-connexe grid&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="n">depth</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span> <span class="o">=</span> <span class="n">output</span>
+        <span class="k">return</span> <span class="n">loadflow_success</span></div>
+
+<div class="viewcode-block" id="Grid.load_scenario"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.load_scenario">[docs]</a>    <span class="k">def</span> <span class="nf">load_scenario</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">do_trigger_lf_computation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cascading_failure</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.</span>
+
+<span class="sd">        :param scenario: an instance of class Scenario</span>
+<span class="sd">        :param do_trigger_lf_computation: True to compute a loadflow after loading the new injections</span>
+<span class="sd">        :param cascading_failure: True to simulate a cascading failure after loading the new injections</span>
+<span class="sd">        :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scenario</span><span class="p">,</span> <span class="n">Scenario</span><span class="p">),</span> <span class="s1">&#39;Trying to load a scenario which is not an instance of class Scenario&#39;</span>
+
+        <span class="c1"># Change the filename of self to pretty print middle-end created temporary files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;scenario</span><span class="si">%d</span><span class="s1">.m&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">scenario</span><span class="o">.</span><span class="n">get_id</span><span class="p">())</span>
+
+        <span class="n">mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">]</span>
+        <span class="n">bus</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Import new productions values</span>
+        <span class="n">prods_p</span> <span class="o">=</span> <span class="n">scenario</span><span class="o">.</span><span class="n">get_prods_p</span><span class="p">()</span>
+        <span class="n">prods_v</span> <span class="o">=</span> <span class="n">scenario</span><span class="o">.</span><span class="n">get_prods_v</span><span class="p">()</span>
+        <span class="c1"># Check that there are the same number of productions names and values</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">prods_v</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">prods_p</span><span class="p">),</span> <span class="s1">&#39;Not the same number of active prods values than reactives prods&#39;</span>
+        <span class="n">gen</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">prods_p</span>
+        <span class="n">gen</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">prods_v</span>
+
+        <span class="c1"># Import new loads values</span>
+        <span class="n">loads_p</span> <span class="o">=</span> <span class="n">scenario</span><span class="o">.</span><span class="n">get_loads_p</span><span class="p">()</span>
+        <span class="n">loads_q</span> <span class="o">=</span> <span class="n">scenario</span><span class="o">.</span><span class="n">get_loads_q</span><span class="p">()</span>
+        <span class="c1"># Check that there are the same number of productions names and values</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">loads_q</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">loads_p</span><span class="p">),</span> <span class="s1">&#39;Not the same number of active loads values than reactives loads&#39;</span>
+        <span class="n">bus</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">loads_p</span>
+        <span class="n">bus</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">loads_q</span>
+
+        <span class="k">if</span> <span class="n">do_trigger_lf_computation</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_loadflow</span><span class="p">(</span><span class="n">perform_cascading_failure</span><span class="o">=</span><span class="n">cascading_failure</span><span class="p">)</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="Grid.disconnect_line"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.disconnect_line">[docs]</a>    <span class="k">def</span> <span class="nf">disconnect_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">id_line</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][</span><span class="n">id_line</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+<div class="viewcode-block" id="Grid.reconnect_line"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.reconnect_line">[docs]</a>    <span class="k">def</span> <span class="nf">reconnect_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">id_line</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">][</span><span class="n">id_line</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="Grid.apply_topology"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.apply_topology">[docs]</a>    <span class="k">def</span> <span class="nf">apply_topology</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_topology</span><span class="p">):</span>
+        <span class="c1"># Verify new specified topology is of good number of elements and only 0 or 1</span>
+        <span class="sd">&quot;&quot;&quot; Applies a new topology to self. topology should be an instance of class Topology, with computed values to</span>
+<span class="sd">        be replaced in self.</span>
+
+<span class="sd">        :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">new_topology</span><span class="o">.</span><span class="n">get_length</span><span class="p">()</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_length</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">new_topology</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">())</span><span class="o">.</span><span class="n">issubset</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+        <span class="c1"># Split topology vector into the four chunks</span>
+        <span class="n">new_prods_nodes</span><span class="p">,</span> <span class="n">new_loads_nodes</span><span class="p">,</span> <span class="n">new_lines_or_nodes</span><span class="p">,</span> <span class="n">new_lines_ex_nodes</span><span class="p">,</span> <span class="n">new_lines_service</span> <span class="o">=</span> \
+            <span class="n">new_topology</span><span class="o">.</span><span class="n">get_unzipped</span><span class="p">()</span>
+
+        <span class="c1"># Function to find the true id of the substation associated with one node</span>
+        <span class="n">node_to_substation</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">node_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ARTIFICIAL_NODE_STARTING_STRING</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Change nodes ids of productions</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="p">(</span><span class="n">prod_id</span><span class="p">,</span> <span class="n">new_prod_node</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">new_prods_nodes</span><span class="p">)):</span>
+            <span class="n">prod_substation</span> <span class="o">=</span> <span class="n">node_to_substation</span><span class="p">(</span><span class="n">prod_id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new_prod_node</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">gen</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ARTIFICIAL_NODE_STARTING_STRING</span> <span class="o">+</span> <span class="n">prod_substation</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">gen</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">node_to_substation</span><span class="p">(</span><span class="n">prod_id</span><span class="p">))</span>
+
+        <span class="c1"># Change nodes ids of lines (1 origin and 1 extremity per line)</span>
+        <span class="n">branch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">li</span><span class="p">,</span> <span class="p">(</span><span class="n">line_or_id</span><span class="p">,</span> <span class="n">new_line_or_node</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">new_lines_or_nodes</span><span class="p">)):</span>
+            <span class="n">line_substation</span> <span class="o">=</span> <span class="n">node_to_substation</span><span class="p">(</span><span class="n">line_or_id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new_line_or_node</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">branch</span><span class="p">[</span><span class="n">li</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ARTIFICIAL_NODE_STARTING_STRING</span> <span class="o">+</span> <span class="n">line_substation</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">branch</span><span class="p">[</span><span class="n">li</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">line_substation</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">li</span><span class="p">,</span> <span class="p">(</span><span class="n">line_ex_id</span><span class="p">,</span> <span class="n">new_line_ex_node</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">new_lines_ex_nodes</span><span class="p">)):</span>
+            <span class="n">line_substation</span> <span class="o">=</span> <span class="n">node_to_substation</span><span class="p">(</span><span class="n">line_ex_id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new_line_ex_node</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">branch</span><span class="p">[</span><span class="n">li</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ARTIFICIAL_NODE_STARTING_STRING</span> <span class="o">+</span> <span class="n">line_substation</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">branch</span><span class="p">[</span><span class="n">li</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">line_substation</span><span class="p">)</span>
+
+        <span class="c1"># Change nodes ids of loads</span>
+        <span class="n">bus</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">lo</span><span class="p">,</span> <span class="p">(</span><span class="n">load_node</span><span class="p">,</span> <span class="n">new_load_node</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">topology</span><span class="o">.</span><span class="n">loads_nodes</span><span class="p">,</span> <span class="n">new_loads_nodes</span><span class="p">)):</span>
+            <span class="c1"># If the node on which a load is connected is swap, then swap P and Q values for both nodes</span>
+            <span class="k">if</span> <span class="n">new_load_node</span> <span class="o">!=</span> <span class="n">load_node</span><span class="p">:</span>
+                <span class="n">are_loads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">],</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">:])</span>
+                <span class="n">id_bus</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">are_loads</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="n">lo</span><span class="p">]</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="c1"># Copy first node P and Q</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">bus</span><span class="p">[</span><span class="n">id_bus</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]])</span>
+                <span class="c1"># Replace their values with the one of its associated node</span>
+                <span class="n">bus</span><span class="p">[</span><span class="n">id_bus</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">bus</span><span class="p">[(</span><span class="n">lo</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+                <span class="n">bus</span><span class="p">[</span><span class="n">id_bus</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">bus</span><span class="p">[(</span><span class="n">lo</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+                <span class="c1"># Paste tmp values into asso. node</span>
+                <span class="n">bus</span><span class="p">[(</span><span class="n">id_bus</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">bus</span><span class="p">[(</span><span class="n">id_bus</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="c1"># Change the ids of current loads</span>
+                <span class="n">tmp_id</span> <span class="o">=</span> <span class="n">id_bus</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[</span><span class="n">id_bus</span><span class="p">]</span> <span class="k">else</span> <span class="n">id_bus</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[</span><span class="n">tmp_id</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">[(</span><span class="n">tmp_id</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_nodes</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># Change line status (equivalent to reco/disco calls as a function of values of new_line_status)</span>
+        <span class="n">branch</span><span class="p">[:,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_lines_service</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">topology</span> <span class="o">=</span> <span class="n">new_topology</span></div>
+
+<div class="viewcode-block" id="Grid.get_topology"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.get_topology">[docs]</a>    <span class="k">def</span> <span class="nf">get_topology</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">topology</span></div>
+
+<div class="viewcode-block" id="Grid.export_to_observation"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.export_to_observation">[docs]</a>    <span class="k">def</span> <span class="nf">export_to_observation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Exports the current grid state into an observation. &quot;&quot;&quot;</span>
+        <span class="n">mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span>
+        <span class="n">bus</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">]</span>
+        <span class="n">branch</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">]</span>
+
+        <span class="n">to_array</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+        <span class="c1"># Generators data</span>
+        <span class="n">active_prods</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">gen</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># Pg</span>
+        <span class="n">reactive_prods</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">gen</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span>  <span class="c1"># Qg</span>
+        <span class="n">voltage_prods</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">gen</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">])</span>  <span class="c1"># Vg</span>
+
+        <span class="c1"># Branch data</span>
+        <span class="n">active_flows_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">13</span><span class="p">])</span>  <span class="c1"># Pf</span>
+        <span class="n">reactive_flows_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">14</span><span class="p">])</span>  <span class="c1"># Qf</span>
+        <span class="n">active_flows_extremity</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">15</span><span class="p">])</span>  <span class="c1"># Pt</span>
+        <span class="n">reactive_flows_extremity</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">16</span><span class="p">])</span>  <span class="c1"># Qt</span>
+        <span class="n">voltage_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">([</span><span class="n">bus</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">origin</span><span class="p">),</span> <span class="mi">7</span><span class="p">]</span> <span class="k">for</span> <span class="n">origin</span> <span class="ow">in</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">voltage_extremity</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">([</span><span class="n">bus</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">origin</span><span class="p">),</span> <span class="mi">7</span><span class="p">]</span> <span class="k">for</span> <span class="n">origin</span> <span class="ow">in</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">flows_a</span> <span class="o">=</span> <span class="n">compute_flows_a</span><span class="p">(</span><span class="n">active_flows_origin</span><span class="p">,</span> <span class="n">reactive_flows_origin</span><span class="p">,</span> <span class="n">voltage_origin</span><span class="p">)</span>
+        <span class="n">relative_thermal_limit</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">flows_a</span> <span class="o">/</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">])</span>  <span class="c1"># elementwise division of flow a and rateA</span>
+
+        <span class="c1"># Loads data</span>
+        <span class="n">loads_buses</span> <span class="o">=</span> <span class="n">bus</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">are_loads</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Select lines of loads buses</span>
+        <span class="n">active_loads</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">loads_buses</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span>
+        <span class="n">reactive_loads</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">loads_buses</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span>
+        <span class="n">voltage_loads</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">loads_buses</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">])</span>
+
+        <span class="c1"># Topology vector</span>
+        <span class="n">topology</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">()</span>  <span class="c1"># Retrieve concatenated version of topology</span>
+
+        <span class="k">return</span> <span class="n">pypownet</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">RunEnv</span><span class="o">.</span><span class="n">Observation</span><span class="p">(</span><span class="n">active_loads</span><span class="p">,</span> <span class="n">reactive_loads</span><span class="p">,</span> <span class="n">voltage_loads</span><span class="p">,</span>
+                                               <span class="n">active_prods</span><span class="p">,</span> <span class="n">reactive_prods</span><span class="p">,</span> <span class="n">voltage_prods</span><span class="p">,</span>
+                                               <span class="n">active_flows_origin</span><span class="p">,</span> <span class="n">reactive_flows_origin</span><span class="p">,</span> <span class="n">voltage_origin</span><span class="p">,</span>
+                                               <span class="n">active_flows_extremity</span><span class="p">,</span> <span class="n">reactive_flows_extremity</span><span class="p">,</span> <span class="n">voltage_extremity</span><span class="p">,</span>
+                                               <span class="n">relative_thermal_limit</span><span class="p">,</span> <span class="n">topology</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Grid.export_relative_thermal_limits"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid.export_relative_thermal_limits">[docs]</a>    <span class="k">def</span> <span class="nf">export_relative_thermal_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Computes and returns the relative thermal limits, i.e. the elementwise division of the flows in Ampere by the</span>
+<span class="sd">        lines nominal thermal limit.</span>
+
+<span class="sd">        :return: a list of size the number of lines of positive values</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mpc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span>
+        <span class="n">bus</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;bus&#39;</span><span class="p">]</span>
+        <span class="n">branch</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">[</span><span class="s1">&#39;branch&#39;</span><span class="p">]</span>
+        <span class="n">to_array</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+
+        <span class="c1"># Retrieve P, Q and V value</span>
+        <span class="n">active_flows_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">13</span><span class="p">])</span>  <span class="c1"># Pf</span>
+        <span class="n">reactive_flows_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">branch</span><span class="p">[:,</span> <span class="mi">14</span><span class="p">])</span>  <span class="c1"># Qf</span>
+        <span class="n">voltage_origin</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">([</span><span class="n">bus</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">bus</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">origin</span><span class="p">),</span> <span class="mi">7</span><span class="p">]</span> <span class="k">for</span> <span class="n">origin</span> <span class="ow">in</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="c1"># Compute flows in Ampere using formula compute_flows_a</span>
+        <span class="n">flows_a</span> <span class="o">=</span> <span class="n">compute_flows_a</span><span class="p">(</span><span class="n">active_flows_origin</span><span class="p">,</span> <span class="n">reactive_flows_origin</span><span class="p">,</span> <span class="n">voltage_origin</span><span class="p">)</span>
+        <span class="n">relative_thermal_limits</span> <span class="o">=</span> <span class="n">to_array</span><span class="p">(</span><span class="n">flows_a</span> <span class="o">/</span> <span class="n">branch</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">])</span>  <span class="c1"># elementwise division of flow a and rateA</span>
+
+        <span class="k">return</span> <span class="n">relative_thermal_limits</span></div>
+
+<div class="viewcode-block" id="Grid._snapshot"><a class="viewcode-back" href="../../index.html#pypownet.grid.Grid._snapshot">[docs]</a>    <span class="k">def</span> <span class="nf">_snapshot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dst_fname</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Saves a snapshot of current grid state into IEEE format file with path dst_fname. &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_synchronize_bus_types</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">dst_fname</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dst_fname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="s1">&#39;snapshot_&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Saved snapshot at&#39;</span><span class="p">,</span> <span class="n">dst_fname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">octave</span><span class="o">.</span><span class="n">savecase</span><span class="p">(</span><span class="n">dst_fname</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="Topology"><a class="viewcode-back" href="../../index.html#pypownet.grid.Topology">[docs]</a><span class="k">class</span> <span class="nc">Topology</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class is a container for the topology lists defining the current topological state of a grid. Topology should</span>
+<span class="sd">    be manipulated using this class, as it maintains the adopted convention consistently.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prods_nodes</span><span class="p">,</span> <span class="n">loads_nodes</span><span class="p">,</span> <span class="n">lines_or_nodes</span><span class="p">,</span> <span class="n">lines_ex_nodes</span><span class="p">,</span> <span class="n">lines_service</span><span class="p">,</span>
+                 <span class="n">mapping_permutation</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prods_nodes</span> <span class="o">=</span> <span class="n">prods_nodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loads_nodes</span> <span class="o">=</span> <span class="n">loads_nodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lines_or_nodes</span> <span class="o">=</span> <span class="n">lines_or_nodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lines_ex_nodes</span> <span class="o">=</span> <span class="n">lines_ex_nodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lines_service</span> <span class="o">=</span> <span class="n">lines_service</span>
+
+        <span class="c1"># Function that sorts the internal topological array into a more intuitive representation: the nodes of the</span>
+        <span class="c1"># elements of a substation are consecutive (first prods, then loads, then lines origin, then line ext.)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping_permutation</span><span class="p">:</span>  <span class="c1"># Identity by default</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mapping_permutation</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">invert_mapping_permutation</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">concatenated_mapping_permutation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">mapping_permutation</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mapping_permutation</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                <span class="p">([</span><span class="n">array</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">concatenated_mapping_permutation</span><span class="p">],</span>
+                 <span class="n">array</span><span class="p">[</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">lines_ex_nodes</span><span class="p">):]))</span>
+            <span class="n">invert_indexes</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">concatenated_mapping_permutation</span> <span class="o">==</span> <span class="n">i</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                              <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">concatenated_mapping_permutation</span><span class="p">))]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">invert_mapping_permutation</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                <span class="p">([</span><span class="n">array</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">invert_indexes</span><span class="p">],</span>
+                 <span class="n">array</span><span class="p">[</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">lines_ex_nodes</span><span class="p">):]))</span>
+
+<div class="viewcode-block" id="Topology.get_zipped"><a class="viewcode-back" href="../../index.html#pypownet.grid.Topology.get_zipped">[docs]</a>    <span class="k">def</span> <span class="nf">get_zipped</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapping_permutation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prods_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_or_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_ex_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_service</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="Topology.get_unzipped"><a class="viewcode-back" href="../../index.html#pypownet.grid.Topology.get_unzipped">[docs]</a>    <span class="k">def</span> <span class="nf">get_unzipped</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prods_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loads_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_or_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_ex_nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines_service</span></div>
+
+<div class="viewcode-block" id="Topology.unzip"><a class="viewcode-back" href="../../index.html#pypownet.grid.Topology.unzip">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">unzip</span><span class="p">(</span><span class="n">topology</span><span class="p">,</span> <span class="n">n_prods</span><span class="p">,</span> <span class="n">n_loads</span><span class="p">,</span> <span class="n">n_lines</span><span class="p">,</span> <span class="n">invert_mapping_function</span><span class="p">):</span>
+        <span class="c1"># Shuffle topology parameter based on index positions; invert_mapping_function should be the same as the</span>
+        <span class="c1"># one used by the environment to convert the sorted topology into its internal representation</span>
+        <span class="n">topology_shuffled</span> <span class="o">=</span> <span class="n">invert_mapping_function</span><span class="p">(</span><span class="n">topology</span><span class="p">)</span>
+
+        <span class="n">prods_nodes</span> <span class="o">=</span> <span class="n">topology_shuffled</span><span class="p">[:</span><span class="n">n_prods</span><span class="p">]</span>
+        <span class="n">loads_nodes</span> <span class="o">=</span> <span class="n">topology_shuffled</span><span class="p">[</span><span class="n">n_prods</span><span class="p">:</span><span class="n">n_prods</span> <span class="o">+</span> <span class="n">n_loads</span><span class="p">]</span>
+        <span class="n">lines_or_nodes</span> <span class="o">=</span> <span class="n">topology_shuffled</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span> <span class="o">*</span> <span class="n">n_lines</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="n">n_lines</span><span class="p">]</span>
+        <span class="n">lines_ex_nodes</span> <span class="o">=</span> <span class="n">topology_shuffled</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="n">n_lines</span><span class="p">:</span><span class="o">-</span><span class="n">n_lines</span><span class="p">]</span>
+        <span class="n">lines_service</span> <span class="o">=</span> <span class="n">topology_shuffled</span><span class="p">[</span><span class="o">-</span><span class="n">n_lines</span><span class="p">:]</span>
+        <span class="k">return</span> <span class="n">prods_nodes</span><span class="p">,</span> <span class="n">loads_nodes</span><span class="p">,</span> <span class="n">lines_or_nodes</span><span class="p">,</span> <span class="n">lines_ex_nodes</span><span class="p">,</span> <span class="n">lines_service</span></div>
+
+<div class="viewcode-block" id="Topology.get_length"><a class="viewcode-back" href="../../index.html#pypownet.grid.Topology.get_length">[docs]</a>    <span class="k">def</span> <span class="nf">get_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prods_nodes</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loads_nodes</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lines_ex_nodes</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lines_or_nodes</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lines_service</span><span class="p">)</span></div></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># For testing purposes... might be outdated</span>
+    <span class="c1">###########################################</span>
+
+    <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;/home/marvin/Documents/pro/stagemaster_inria/PowerGrid-UI/input/reference_grid118.m&#39;</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="mi">69</span><span class="p">,</span> <span class="n">new_imaps</span><span class="o">=</span><span class="mi">3900</span><span class="p">)</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">_snapshot</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="s1">&#39;snapshot_before.m&#39;</span><span class="p">))</span>
+    <span class="n">top</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span>
+    <span class="n">topology</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">topology</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">()))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">mapping_permutation</span><span class="p">(</span><span class="n">topology</span><span class="p">)))</span>
+
+    <span class="n">offset</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">new_topo</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">topology</span><span class="p">)</span>
+    <span class="n">new_topo</span><span class="p">[</span><span class="n">offset</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">new_topo</span> <span class="o">=</span> <span class="n">Topology</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">Topology</span><span class="o">.</span><span class="n">unzip</span><span class="p">(</span><span class="n">new_topo</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_prods</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_loads</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_lines</span><span class="p">,</span>
+                                         <span class="n">top</span><span class="o">.</span><span class="n">invert_mapping_permutation</span><span class="p">)))</span>
+    <span class="n">new_topo</span><span class="o">.</span><span class="n">mapping_permutation</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">mapping_permutation</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">apply_topology</span><span class="p">(</span><span class="n">new_topo</span><span class="p">)</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">_snapshot</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="s1">&#39;snapshot_middle.m&#39;</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">()))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">())</span>
+
+    <span class="n">new_topo</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">topology</span><span class="p">)</span>
+    <span class="n">new_topo</span><span class="p">[</span><span class="n">offset</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">new_topo</span> <span class="o">=</span> <span class="n">Topology</span><span class="p">(</span><span class="o">*</span><span class="n">Topology</span><span class="o">.</span><span class="n">unzip</span><span class="p">(</span><span class="n">new_topo</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_prods</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_loads</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">n_lines</span><span class="p">,</span>
+                                        <span class="n">top</span><span class="o">.</span><span class="n">invert_mapping_permutation</span><span class="p">))</span>
+    <span class="n">new_topo</span><span class="o">.</span><span class="n">mapping_permutation</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">mapping_permutation</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">apply_topology</span><span class="p">(</span><span class="n">new_topo</span><span class="p">)</span>
+    <span class="c1">#grid.compute_loadflow(perform_cascading_failure=True)</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">_snapshot</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="s1">&#39;snapshot_after.m&#39;</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">get_zipped</span><span class="p">()))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get_topology</span><span class="p">()</span><span class="o">.</span><span class="n">mapping_permutation</span><span class="p">(</span><span class="n">topology</span><span class="p">)))</span>
+
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Marvin Lerousseau.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0.3',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
