@@ -9,7 +9,7 @@ The simulator comes with an Reinforcement Learning-focused environement, which i
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/pypownet
+sudo docker pull marvinler/pypownet:2.0.3
 ```
 
 ## Without using Docker
@@ -20,12 +20,13 @@ sudo docker pull marvinler/pypownet
 ### Instructions:
 #### Step 1: Install Octave
 
-First, Octave >= 4.0.6 needs to be installed. To install Octave on Ubuntu >= 14.04:
+To install Octave >= 4.0.0 on Ubuntu >= 14.04:
 ```
 sudo add-apt-repository ppa:octave/stable
 sudo apt-get update
 sudo apt-get install octave
 ```
+If Octave is already installed on your machine, ensure that its version from `octave --version` is higher than 4.0.0.
 
 #### Step 2: Install Python3.6
 ```
@@ -48,7 +49,7 @@ The latest sources of matpower need to be installed for computing loadflows. Thi
 git clone https://github.com/MATPOWER/matpower.git
 ```
 
-In any case, you can update the path of matpower download folder within the ```matpower_path.config``` file.
+In any case, you can update the path of matpower download folder within the ```matpower_path.config``` file (prefer absolute path).
 
 #### Step 5: Run the installation script of PyPowNet
 Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
