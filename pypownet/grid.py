@@ -138,12 +138,12 @@ class Grid(object):
 
     def compute_loadflow(self, perform_cascading_failure):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
-        """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This function
-        subtreats the Octave pipeline to self.__vanilla_matpower_callback.
+        """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
+        function subtreats the Octave pipeline to self.__vanilla_matpower_callback.
 
         :param perform_cascading_failure: True to compute a loadflow after loading the new injections
         :return: :raise GridNotConnexeException: If the grid is not connex, matpower raises an error; when an error is
-            raised after a matpower callback, this exception is raised.
+        raised after a matpower callback, this exception is raised.
         """
         self._synchronize_bus_types()
 

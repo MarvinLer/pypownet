@@ -78,3 +78,16 @@ You can use the command line of the image with shared display (for running the r
 sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
+
+# Install the documentation
+A copy of the documentation can be assess within the file [doc/build](doc/build/index.html).
+If you want to compute the latest updated documentation, you will need Sphinx:
+```
+pip install sphinx
+```
+Then:
+```
+cd doc
+sphinx-build -b html ./source ./build
+```
+The html will be available at [doc/build](doc/build/index.html).
