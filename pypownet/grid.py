@@ -334,10 +334,10 @@ class Grid(object):
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
 
         return pypownet.env.RunEnv.Observation(active_loads, reactive_loads, voltage_loads,
-                                          active_prods, reactive_prods, voltage_prods,
-                                          active_flows_origin, reactive_flows_origin, voltage_origin,
-                                          active_flows_extremity, reactive_flows_extremity, voltage_extremity,
-                                          relative_thermal_limit, topology)
+                                               active_prods, reactive_prods, voltage_prods,
+                                               active_flows_origin, reactive_flows_origin, voltage_origin,
+                                               active_flows_extremity, reactive_flows_extremity, voltage_extremity,
+                                               relative_thermal_limit, topology)
 
     def export_relative_thermal_limits(self):
         mpc = self.mpc

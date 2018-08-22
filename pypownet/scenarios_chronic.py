@@ -131,7 +131,6 @@ class ScenariosChronic(object):
         """
         for scen_id, loads_p, loads_q, prods_p, prods_v in zip(self.scenarios_ids, self.loads_p, self.loads_q,
                                                                self.prods_p, self.prods_v):
-            #self.prods_p, self.prods_q, self.prods_v, self.voltages_nodes_ids, self.voltages):
             scenario = Scenario(scen_id, loads_p, loads_q, prods_p, prods_v)
             self.scenarios.append(scenario)
 
