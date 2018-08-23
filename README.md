@@ -81,13 +81,13 @@ This will open a terminal of the image. The usage is then identical to without d
 
 # Install the documentation
 A copy of the documentation can be assess within the file [doc/build](doc/build/index.html).
-If you want to compute the latest updated documentation, you will need Sphinx:
+If you want to compute the latest updated documentation, you will need Sphinx, a Documentation building tool, and a nice-looking custom [Sphinx theme similar to the one of readthedocs.io](https://sphinx-rtd-theme.readthedocs.io/en/latest/):
 ```
-pip install sphinx
+pip install sphinx sphinx_rtd_theme
 ```
 Then:
 ```
 cd doc
 sphinx-build -b html ./source ./build
 ```
-The html will be available at [doc/build](doc/build/index.html).
+The html will be available within the folder [doc/build](doc/build/index.html).
