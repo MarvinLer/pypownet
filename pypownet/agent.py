@@ -3,6 +3,10 @@ from pypownet.env import RunEnv
 
 
 class Agent(object):
+    """
+    The template to be used to create an agent: any controler of the power grid is expected to be a daughter of this
+    class.
+    """
     def __init__(self, environment):
         """Initialize a new agent."""
         self.environment = environment
@@ -29,6 +33,10 @@ import numpy as np
 
 
 class RandomLineSwitch(Agent):
+    """
+    An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
+    random line is previously online, switch it off, otherwise switch it on).
+    """
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, self.environment.Observation)
