@@ -236,7 +236,7 @@ class Game(object):
 
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
 
-    def _render(self, rewards, close=False, game_over=False):
+    def _render(self, rewards, last_action, close=False, game_over=False):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 
@@ -289,10 +289,22 @@ class Game(object):
         loads_values = self.grid.mpc['bus'][self.grid.are_loads, 2]
         lines_por_values = self.grid.mpc['branch'][:, 13]
         lines_service_status = self.grid.mpc['branch'][:, 10]
+
+        substations_ids = self.grid.mpc['bus'][self.grid.n_nodes // 2:]
+        # Based on the action, determine if substations has been touched (i.e. there was a topological change involved
+        # in the associated substation)
+        has_been_changed = np.zeros((len(substations_ids),))
+        if last_action is not None:
+            n_elements_substations = self.grid.number_elements_per_substations
+            offset = 0
+            for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
+                has_been_changed[i] = np.any(last_action[offset:offset+n_elements] != 0)
+                offset += n_elements
+
         self.gui.render(relative_thermal_limits, lines_por_values, lines_service_status,
                         self.epoch, self.timestep, self.current_scenario_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                        date=self.current_date, game_over=game_over)
+                        date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)

@@ -69,8 +69,8 @@ class Renderer(object):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         # Substations layer
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
-        self.nodes_outer_radius = 6
-        self.nodes_inner_radius = 4
+        self.nodes_outer_radius = 10
+        self.nodes_inner_radius = 7
         #node_img = pygame.image.load(os.path.join(media_path, 'substation.png')).convert_alpha()
         #self.node_img = pygame.transform.scale(node_img, (20, 20))
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -114,33 +114,37 @@ class Renderer(object):
         black = (0, 0, 0)
         self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
 
-    def draw_surface_nodes(self, scenario_id, date, prods, loads):
+    def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed):
         self.loads.append(loads)
         surface = self.nodes_surface
         x_offset = int(self.topology_layout_shape[0] / 2.)
         y_offset = int(self.topology_layout_shape[1] / 2.)
         prods_iter = iter(prods)
         loads_iter = iter(loads)
-        for i, ((x, y), is_prod, is_load) in enumerate(zip(self.grid_layout, self.are_prods, self.are_loads)):
+        for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
+                zip(self.grid_layout, self.are_prods, self.are_loads, are_substations_changed)):
             prod = next(prods_iter) if is_prod else 0.
             load = next(loads_iter) if is_load else 0.
             prod_minus_load = prod - load
             relative_prod = abs(prod / np.max(prods))
             relative_load = abs(load / np.max(loads))
+            # Determine color of filled circle based on the amount of production - consumption
             if prod_minus_load > 0:
                 color = (0, 153, 255)
-                offset_radius = 0 if relative_prod < 0.4 else 2 if relative_prod < 0.7 else 4
+                offset_radius = 0 if relative_prod < 0.4 else 2 if relative_prod < 0.7 else 3
             elif prod_minus_load < 0:
                 color = (210, 77, 255)
-                offset_radius = 0 if relative_load < 0.4 else 2 if relative_load < 0.7 else 4
+                offset_radius = 0 if relative_load < 0.4 else 2 if relative_load < 0.7 else 3
             else:
                 color = (255, 255, 255)
                 offset_radius = 0
-
+            # Determine the color of the inner filled circle: background if no action changed at the substation,
+            # yellow otherwise
+            inner_circle_color = (255, 255, 0) if is_changed else self.background_color
             gfxdraw.aacircle(surface, x + x_offset, y + y_offset, self.nodes_outer_radius + offset_radius, color)
             gfxdraw.filled_circle(surface, x + x_offset, y + y_offset, self.nodes_outer_radius + offset_radius, color)
-            gfxdraw.aacircle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, self.background_color)
-            gfxdraw.filled_circle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, self.background_color)
+            gfxdraw.aacircle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, inner_circle_color)
+            gfxdraw.filled_circle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, inner_circle_color)
 
         # Print some scenario stats
         surface.blit(self.text_render('Scenario id'), (80, 10))
@@ -490,7 +494,7 @@ class Renderer(object):
 
     # noinspection PyArgumentList
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
-                         prods, loads, rewards, game_over):
+                         prods, loads, rewards, are_substations_changed, game_over):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -507,7 +511,7 @@ class Renderer(object):
         #legend_surface = self.draw_surface_legend()
 
         # Nodes
-        self.draw_surface_nodes(scenario_id, date, prods, loads)
+        self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed)
 
         self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(last_rewards_surface, (1, 570))
@@ -520,13 +524,14 @@ class Renderer(object):
             self.topology_layout.blit(game_over_surface, (300, 200))
 
     def render(self, relative_thermal_limits, lines_por, lines_service_status,
-               epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date, game_over=False):
+               epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date, are_substations_changed,
+               game_over=False):
         plt.close('all')
         self.screen.fill(self.background_color)
 
         # Execute full ploting mechanism: order is important
         self._update_topology(scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
-                              prods, loads, last_timestep_rewards, game_over=game_over)
+                              prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over)
         self._update_left_menu(epoch, timestep, last_timestep_rewards)
 
         # Blit all macro surfaces on screen
@@ -534,6 +539,8 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
 
         pygame.display.flip()
+        # from time import sleep
+        # sleep(5)
         # Bugfix for mac
         pygame.event.get()
 

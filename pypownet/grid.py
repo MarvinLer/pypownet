@@ -31,8 +31,6 @@ class Grid(object):
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
         self.mpc = octave.loadcase(self.filename, verbose=False)
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
-        new_imaps = [1500]*len(new_imaps)
-        print(new_imaps)
         self.mpc['branch'][:, 5] = new_imaps
         self.mpc['branch'][:, 6] = new_imaps
         self.mpc['branch'][:, 7] = new_imaps
@@ -52,11 +50,12 @@ class Grid(object):
         self.n_loads = np.sum(self.are_loads)
         self.n_lines = len(self.mpc['branch'])
 
+        mapping_permutation, self.number_elements_per_substations = self.compute_topological_mapping_permutation()
         # Topology container: initially, all elements are on the node 0
         self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)), loads_nodes=np.zeros((self.n_loads,)),
                                  lines_or_nodes=np.zeros((self.n_lines,)), lines_ex_nodes=np.zeros((self.n_lines,)),
                                  lines_service=self.mpc['branch'][:, 10],
-                                 mapping_permutation=self.compute_topological_mapping_permutation())
+                                 mapping_permutation=mapping_permutation)
 
     def _synchronize_bus_types(self):
         """ Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus
@@ -339,6 +338,9 @@ class Grid(object):
         By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
         value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
         lines service status.
+
+        This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
+        function for the remaining of the game (also fixed along games).
         """
         # Retrieve the true ids of the productions, loads, lines origin (substation id where the origin of a line is
         # wired), lines extremity
@@ -351,12 +353,28 @@ class Grid(object):
         lines_or_offset = self.n_prods + self.n_loads
         lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
 
+        # Get the substations ids (discard the artificially created ones, i.e. half end)
+        substations_ids = self.mpc['bus'][:self.n_nodes // 2, 0]
+
+        # First, loop throug all the substations, and count the number of elements per substation
+        substations_n_elements = []
+        for node_id in substations_ids:
+            n_prods = (prods_ids == node_id).sum()
+            n_loads = (loads_ids == node_id).sum()
+            n_lines_or = (lines_or_ids == node_id).sum()
+            n_lines_ex = (lines_ex_ids == node_id).sum()
+            n_elements = n_prods + n_loads + n_lines_or + n_lines_ex
+            substations_n_elements.append(n_elements)
+        assert sum(substations_n_elements) == len(prods_ids) + len(loads_ids) + len(lines_or_ids) + len(lines_ex_ids)
+        # Based on the number of elements per substations, store the true id of substations with less than 4 elements
+        mononode_substations = substations_ids[np.where(np.array(substations_n_elements) < 4)[0]]
+
         mapping = []
         # Loop through all of the substations (first half of all buses of reference grid), then loop successively if
         # its id is also: a prod, a load, a line origin, a line extremity. For each of these cases, node_mapping stores
         # the index of the id respectively to the other same objects (e.g. store 0 for prod of substation 1, because
         # it is the first prod of the prods id list self.mpc['gen'][:, 0]
-        for node_id in self.mpc['bus'][:self.n_nodes // 2, 0]:  # Discard artificially created buses
+        for node_id in substations_ids:  # Discard artificially created buses
             node_mapping = []
             if node_id in prods_ids:
                 node_index = np.where(prods_ids == node_id)[0][0]  # Only one prod per substation
@@ -377,7 +395,7 @@ class Grid(object):
             np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
         assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
 
-        return mapping
+        return mapping, substations_n_elements
 
     def export_to_observation(self):
         """ Exports the current grid state into an observation. """

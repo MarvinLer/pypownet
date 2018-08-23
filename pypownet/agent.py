@@ -51,3 +51,20 @@ class RandomLineSwitch(Agent):
         return np.concatenate((topological_switches_subaction, line_switches_subaction))
 
     # No learning (i.e. self.feed_reward does pass)
+
+
+class RandomNodeSplitting(Agent):
+    def act(self, observation):
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, self.environment.Observation)
+        action_space = self.environment.action_space
+        number_lines = action_space.n_lines
+        length_action = action_space.n
+
+        line_switches_subaction = np.zeros((number_lines,))
+        topological_switches_subaction = np.zeros((length_action - number_lines,))
+        topological_switches_subaction[np.random.randint(length_action - number_lines)] = 1
+
+        return np.concatenate((topological_switches_subaction, line_switches_subaction))
+
+    # No learning (i.e. self.feed_reward does pass)
