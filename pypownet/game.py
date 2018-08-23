@@ -64,7 +64,7 @@ class Game(object):
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
 
         # Loads first scenario
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
+        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=True)
 
         # Graphical interface container
         self.gui = None
@@ -72,15 +72,15 @@ class Game(object):
         self.epoch = 1
         self.timestep = 1
 
-    def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure=False):
+    def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         # Retrieve the Scenario object associated to the desired id
         scenario = self.chronic.get_scenario(scenario_id)
         # Loads the next scenario: will load values and compute loadflow to compute real flows
         self.grid.load_scenario(scenario, do_trigger_lf_computation=do_trigger_lf_computation,
-                                cascading_failure=cascading_failure)
+                                cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
         self.current_scenario_id = scenario_id
 
-    def load_next_scenario(self, do_trigger_lf_computation=False, cascading_failure=False):
+    def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
         not  necessarly consecutive).
 
@@ -99,7 +99,8 @@ class Game(object):
         # Update date
         self.current_date += self.timestep_date
 
-        return self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure)
+        return self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
+                                  apply_cascading_output)
 
     def get_current_scenario_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -184,30 +185,7 @@ class Game(object):
 
         self.grid.apply_topology(new_topology)
 
-    def first_step(self, action, apply_cascading_output):
-        # Performs the P_1 function when s_t+1=P_2(P_1(s_t))
-        """ For curative mode, this is the first of the two updates given a state and an action. Precisally, this
-        function applies the action on the current grid, then compute a loadflow to retrieve the subsequent flows
-        of the grid. After this, a cascading failure is simulated. The next update should be to load the new injections,
-        and compute a new loadflow.
-
-        :param action: an instance of class pypownet.env.RunEnv.Action
-        :raise pypownet.grid.DivergingLoadflowException: if a loadflow error was caught (either first one or cascading
-        ones), then raise
-        """
-        self.apply_action(action)
-
-        # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
-        try:
-            success = self.compute_loadflow(cascading_failure=True, apply_cascading_output=apply_cascading_output)
-        except (pypownet.grid.GridNotConnexeException, LoadCutException) as e:
-            raise e
-
-        # If the loadflow computation has not converged (success is 0), then game over
-        if not success:
-            raise pypownet.grid.DivergingLoadflowException('The loadflow computation diverged')
-
-    def compute_loadflow(self, cascading_failure, apply_cascading_output=True):
+    def compute_loadflow(self, cascading_failure, apply_cascading_output):
         """ Wrapper to call the computed a loadflow of the current grid state.
 
         :param cascading_failure: True to perform cascading failure
@@ -234,7 +212,19 @@ class Game(object):
             self.current_scenario_id = None
             self.timestep = 1
 
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
+        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=True)
+
+    def step(self, action, cascading_failure, apply_cascading_output):
+        self.apply_action(action)
+
+        try:
+            self.load_next_scenario(do_trigger_lf_computation=True,
+                                    cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
+        except (NoMoreScenarios, LoadCutException, pypownet.grid.GridNotConnexeException,
+                pypownet.grid.DivergingLoadflowException) as e:  # All input have been played
+            raise e
+
+        return True
 
     def _render(self, rewards, last_action, close=False, game_over=False):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
@@ -272,6 +262,7 @@ class Game(object):
             from pypownet.renderer import Renderer
 
             return Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
+
         try:
             import pygame
         except ImportError as e:
@@ -298,7 +289,7 @@ class Game(object):
             n_elements_substations = self.grid.number_elements_per_substations
             offset = 0
             for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
-                has_been_changed[i] = np.any(last_action[offset:offset+n_elements] != 0)
+                has_been_changed[i] = np.any(last_action[offset:offset + n_elements] != 0)
                 offset += n_elements
 
         self.gui.render(relative_thermal_limits, lines_por_values, lines_service_status,

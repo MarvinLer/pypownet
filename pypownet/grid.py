@@ -219,7 +219,7 @@ class Grid(object):
         self.mpc = output
         return loadflow_success
 
-    def load_scenario(self, scenario, do_trigger_lf_computation=True, cascading_failure=False):
+    def load_scenario(self, scenario, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.
 
         :param scenario: an instance of class Scenario
