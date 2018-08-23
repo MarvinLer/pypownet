@@ -2,9 +2,8 @@ To generate the documentation, you will need Sphinx, a Documentation building to
 ```
 pip install sphinx sphinx_rtd_theme
 ```
-Then:
+Then in the current folder:
 ```
-cd doc
 sphinx-build -b html ./source ./build
 ```
 The html will be available within the folder doc/build.

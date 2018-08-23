@@ -79,7 +79,7 @@ sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 
-# Install the documentation
+# Generate the documentation
 A copy of the documentation can be assess within the file [doc/build](doc/build/index.html).
 If you want to compute the latest updated documentation, you will need Sphinx, a Documentation building tool, and a nice-looking custom [Sphinx theme similar to the one of readthedocs.io](https://sphinx-rtd-theme.readthedocs.io/en/latest/):
 ```

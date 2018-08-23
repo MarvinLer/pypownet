@@ -44,6 +44,7 @@ class Game(object):
         if not os.path.exists(chronic_folder):
             raise FileExistsError('The chronic folder %s does not exist' % chronic_folder)
 
+        # Loads the scenarios chronic and retrieve reference grid file
         self.chronic_folder = os.path.abspath(chronic_folder)
         self.chronic = ScenariosChronic(source_folder=self.chronic_folder)
         self.reference_grid_file = os.path.abspath(reference_grid)
@@ -102,28 +103,64 @@ class Game(object):
         return self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure)
 
     def get_current_scenario_id(self):
+        """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
+        missing within the chronic).
+
+        :return: an integer of the id of the current scenario loaded
+        """
         return self.current_scenario_id
 
     @property
     def get_scenarios_ids(self):
+        """ Retrieves the list of all pre-computed scenarios.
+
+        :return: a list of integer representing the ordered ids of scenarios to be played in total
+        """
         return self.scenarios_ids
 
     @property
     def get_number_scenarios(self):
+        """ Retrieves the number of scenarios of the chronic.
+
+        :return: integer
+        """
         return self.number_scenarios
 
     def get_observation(self):
+        """ Retrieves an observation of the current state of the grid.
+
+        :return: an instance of class pypownet.env.RunEnv.Observation
+        """
         return self.grid.export_to_observation()
 
     def get_initial_topology(self, as_array=False):
+        """ Retrieves the initial topology of the grid (when it was initially loaded). This is notably used to
+        reinitialize the grid after a game over.
+
+        :param as_array: True to return only one vector (concatenated-style), False to return the split topology (see
+        class pypownet.grid.Topology
+        :return: an instance of pypownet.grid.Topology or a list of integers
+        """
         if as_array:
             return self.initial_topology.get_zipped()
         return self.initial_topology
 
     def get_date(self):
+        """ Returns the current date of the game being played.
+
+        :return:
+        """
         return self.current_date
 
     def apply_action(self, action):
+        """ Applies an action on the current grid (topology). The action is first into lists of same objects (e.g. nodes
+        on which productions are connected), then the destination values are computed, such that the grid will replace
+        its current topology with the latter. Since actions come from pypownet.env.RunEnv.Action, they are switches.
+        Here, given the last values of the grid and the switches, this function computes the actual destination values
+        (e.g. switch line status of line 10: if line 10 is on, put its status to off i.e. 0, otherwise put to on i.e. 1)
+
+        :param action: an instance of pypownet.env.RunEnv.Action
+        """
         self.timestep += 1
         # If there is no action, then no need to apply anything on the grid
         if action is None:
@@ -146,15 +183,24 @@ class Game(object):
                                               lines_ex_nodes=lines_ex_nodes,
                                               lines_service=lines_service)
 
-        return self.grid.apply_topology(new_topology)
+        self.grid.apply_topology(new_topology)
 
-    def first_step(self, action):
+    def first_step(self, action, apply_cascading_output):
         # Performs the P_1 function when s_t+1=P_2(P_1(s_t))
+        """ For curative mode, this is the first of the two updates given a state and an action. Precisally, this
+        function applies the action on the current grid, then compute a loadflow to retrieve the subsequent flows
+        of the grid. After this, a cascading failure is simulated. The next update should be to load the new injections,
+        and compute a new loadflow.
+
+        :param action: an instance of class pypownet.env.RunEnv.Action
+        :raise pypownet.grid.DivergingLoadflowException: if a loadflow error was caught (either first one or cascading
+        ones), then raise
+        """
         self.apply_action(action)
 
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
-            success = self.compute_loadflow(cascading_failure=True)
+            success = self.compute_loadflow(cascading_failure=True, apply_cascading_output=apply_cascading_output)
         except (pypownet.grid.GridNotConnexeException, LoadCutException) as e:
             raise e
 
@@ -162,21 +208,26 @@ class Game(object):
         if not success:
             raise pypownet.grid.DivergingLoadflowException('The loadflow computation diverged')
 
-    def compute_loadflow(self, cascading_failure):
-        return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure)
+    def compute_loadflow(self, cascading_failure, apply_cascading_output=True):
+        """ Wrapper to call the computed a loadflow of the current grid state.
+
+        :param cascading_failure: True to perform cascading failure
+        :param apply_cascading_output: True to apply the lines breaks of cascading failure to future grid state
+        :return: 0 failure, 1 success
+        """
+        return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure,
+                                          apply_cascading_output=apply_cascading_output)
 
     def reset_grid(self):
-        """
-        Apply the initial topology to the grid.
+        """ Reinitialized the grid by applying the initial topology to the current state (topology).
         """
         self.grid.apply_topology(self.initial_topology)
 
     def reset(self, restart):
-        """
-        Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
-        load the first set of injections (i_{t0}), otherwise the next set of injections of the chronics (i_{t+1})
+        """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
+        load the first set of injections (i)_{t0}, otherwise the next set of injections of the chronics (i)_{t+1}
 
-        :param restart: True to restart te chronic, else pursue with next timestep
+        :param restart: True to restart the chronic, else pursue with next timestep
         """
         self.reset_grid()
         self.epoch += 1
@@ -187,6 +238,15 @@ class Game(object):
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False)
 
     def _render(self, rewards, close=False, game_over=False):
+        """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
+        renderer class (e.g. sum of consumptions).
+
+        :param rewards: list of subrewards of the last timestep (used to plot reward per timestep)
+        :param close: True to close the application
+        :param game_over: True to plot a "Game over!" over the screen if game is over
+        :return: :raise ImportError: pygame not found raises an error (it is mandatory for the renderer)
+        """
+
         def initialize_renderer():
             """ initializes the pygame gui with the parameters necessary to e.g. plot colors of productions """
             pygame.init()

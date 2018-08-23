@@ -105,6 +105,9 @@ class RunEnv(object):
         self.action_space = self.ActionSpace(grid_case)
         self.observation_space = self.ObservationSpace(grid_case)
 
+        # Configuration parameters
+        self.apply_cascading_output = True
+
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line usage subreward
         self.multiplicative_factor_distance_reference_grid = -1.  # Mult factor to the sum of differed nodes
@@ -124,7 +127,8 @@ class RunEnv(object):
 
     @staticmethod
     def __game_over(reward, info):
-        """Utility function that returns every timestep tuple with observation equals to None and done equals to True."""
+        """ Utility function that returns every timestep tuple with observation equals to None and done equals to True.
+        """
         observation = None
         done = True
         return observation, reward, done, info
@@ -157,7 +161,7 @@ class RunEnv(object):
         return load_cut_reward + action_cost_reward + reference_grid_distance_reward + line_usage_reward
 
     def step(self, action):
-        """Performs a game step given an action."""
+        """ Performs a game step given an action. """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
@@ -166,7 +170,7 @@ class RunEnv(object):
 
         # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
-            self.game.first_step(action)
+            self.game.first_step(action, apply_cascading_output=self.apply_cascading_output)
         except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException, LoadCutException) as e:
             return self.__game_over(reward=self.connexity_exception_reward, info=e)
 

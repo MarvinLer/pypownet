@@ -173,7 +173,7 @@ class Grid(object):
 
         return mpc_copy, loadflow_success
 
-    def compute_loadflow(self, perform_cascading_failure, apply_cascading_output=True):
+    def compute_loadflow(self, perform_cascading_failure, apply_cascading_output):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
         """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
         function subtreats the Octave pipeline to self.__vanilla_matpower_callback.
@@ -251,7 +251,7 @@ class Grid(object):
         bus[self.are_loads, 3] = loads_q
 
         if do_trigger_lf_computation:
-            return self.compute_loadflow(perform_cascading_failure=cascading_failure)
+            return self.compute_loadflow(perform_cascading_failure=cascading_failure, apply_cascading_output=True)
         return
 
     def disconnect_line(self, id_line):
