@@ -25,12 +25,14 @@ class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
         self.mpc = octave.loadcase(self.filename, verbose=False)
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
+        new_imaps = [1500]*len(new_imaps)
+        print(new_imaps)
         self.mpc['branch'][:, 5] = new_imaps
         self.mpc['branch'][:, 6] = new_imaps
         self.mpc['branch'][:, 7] = new_imaps
@@ -182,8 +184,9 @@ class Grid(object):
         :param apply_cascading_output: True will effectively apply the output of the cascading failure computation as
         the new grid state; False will only *simulate* the cascading failure and the current state would be the loadflow
         output before the cascading failure. Only works when perform_cascading_failure is True.
-        :return: :raise GridNotConnexeException: If the grid is not connexe, matpower raises an error; when an error is
-        raised after a matpower callback, this exception is raised.
+        :return: 0 for failed computation, 1 for success
+        :raise GridNotConnexeException: If the grid is not connexe,
+        matpower raises an error; when an error is raised after a matpower callback, this exception is raised.
         """
         self._synchronize_bus_types()
 
@@ -331,34 +334,45 @@ class Grid(object):
         return self.topology
 
     def compute_topological_mapping_permutation(self):
-        """ Compute a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
-        into a representation where all elements of a substation are consecutives values (same order, but locally)."""
+        """ Computes a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
+        into a representation where all elements of a substation are consecutives values (same order, but locally).
+        By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
+        value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
+        lines service status.
+        """
+        # Retrieve the true ids of the productions, loads, lines origin (substation id where the origin of a line is
+        # wired), lines extremity
         prods_ids = self.mpc['gen'][:, 0]
         loads_ids = self.mpc['bus'][self.are_loads, 0]
-        lines_or = self.mpc['branch'][:, 0]
-        lines_ex = self.mpc['branch'][:, 0]
+        lines_or_ids = self.mpc['branch'][:, 0]
+        lines_ex_ids = self.mpc['branch'][:, 1]
+        # Based on the default topology construction, compute offset of subvectors
         loads_offset = self.n_prods
         lines_or_offset = self.n_prods + self.n_loads
         lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
 
         mapping = []
-        for node_id in self.mpc['bus'][:self.n_nodes // 2, 0]:
+        # Loop through all of the substations (first half of all buses of reference grid), then loop successively if
+        # its id is also: a prod, a load, a line origin, a line extremity. For each of these cases, node_mapping stores
+        # the index of the id respectively to the other same objects (e.g. store 0 for prod of substation 1, because
+        # it is the first prod of the prods id list self.mpc['gen'][:, 0]
+        for node_id in self.mpc['bus'][:self.n_nodes // 2, 0]:  # Discard artificially created buses
             node_mapping = []
             if node_id in prods_ids:
                 node_index = np.where(prods_ids == node_id)[0][0]  # Only one prod per substation
-                node_mapping.append(node_index)
+                node_mapping.append(node_index)  # Append because at most one production per substation
             if node_id in loads_ids:
                 node_index = np.where(loads_ids == node_id)[0][0] + loads_offset  # Only one load per subst.
-                node_mapping.append(node_index)
-            if node_id in lines_or:
-                node_index = np.where(lines_or == node_id)[0] + lines_or_offset  # Possible multiple lines per subst
-                node_mapping.extend(node_index)
-            if node_id in lines_ex:
-                node_index = np.where(lines_ex == node_id)[0] + lines_ex_offset
-                node_mapping.extend(node_index)
+                node_mapping.append(node_index)  # Append because at most one consumption per substation
+            if node_id in lines_or_ids:
+                node_index = np.where(lines_or_ids == node_id)[0] + lines_or_offset  # Possible multiple lines per subst
+                node_mapping.extend(node_index)  # Extend because a substation can have multiple lines as their origin
+            if node_id in lines_ex_ids:
+                node_index = np.where(lines_ex_ids == node_id)[0] + lines_ex_offset
+                node_mapping.extend(node_index)  # Extend because a substation can have multiple lines as their extrem.
             mapping.append(node_mapping)
 
-        # Verify that the mapping array has unique values
+        # Verify that the mapping array has unique values and of expected size (i.e. same as concatenated-style one)
         assert len(np.concatenate(mapping)) == len(
             np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
         assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
@@ -386,7 +400,7 @@ class Grid(object):
         voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
         voltage_extremity = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 1]]).flatten()
         flows_a = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
-        relative_thermal_limit = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
+        lines_capacity_usage = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
 
         # Loads data
         loads_buses = bus[self.are_loads, :]  # Select lines of loads buses
@@ -401,10 +415,10 @@ class Grid(object):
                                                active_prods, reactive_prods, voltage_prods,
                                                active_flows_origin, reactive_flows_origin, voltage_origin,
                                                active_flows_extremity, reactive_flows_extremity, voltage_extremity,
-                                               relative_thermal_limit, topology)
+                                               lines_capacity_usage, topology)
 
-    def export_relative_thermal_limits(self):
-        """ Computes and returns the relative thermal limits, i.e. the elementwise division of the flows in Ampere by the
+    def export_lines_capacity_usage(self):
+        """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
         lines nominal thermal limit.
 
         :return: a list of size the number of lines of positive values
@@ -420,9 +434,9 @@ class Grid(object):
         voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
         # Compute flows in Ampere using formula compute_flows_a
         flows_a = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
-        relative_thermal_limits = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
+        lines_capacity_usage = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
 
-        return relative_thermal_limits
+        return lines_capacity_usage
 
     def _snapshot(self, dst_fname=None):
         """ Saves a snapshot of current grid state into IEEE format file with path dst_fname. """
@@ -451,9 +465,9 @@ class Topology(object):
 
         # Function that sorts the internal topological array into a more intuitive representation: the nodes of the
         # elements of a substation are consecutive (first prods, then loads, then lines origin, then line ext.)
-        if not mapping_permutation:  # Identity by default
-            self.mapping_permutation = lambda x: x
-            self.invert_mapping_permutation = lambda x: x
+        if not mapping_permutation:
+            self.mapping_permutation = lambda x: x  # Identity by default i.e. no permutation
+            self.invert_mapping_permutation = lambda x: x  # Identity by default
         else:
             concatenated_mapping_permutation = np.concatenate(mapping_permutation)
             self.mapping_permutation = lambda array: np.concatenate(

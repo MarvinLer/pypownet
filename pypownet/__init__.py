@@ -15,10 +15,10 @@ if not os.path.exists(mp_path_config):
 with open(mp_path_config, 'r') as f:
     relative_path = f.read().splitlines()[0]
 
-matpower_path = os.path.abspath(relative_path)
+matpower_path = os.path.abspath(os.path.join(root_path, relative_path))
 # Check that the matpower path does exist
 if not os.path.exists(matpower_path):
-    raise FileNotFoundError('Matpower folder %s not found')
+    raise FileNotFoundError('Matpower folder %s not found' % matpower_path)
 
 # Add matpower and some of its subfolders to octave workspace
 octave.addpath(os.path.abspath(matpower_path))

@@ -81,8 +81,7 @@ class Game(object):
         self.current_scenario_id = scenario_id
 
     def load_next_scenario(self, do_trigger_lf_computation=False, cascading_failure=False):
-        """
-        Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
+        """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
         not  necessarly consecutive).
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
@@ -285,7 +284,7 @@ class Game(object):
             self.gui = initialize_renderer()
 
         # Retrieve relative thermal limits (for plotting power lines with appropriate colors and widths)
-        relative_thermal_limits = self.grid.export_relative_thermal_limits()
+        relative_thermal_limits = self.grid.export_lines_capacity_usage()
         prods_values = self.grid.mpc['gen'][:, 1]
         loads_values = self.grid.mpc['bus'][self.grid.are_loads, 2]
         lines_por_values = self.grid.mpc['branch'][:, 13]
@@ -307,5 +306,3 @@ class IllegalActionException(Exception):
 
 class LoadCutException(Exception):
     pass
-
-

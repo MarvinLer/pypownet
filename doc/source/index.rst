@@ -22,7 +22,6 @@ Module agent
 .. automodule:: pypownet.agent
    :members:
    :undoc-members:
-   :private-members:
    
 =================
 Module grid
@@ -30,7 +29,6 @@ Module grid
 .. automodule:: pypownet.grid
    :members:
    :undoc-members:
-   :private-members:
    
 =================
 Module env
@@ -46,7 +44,6 @@ Module game
 .. automodule:: pypownet.game
    :members:
    :undoc-members:
-   :private-members:
    
 =================
 Module main
@@ -54,7 +51,6 @@ Module main
 .. automodule:: pypownet.main
    :members:
    :undoc-members:
-   :private-members:
    
 =================
 Module renderer
@@ -62,7 +58,6 @@ Module renderer
 .. automodule:: pypownet.renderer
    :members:
    :undoc-members:
-   :private-members:
    
 =================
 Module runner
@@ -70,7 +65,6 @@ Module runner
 .. automodule:: pypownet.runner
    :members:
    :undoc-members:
-   :private-members:
    
 ==============================
 Module scenarios_chronic
@@ -78,7 +72,6 @@ Module scenarios_chronic
 .. automodule:: pypownet.scenarios_chronic
    :members:
    :undoc-members:
-   :private-members:
 
 
 
