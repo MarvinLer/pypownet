@@ -226,6 +226,30 @@ class Game(object):
 
         return True
 
+    def simulate(self, action, cascading_failure, apply_cascading_output):
+        before_topology = self.grid.get_topology()
+        before_scenario_id = self.current_scenario_id
+
+        # Step the action
+        try:
+            self.step(action, cascading_failure, apply_cascading_output)
+        except Exception as e:
+            # Put past values back for topo and injection
+            self.grid.apply_topology(before_topology)
+            self.load_scenario(before_scenario_id, do_trigger_lf_computation=True,
+                               cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
+            raise e
+
+        # If no error raised, return the simulated output observation, such that reward can be computed, then
+        # put topological and injections values back
+        simulated_state = self.get_observation()
+        # Put past values back for topo and injection
+        self.grid.apply_topology(before_topology)
+        self.load_scenario(before_scenario_id, do_trigger_lf_computation=True,
+                           cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
+
+        return simulated_state
+
     def _render(self, rewards, last_action, close=False, game_over=False):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).

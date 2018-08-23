@@ -193,82 +193,29 @@ class RunEnv(object):
 
         return observation, reward, done, info
 
-        # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
-        # try:
-        #     self.game.first_step(action, apply_cascading_output=self.apply_cascading_output)
-        # except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException, LoadCutException) as e:
-        #     return self.__game_over(reward=self.connexity_exception_reward, info=e)
-        #
-        # # Retrieve the latent state (pre modifications of injections)
-        # latent_state = self._get_obs()
-        #
-        # # Compute reward
-        # reward1 = self.get_reward(latent_state, action)
-        #
-        # try:
-        #     self.game.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False,
-        #                                  apply_cascading_output=True)
-        #     observation = self.game.get_observation()
-        #     reward = reward1 + self.get_reward(observation, None)
-        #     done = False
-        #     info = None
-        # except pypownet.game.NoMoreScenarios as e:  # All input have been played
-        #     observation = None
-        #     reward = reward1 + 0
-        #     done = True
-        #     info = e
-        #     return observation, reward, done, info
-        # except LoadCutException as e:
-        #     reward = reward1 + self.load_cut_exception_reward
-        #     return self.__game_over(reward=reward, info=e)
-        # except pypownet.grid.GridNotConnexeException as e:
-        #     reward = reward1 + self.connexity_exception_reward
-        #     return self.__game_over(reward=reward, info=e)
-        # except pypownet.grid.DivergingLoadflowException as e:
-        #     reward = reward1 + self.loadflow_exception_reward
-        #     return self.__game_over(reward=reward, info=e)
-        #
-        # return observation, reward, done, info
-
     def simulate(self, action=None):
-        """Performs a game step given an action."""
-        initial_topology = self._get_obs().topology
-
+        """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
             return self.illegal_action_exception_reward
 
-        # Apply the action to the current grid and compute the new consequent loadflow
-        self.game.apply_action(action)
-
-        # Compute the new loadflow given input state and newly modified grid topology (with cascading failure simu.)
         try:
-            success = self.game.compute_loadflow(cascading_failure=True)
-        except (pypownet.grid.GridNotConnexeException, LoadCutException) as e:
-            self.game.apply_action(action)
-            self.game.compute_loadflow(cascading_failure=False)
-            return self.connexity_exception_reward
+            # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
+            simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
+                                                       apply_cascading_output=self.apply_cascading_output)
+            reward = self.get_reward(simulated_observation, None)
+        except pypownet.game.NoMoreScenarios:
+            reward = 0.
+        except LoadCutException:
+            reward = self.load_cut_exception_reward
+        except pypownet.grid.GridNotConnexeException:
+            reward = self.connexity_exception_reward
+        except pypownet.grid.DivergingLoadflowException:
+            reward = self.loadflow_exception_reward
 
-        # If the loadflow computation has not converged (success is 0), then game over
-        if not success:
-            self.game.apply_action(action)
-            self.game.compute_loadflow(cascading_failure=False)
-            return self.loadflow_exception_reward
-
-        # Retrieve the latent state (pre modifications of injections)
-        latent_state = self.game.get_observation()
-
-        # Compute reward
-        reward1 = self.get_reward(latent_state, action)
-
-        # Loads back original topology and lines connection status
-        self.game.apply_action(action)
-        self.game.compute_loadflow(cascading_failure=False)
-        assert np.all(self._get_obs().topology == initial_topology)
-
-        return reward1
+        return reward
 
     def reset(self, restart=True):
         # Reset the grid overall topology
@@ -301,7 +248,7 @@ if __name__ == '__main__':
     timestep_rewards = []
     n_timesteps = 30
     for l in range(n_timesteps):
-        env.game.grid.filename = 'swoff_line%d.m'%l
+        env.game.grid.filename = 'swoff_line%d.m' % l
         print(' Simulation with line %d switched off' % l)
         line_service_subaction = np.zeros((n_lines,))
         line_service_subaction[l] = 1  # Toggle line l
@@ -317,7 +264,7 @@ if __name__ == '__main__':
 
     argmax_reward = np.argmax(timestep_rewards)
     print('rewards', timestep_rewards, 'argmax', argmax_reward)
-    if argmax_reward == len(timestep_rewards)-1:
+    if argmax_reward == len(timestep_rewards) - 1:
         print('Action chosen: no action')
         action = None
     else:
