@@ -32,6 +32,25 @@ class Agent(object):
 import numpy as np
 
 
+class RandomSwitch(Agent):
+    """
+    An example of a baseline controler that randomly switches one element (either node-splitting or line service status
+    switch).
+    """
+    def act(self, observation):
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, self.environment.Observation)
+        action_space = self.environment.action_space
+        length_action = action_space.n
+
+        action = np.zeros((length_action,))
+        action[np.random.randint(length_action)] = 1
+
+        return action
+
+    # No learning (i.e. self.feed_reward does pass)
+
+
 class RandomLineSwitch(Agent):
     """
     An example of a baseline controler that randomly switches the status of one random power line per timestep (if the

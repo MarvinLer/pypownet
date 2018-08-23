@@ -88,11 +88,6 @@ class RunEnv(object):
             if not set(action).issubset([0, 1]):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
-        def sample(self):
-            action = np.zeros((self.n,))
-            action[np.random.randint(self.n)] = 1
-            return action
-
     def __init__(self, grid_case=118):
         # Instantiate game & action space
         """
