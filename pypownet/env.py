@@ -18,11 +18,10 @@ class RunEnv(object):
         * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
         """
 
-        def __init__(self, active_loads, reactive_loads, voltage_loads,
-                     active_productions, reactive_productions, voltage_productions,
-                     active_flows_origin, reactive_flows_origin, voltage_flows_origin,
-                     active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
-                     lines_capacity_usage, topology_vector):
+        def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
+                     voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
+                     active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, lines_capacity_usage,
+                     thermal_limits, topology_vector):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
@@ -44,6 +43,7 @@ class RunEnv(object):
 
             # Ampere flows and thermal limits
             self.lines_capacity_usage = lines_capacity_usage
+            self.thermal_limits = thermal_limits
 
             # Topology vector
             self.topology = topology_vector
