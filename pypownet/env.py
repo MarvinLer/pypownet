@@ -14,7 +14,7 @@ class RunEnv(object):
         * The active and reactive power values of the loads
         * The active power values and the voltage setpoints of the productions
         * The values of the power through the lines: the active and reactive values at the origin/extremity of the
-        lines as well as the relative thermal limit usage
+        lines as well as the lines capacity usage
         * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
         """
 
@@ -22,7 +22,7 @@ class RunEnv(object):
                      active_productions, reactive_productions, voltage_productions,
                      active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
-                     relative_thermal_limit, topology_vector):
+                     lines_capacity_usage, topology_vector):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
@@ -43,7 +43,7 @@ class RunEnv(object):
             self.voltage_flows_extremity = voltage_flows_extremity
 
             # Ampere flows and thermal limits
-            self.relative_thermal_limits = relative_thermal_limit
+            self.lines_capacity_usage = lines_capacity_usage
 
             # Topology vector
             self.topology = topology_vector
@@ -149,8 +149,8 @@ class RunEnv(object):
             action_cost_reward = self.cost_node_switch * n_nodes_switches + self.cost_line_switch * n_lines_switches
 
         # Line usage subreward: compute the mean square of the per-line thermal usage
-        relative_thermal_limits = observation.relative_thermal_limits
-        line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(relative_thermal_limits))
+        lines_capacity_usage = observation.lines_capacity_usage
+        line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
         self.last_rewards = [line_usage_reward, action_cost_reward, reference_grid_distance_reward, load_cut_reward]
 
