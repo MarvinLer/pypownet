@@ -253,7 +253,8 @@ class Grid(object):
         bus[self.are_loads, 3] = loads_q
 
         if do_trigger_lf_computation:
-            return self.compute_loadflow(perform_cascading_failure=cascading_failure, apply_cascading_output=True)
+            return self.compute_loadflow(perform_cascading_failure=cascading_failure,
+                                         apply_cascading_output=apply_cascading_output)
         return
 
     def disconnect_line(self, id_line):
@@ -352,6 +353,7 @@ class Grid(object):
         loads_offset = self.n_prods
         lines_or_offset = self.n_prods + self.n_loads
         lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
+        lines_service_status_offset = self.n_prods + self.n_loads + 2*self.n_lines
 
         # Get the substations ids (discard the artificially created ones, i.e. half end)
         substations_ids = self.mpc['bus'][:self.n_nodes // 2, 0]
@@ -389,11 +391,16 @@ class Grid(object):
                 node_index = np.where(lines_ex_ids == node_id)[0] + lines_ex_offset
                 node_mapping.extend(node_index)  # Extend because a substation can have multiple lines as their extrem.
             mapping.append(node_mapping)
+        assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
+
+        # Add the line service status identity mapping
+        mapping.append(range(lines_service_status_offset, lines_service_status_offset + self.n_lines))
 
         # Verify that the mapping array has unique values and of expected size (i.e. same as concatenated-style one)
         assert len(np.concatenate(mapping)) == len(
             np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
-        assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
+        assert sum([len(m) for m in mapping]) == self.n_prods + self.n_loads + 2*self.n_lines + self.n_lines,\
+            'Mapping does not have the same number of elements as there are in the grid'
 
         return mapping, substations_n_elements
 

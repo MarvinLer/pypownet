@@ -130,7 +130,7 @@ class RunEnv(object):
         done = True
         return observation, reward, done, info
 
-    def get_reward(self, observation, action):
+    def get_reward(self, observation, action, do_sum=True):
         # Load cut reward: TODO
         load_cut_reward = 0
 
@@ -155,7 +155,8 @@ class RunEnv(object):
 
         self.last_rewards = [line_usage_reward, action_cost_reward, reference_grid_distance_reward, load_cut_reward]
 
-        return load_cut_reward + action_cost_reward + reference_grid_distance_reward + line_usage_reward
+        reward = [load_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward]
+        return sum(reward) if do_sum else reward
 
     def step(self, action):
         """ Performs a game step given an action. """
@@ -231,38 +232,3 @@ class RunEnv(object):
 ACTION_MEANING = {
 
 }
-
-if __name__ == '__main__':
-    env = RunEnv(grid_case=118)
-    observation = env._get_obs()  # Initial observation
-
-    action_size = env.action_space.n
-    n_lines = env.action_space.n_lines
-    topology_subaction = np.zeros((action_size - n_lines,))
-
-    timestep_rewards = []
-    n_timesteps = 30
-    for l in range(n_timesteps):
-        env.game.grid.filename = 'swoff_line%d.m' % l
-        print(' Simulation with line %d switched off' % l)
-        line_service_subaction = np.zeros((n_lines,))
-        line_service_subaction[l] = 1  # Toggle line l
-
-        action = np.concatenate((topology_subaction, line_service_subaction))
-        simulated_reward = env.simulate(action)
-
-        timestep_rewards.append(simulated_reward)
-    print(' Simulation with no action')
-    env.game.grid.filename = 'nothing.m'
-    simulated_reward = env.simulate(None)
-    timestep_rewards.append(simulated_reward)
-
-    argmax_reward = np.argmax(timestep_rewards)
-    print('rewards', timestep_rewards, 'argmax', argmax_reward)
-    if argmax_reward == len(timestep_rewards) - 1:
-        print('Action chosen: no action')
-        action = None
-    else:
-        line_service_subaction = np.zeros((n_lines,))
-        line_service_subaction[argmax_reward] = 1
-        action = np.concatenate((topology_subaction, line_service_subaction))
