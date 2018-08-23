@@ -20,7 +20,7 @@ class RunEnv(object):
 
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
-                     active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, lines_capacity_usage,
+                     active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
                      thermal_limits, topology_vector):
             # Loads related state values
             self.active_loads = active_loads
@@ -42,7 +42,7 @@ class RunEnv(object):
             self.voltage_flows_extremity = voltage_flows_extremity
 
             # Ampere flows and thermal limits
-            self.lines_capacity_usage = lines_capacity_usage
+            self.ampere_flows = ampere_flows
             self.thermal_limits = thermal_limits
 
             # Topology vector
@@ -149,8 +149,12 @@ class RunEnv(object):
             n_lines_switches = np.sum(action[-self.action_space.n_lines:])
             action_cost_reward = self.cost_node_switch * n_nodes_switches + self.cost_line_switch * n_lines_switches
 
-        # Line usage subreward: compute the mean square of the per-line thermal usage
-        lines_capacity_usage = observation.lines_capacity_usage
+        # Line usage subreward: compute the mean square of the per-line thermal usage (flow ampere divided by nominal
+        # thermal limit)
+        ampere_flows = observation.ampere_flows
+        thermal_limits = observation.thermal_limits
+        lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
+        # The line usage subreward is the sum of the square of the lines capacity usage
         line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
         self.last_rewards = [line_usage_reward, action_cost_reward, reference_grid_distance_reward, load_cut_reward]

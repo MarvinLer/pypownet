@@ -424,9 +424,8 @@ class Grid(object):
         reactive_flows_extremity = to_array(branch[:, 16])  # Qt
         voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
         voltage_extremity = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 1]]).flatten()
-        flows_a = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
         thermal_limits = branch[:, 5]
-        lines_capacity_usage = to_array(flows_a / thermal_limits)  # elementwise division of flow a and rateA
+        ampere_flows = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
 
         # Loads data
         loads_buses = bus[self.are_loads, :]  # Select lines of loads buses
@@ -440,7 +439,7 @@ class Grid(object):
         return pypownet.env.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
                                                reactive_prods, voltage_prods, active_flows_origin,
                                                reactive_flows_origin, voltage_origin, active_flows_extremity,
-                                               reactive_flows_extremity, voltage_extremity, lines_capacity_usage,
+                                               reactive_flows_extremity, voltage_extremity, ampere_flows,
                                                thermal_limits, topology)
 
     def export_lines_capacity_usage(self):
