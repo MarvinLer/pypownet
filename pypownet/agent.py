@@ -96,6 +96,7 @@ class TreeSearchLineServiceStatus(Agent):
     """
     Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
     """
+
     def __init__(self, environment, verbose=True):
         super().__init__(environment)
         self.verbose = verbose
@@ -135,5 +136,92 @@ class TreeSearchLineServiceStatus(Agent):
         if self.verbose:
             print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
                 simulated_rewards.index(best_simulated_reward), best_simulated_reward))
+
+        return best_action
+
+
+class GreedySearch(Agent):
+    """ Agent that tries every possible action and retrieves the one that gives the best reward.
+    """
+    def __init__(self, environment, verbose=True):
+        super().__init__(environment)
+        self.verbose = verbose
+
+    def act(self, observation):
+        import itertools
+
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, self.environment.Observation)
+        action_space = self.environment.action_space
+        number_lines = action_space.n_lines
+        length_action = action_space.n
+
+        # Will store reward, actions, and action name, then eventually pick the maximum reward and retrieve the
+        # associated values
+        rewards, actions, names = [], [], []
+
+        # Test doing nothing
+        if self.verbose:
+            print(' Simulation with no action', end='')
+        action = np.zeros((length_action,))  # No action; equivalent to None
+        reward = self.environment.simulate(action)
+        if self.verbose:
+            print('; reward: ', reward)
+        rewards.append(reward)
+        actions.append(action)
+        names.append('no action')
+
+        # Test every line opening
+        topology_subaction = np.zeros((length_action - number_lines,))
+        for l in range(number_lines):
+            if self.verbose:
+                print(' Simulation with switching status of line %d' % l, end='')
+            line_service_subaction = np.zeros((number_lines,))
+            line_service_subaction[l] = 1
+            action = np.concatenate((topology_subaction, line_service_subaction))
+            reward = self.environment.simulate(action)
+            if self.verbose:
+                print('; reward: %.4f' % reward)
+
+            rewards.append(reward)
+            actions.append(action)
+            names.append('switching status of line %d' % l)
+
+        # Then test every node configuration for the considered nodes
+        # We are only interested in nodes that are connected to at least from 4 to 6 elements
+        # Those elements can be transmission lines or injections
+        n_elements_nodes = [5, 8, 4, 7, 3, 8, 4, 1, 5, 3, 1, 3, 3, 1]
+        #element_per_node = {1: 5, 2: 8, 3: 4, 4: 7, 5: 3, 6: 8, 7: 4, 8: 1, 9: 5, 10: 3, 11: 1, 12: 3, 13: 3, 14: 1}
+        action_offset = 0
+        for node, n_elements in enumerate(n_elements_nodes):
+            if n_elements in [4, 5, 6]:
+                # Loopking trhough all configurations of n_elements binary vector with first value fixed to 0
+                for configuration in list(itertools.product([0, 1], repeat=n_elements - 1)):
+                    conf = [0]+list(configuration)
+                    if self.verbose:
+                        print(' Simulation with change in topo of node %d with switches %s' % (node, repr(conf)), end='')
+                    # Construct action
+                    action = np.zeros((length_action,))
+                    action[action_offset:action_offset + n_elements] = conf
+                    reward = self.environment.simulate(action)
+                    if self.verbose:
+                        print('; reward: %.4f' % reward)
+
+                    rewards.append(reward)
+                    actions.append(action)
+                    names.append('change in topo of node %d with switches %s' % (node, repr(conf)))
+            # Add offset for next action position
+            action_offset += n_elements
+
+        # Take the best reward, and retrieve the corresponding action
+        best_reward = max(rewards)
+        best_index = rewards.index(best_reward)
+        best_action = actions[best_index]
+        best_action_name = names[best_index]
+
+        if self.verbose:
+            print('Action chosen: ', best_action_name, '; expected reward %.4f' % best_reward)
+        if self.verbose:
+            print(best_action)
 
         return best_action
