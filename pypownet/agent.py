@@ -164,9 +164,10 @@ class GreedySearch(Agent):
         if self.verbose:
             print(' Simulation with no action', end='')
         action = np.zeros((length_action,))  # No action; equivalent to None
-        reward = self.environment.simulate(action)
+        reward_aslist = self.environment.simulate(action, do_sum=False)
+        reward = sum(reward_aslist)
         if self.verbose:
-            print('; reward: ', reward)
+            print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
         rewards.append(reward)
         actions.append(action)
         names.append('no action')
@@ -179,10 +180,10 @@ class GreedySearch(Agent):
             line_service_subaction = np.zeros((number_lines,))
             line_service_subaction[l] = 1
             action = np.concatenate((topology_subaction, line_service_subaction))
-            reward = self.environment.simulate(action)
+            reward_aslist = self.environment.simulate(action, do_sum=False)
+            reward = sum(reward_aslist)
             if self.verbose:
-                print('; reward: %.4f' % reward)
-
+                print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
             rewards.append(reward)
             actions.append(action)
             names.append('switching status of line %d' % l)
@@ -203,10 +204,10 @@ class GreedySearch(Agent):
                     # Construct action
                     action = np.zeros((length_action,))
                     action[action_offset:action_offset + n_elements] = conf
-                    reward = self.environment.simulate(action)
+                    reward_aslist = self.environment.simulate(action, do_sum=False)
+                    reward = sum(reward_aslist)
                     if self.verbose:
-                        print('; reward: %.4f' % reward)
-
+                        print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
                     rewards.append(reward)
                     actions.append(action)
                     names.append('change in topo of node %d with switches %s' % (node, repr(conf)))

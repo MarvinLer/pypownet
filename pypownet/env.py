@@ -21,11 +21,12 @@ class RunEnv(object):
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector):
+                     thermal_limits, topology_vector, n_cut_loads):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
             self.voltage_loads = voltage_loads
+            self.number_cut_loads = n_cut_loads
 
             # Productions related state values
             self.active_productions = active_productions
@@ -133,7 +134,7 @@ class RunEnv(object):
 
     def get_reward(self, observation, action, do_sum=True):
         # Load cut reward: TODO
-        load_cut_reward = 0
+        load_cut_reward = self.additive_factor_load_cut * observation.number_cut_loads
 
         # Reference grid distance reward
         initial_topology = self.game.get_initial_topology(as_array=True)
@@ -174,8 +175,8 @@ class RunEnv(object):
 
         try:
             # Call the step function from the game: if no error raised, then no outage
-            n_cut_loads, _ = self.game.step(action, cascading_failure=self.simulate_cascading_failure,
-                                            apply_cascading_output=self.apply_cascading_output)
+            self.game.step(action, cascading_failure=self.simulate_cascading_failure,
+                           apply_cascading_output=self.apply_cascading_output)
             observation = self.game.get_observation()
             #reward = self.get_reward(observation, None)
             rewardprime = self.get_reward(observation, action, False)
@@ -195,7 +196,7 @@ class RunEnv(object):
 
         return observation, reward, done, info
 
-    def simulate(self, action=None):
+    def simulate(self, action=None, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
@@ -207,7 +208,7 @@ class RunEnv(object):
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
             simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
                                                        apply_cascading_output=self.apply_cascading_output)
-            reward = self.get_reward(simulated_observation, action)
+            reward = self.get_reward(simulated_observation, action, do_sum)
         except pypownet.game.NoMoreScenarios:
             reward = 0.
         except LoadCutException:

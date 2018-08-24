@@ -449,6 +449,7 @@ class Grid(object):
         active_loads = to_array(loads_buses[:, 2])
         reactive_loads = to_array(loads_buses[:, 3])
         voltage_loads = to_array(loads_buses[:, 7])
+        n_cut_loads, _ = self._count_isolated_loads()
 
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
@@ -457,7 +458,7 @@ class Grid(object):
                                                reactive_prods, voltage_prods, active_flows_origin,
                                                reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                               thermal_limits, topology)
+                                               thermal_limits, topology, n_cut_loads)
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the

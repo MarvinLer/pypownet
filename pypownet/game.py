@@ -223,10 +223,7 @@ class Game(object):
         except (NoMoreScenarios, pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException) as e:
             raise e
 
-        # Compute the number of cut loads
-        n_isolated_loads = self.grid._count_isolated_loads()
-
-        return n_isolated_loads
+        return
 
     def simulate(self, action, cascading_failure, apply_cascading_output):
         before_topology = self.grid.get_topology()
