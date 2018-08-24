@@ -37,20 +37,14 @@ class Runner(object):
         # Feed the reward signal to the Agent along with last observation and its resulting action
         self.agent.feed_reward(self.last_observation, action, reward)
 
-        if done:
-            if self.verbose:
-                print(info)  # Print the reason raised by the environment for the game over
-                print("Game over! Restarting game")
-            observation = self.environment.reset(restart=False)
-
         self.last_observation = observation
 
-        return observation, action, reward
+        return observation, action, reward, done
 
     def loop(self, iterations):
         cumul_reward = 0.0
         for i in range(1, iterations + 1):
-            (obs, act, rew) = self.step()  # Close if last iteration
+            (obs, act, rew, done) = self.step()  # Close if last iteration
             cumul_reward += rew
             if self.verbose:
                 print("Simulation step {}:".format(i))
@@ -58,6 +52,12 @@ class Runner(object):
                 #print(" ->            action: {}".format(act))
                 print(" ->            reward: {}".format(rew))
                 print(" -> cumulative reward: {}".format(cumul_reward))
+
+            if done:
+                if self.verbose:
+                    print(info)  # Print the reason raised by the environment for the game over
+                    print("Game over! Restarting game")
+                observation = self.environment.reset(restart=False)
 
         # Close pygame
         if self.render:

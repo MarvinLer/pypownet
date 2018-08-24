@@ -109,14 +109,15 @@ class RunEnv(object):
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
         self.additive_factor_distance_initial_grid = -1.  # Additive factor for each differed node in the grid
         self.additive_factor_load_cut = -grid_case // 10.  # Additive factor for each isolated load
-        self.connexity_exception_reward = -grid_case  # Reward when the grid is not connexe (at least two islands)
-        self.loadflow_exception_reward = -grid_case  # Reward in case of loadflow software error
+        self.connexity_exception_reward = -self.observation_space.n  # Reward when the grid is not connexe
+                                                                     # (at least two islands)
+        self.loadflow_exception_reward = -self.observation_space.n  # Reward in case of loadflow software error
 
         self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
-        self.cost_line_switch = -.1  # 1 line switch off or switch on
-        self.cost_node_switch = -.1  # Changing the node on which an element is directly wired
+        self.cost_line_switch = 1.  # 1 line switch off or switch on
+        self.cost_node_switch = 1.  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
         self.last_action = None
@@ -124,47 +125,68 @@ class RunEnv(object):
     def _get_obs(self):
         return self.game.get_observation()
 
-    @staticmethod
-    def __game_over(reward, info):
-        """ Utility function that returns every timestep tuple with observation equals to None and done equals to True.
+    def _get_distance_reference_grid(self):
+        # Reference grid distance reward
+        """ Computes the distance of the current observation with the reference grid (i.e. initial grid of the game).
+        The distance is computed as the number of different nodes on which two identical elements are wired. For
+        instance, if the production of first current substation is wired on the node 1, and the one of the first initial
+        substation is wired on the node 0, then their is a distance of 1 (there are different) between the current and
+        reference grid (for this production). The total distance is the sum of those values (0 or 1) for all the
+        elements of the grid (productions, loads, origin of lines, extremity of lines).
+
+        :return: the number of different nodes between the current topology and the initial one
         """
-        observation = None
-        done = True
-        return observation, reward, done, info
+        initial_topology = self.game.get_initial_topology(as_array=True)
+        current_topology = self._get_obs().topology
+        n_differed_nodes = np.sum(np.where(
+            initial_topology[:-self.observation_space.n_lines] != current_topology[:-self.observation_space.n_lines]))
+        return n_differed_nodes
+
+    def _get_action_cost(self, action):
+        # Action cost reward: compute the number of line switches, node switches, and return the associated reward
+        """ Compute the >=0 cost of an action. We define the cost of an action as the sum of the cost of node-splitting
+        and the cost of lines status switches. In short, the function sums the number of 1 in the action vector, since
+        they represent activation of switches. The two parameters self.cost_node_switch and self.cost_line_switch
+        control resp the cost of 1 node switch activation and 1 line status switch activation.
+
+        :param action: an instance of Action or a binary numpy array of length self.action_space.n
+        :return: a >=0 float of the cost of the action
+        """
+        if action is None:
+            return 0.
+
+        n_nodes_switches = np.sum(action[:-self.action_space.n_lines])
+        n_lines_switches = np.sum(action[-self.action_space.n_lines:])
+        action_cost = self.cost_node_switch * n_nodes_switches + self.cost_line_switch * n_lines_switches
+        return action_cost
+
+    def _get_lines_capacity_usage(self, observation):
+        ampere_flows = observation.ampere_flows
+        thermal_limits = observation.thermal_limits
+        lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
+        return lines_capacity_usage
 
     def get_reward(self, observation, action, do_sum=True):
         # Load cut reward: TODO
         load_cut_reward = self.additive_factor_load_cut * observation.number_cut_loads
 
         # Reference grid distance reward
-        initial_topology = self.game.get_initial_topology(as_array=True)
-        current_topology = self._get_obs().topology
-        n_differed_nodes = np.sum(np.where(
-            initial_topology[:-self.observation_space.n_lines] != current_topology[:-self.observation_space.n_lines]))
-        reference_grid_distance_reward = self.additive_factor_distance_initial_grid * n_differed_nodes
+        reference_grid_distance = self._get_distance_reference_grid()
+        reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
 
         # Action cost reward: compute the number of line switches, node switches, and return the associated reward
-        if action is None:
-            action_cost_reward = 0
-        else:
-            n_nodes_switches = np.sum(action[:-self.action_space.n_lines])
-            n_lines_switches = np.sum(action[-self.action_space.n_lines:])
-            action_cost_reward = self.cost_node_switch * n_nodes_switches + self.cost_line_switch * n_lines_switches
+        action_cost_reward = -1. * self._get_action_cost(action)
 
-        # Line usage subreward: compute the mean square of the per-line thermal usage (flow ampere divided by nominal
-        # thermal limit)
-        ampere_flows = observation.ampere_flows
-        thermal_limits = observation.thermal_limits
-        lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
         # The line usage subreward is the sum of the square of the lines capacity usage
+        lines_capacity_usage = self._get_lines_capacity_usage(observation)
         line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
         self.last_rewards = [line_usage_reward, action_cost_reward, reference_grid_distance_reward, load_cut_reward]
 
-        reward = [load_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward]
-        return sum(reward) if do_sum else reward
+        reward_aslist = [load_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward]
+        return sum(reward_aslist) if do_sum else reward_aslist
 
-    def step(self, action):
+    def step(self, action, do_sum=True):
         """ Performs a game step given an action. """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
@@ -178,21 +200,21 @@ class RunEnv(object):
             self.game.step(action, cascading_failure=self.simulate_cascading_failure,
                            apply_cascading_output=self.apply_cascading_output)
             observation = self.game.get_observation()
-            #reward = self.get_reward(observation, None)
-            rewardprime = self.get_reward(observation, action, False)
-            reward = sum(rewardprime)
+            reward_aslist = self.get_reward(observation, action, False)
             done = False
             info = None
-        except pypownet.game.NoMoreScenarios as e:  # All input have been played
+        except pypownet.game.NoMoreScenarios as e:
             observation = None
-            reward = 0.
+            reward_aslist = [0., 0., 0., 0.]
             done = True
             info = e
-        except pypownet.grid.GridNotConnexeException as e:
-            return self.__game_over(reward=self.connexity_exception_reward, info=e)
-        except pypownet.grid.DivergingLoadflowException as e:
-            return self.__game_over(reward=self.loadflow_exception_reward, info=e)
+        except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException) as e:
+            observation = None
+            reward_aslist = [0., self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            done = True
+            info = e
 
+        reward = sum(reward_aslist) if do_sum else reward_aslist
         return observation, reward, done, info
 
     def simulate(self, action=None, do_sum=True):
@@ -207,17 +229,13 @@ class RunEnv(object):
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
             simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
                                                        apply_cascading_output=self.apply_cascading_output)
-            reward = self.get_reward(simulated_observation, action, do_sum)
+            reward_aslist = self.get_reward(simulated_observation, action, False)
         except pypownet.game.NoMoreScenarios:
-            reward = 0.
-        except LoadCutException:
-            reward = self.additive_factor_load_cut
-        except pypownet.grid.GridNotConnexeException:
-            reward = self.connexity_exception_reward
-        except pypownet.grid.DivergingLoadflowException:
-            reward = self.loadflow_exception_reward
+            reward_aslist = [0., 0., 0., 0.]
+        except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException):
+            reward_aslist = [0., self._get_action_cost(action), self.loadflow_exception_reward, 0.]
 
-        return reward
+        return sum(reward_aslist) if do_sum else reward_aslist
 
     def reset(self, restart=True):
         # Reset the grid overall topology
