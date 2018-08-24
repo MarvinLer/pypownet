@@ -3,8 +3,7 @@ from pypownet.env import RunEnv
 
 
 class Agent(object):
-    """
-    The template to be used to create an agent: any controler of the power grid is expected to be a daughter of this
+    """ The template to be used to create an agent: any controler of the power grid is expected to be a daughter of this
     class.
     """
 
@@ -38,6 +37,8 @@ class RandomSwitch(Agent):
     An example of a baseline controler that randomly switches one element (either node-splitting or line service status
     switch).
     """
+    def __init__(self, environment):
+        super().__init__(environment)
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
@@ -58,6 +59,10 @@ class RandomLineSwitch(Agent):
     An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
     random line is previously online, switch it off, otherwise switch it on).
     """
+    def __init__(self, environment, destination_path='saved_actions.csv'):
+        super().__init__(environment)
+
+        self.ioman = ActIOnManager(destination_path=destination_path)
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
@@ -70,12 +75,20 @@ class RandomLineSwitch(Agent):
         line_switches_subaction = np.zeros((number_lines,))
         line_switches_subaction[np.random.randint(number_lines)] = 1
 
-        return np.concatenate((topological_switches_subaction, line_switches_subaction))
+        action = np.concatenate((topological_switches_subaction, line_switches_subaction))
+
+        # Dump best action into stored actions file
+        self.ioman.dump(action)
+
+        return action
 
         # No learning (i.e. self.feed_reward does pass)
 
 
 class RandomNodeSplitting(Agent):
+    def __init__(self, environment):
+        super().__init__(environment)
+
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, self.environment.Observation)
@@ -87,7 +100,8 @@ class RandomNodeSplitting(Agent):
         topological_switches_subaction = np.zeros((length_action - number_lines,))
         topological_switches_subaction[np.random.randint(length_action - number_lines)] = 1
 
-        return np.concatenate((topological_switches_subaction, line_switches_subaction))
+        action = np.concatenate((topological_switches_subaction, line_switches_subaction))
+        return action
 
         # No learning (i.e. self.feed_reward does pass)
 
@@ -96,7 +110,6 @@ class TreeSearchLineServiceStatus(Agent):
     """
     Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
     """
-
     def __init__(self, environment, verbose=True):
         super().__init__(environment)
         self.verbose = verbose
@@ -143,9 +156,11 @@ class TreeSearchLineServiceStatus(Agent):
 class GreedySearch(Agent):
     """ Agent that tries every possible action and retrieves the one that gives the best reward.
     """
-    def __init__(self, environment, verbose=True):
+    def __init__(self, environment, verbose=True, destination_path='saved_actions.csv'):
         super().__init__(environment)
         self.verbose = verbose
+
+        self.ioman = ActIOnManager(destination_path=destination_path)
 
     def act(self, observation):
         import itertools
@@ -220,9 +235,52 @@ class GreedySearch(Agent):
         best_action = actions[best_index]
         best_action_name = names[best_index]
 
+        # Dump best action into stored actions file
+        self.ioman.dump(best_action)
+
         if self.verbose:
             print('Action chosen: ', best_action_name, '; expected reward %.4f' % best_reward)
         if self.verbose:
             print(best_action)
 
         return best_action
+
+
+class ActionsFileReaderControler(Agent):
+    def __init__(self, environment, storedactions_file='saved_actions.csv'):
+        super().__init__(environment)
+
+        # Loads manager + actions
+        ioman = ActIOnManager(delete=False)
+        self.actions = ioman.load(storedactions_file)
+        self.action_ctr = 0
+
+    def act(self, observation):
+        action = self.actions[self.action_ctr]  # Correspondance first action to be played = first of list
+        self.action_ctr += 1
+        return action
+
+import os
+
+
+class ActIOnManager(object):
+    def __init__(self, destination_path='saved_actions.csv', delete=True):
+        self.actions = []
+        self.destination_path = destination_path
+        print('Storing actions at', destination_path)
+
+        # Delete last path with same name by default!!!
+        if delete and os.path.exists(destination_path):
+            os.remove(destination_path)
+
+    def dump(self, action):
+        with open(self.destination_path, 'a') as f:
+            f.write(','.join([str(int(switch)) for switch in action])+'\n')
+
+    @staticmethod
+    def load(filepath):
+        with open(filepath, 'r') as f:
+            lines = f.read().splitlines()
+        actions = [[int(l) for l in line.split(',')] for line in lines]
+        assert 0 in np.unique(actions) and 1 in np.unique(actions) and len(np.unique(actions)) == 2
+        return actions

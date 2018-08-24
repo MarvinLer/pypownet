@@ -650,6 +650,7 @@ class Renderer(object):
         if rewards is not None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface
+        else:
             cf_surface = self.draw_cascading_failure_info()
             self.topology_layout.blit(cf_surface, (600, 210))
 
