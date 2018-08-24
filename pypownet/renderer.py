@@ -184,7 +184,7 @@ class Renderer(object):
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
                                                       lines_por, lines_service_status):
             # Compute line thickness + color based on its thermal usage
-            thickness = .6 + .25 * (rtl // .1)
+            thickness = .6 + .25 * (min(1., rtl) // .1)
 
             color_low = np.asarray((51, 204, 51))
             color_middle = np.asarray((255, 165, 0))
@@ -593,6 +593,17 @@ class Renderer(object):
 
         return game_over_surface
 
+    def draw_cascading_failure_info(self):
+        cf_surface = pygame.Surface((300, 100), pygame.SRCALPHA, 32).convert_alpha()
+        cf_text = 'Simulating cascading failure'
+
+        cf_font = pygame.font.SysFont("Arial", 18)
+        red = (204, 204, 255)
+        cf_render = lambda s: cf_font.render(s, False, red)
+        cf_surface.blit(cf_render(cf_text), (0, 0))
+
+        return cf_surface
+
     def _update_left_menu(self, epoch, timestep, rewards):
         self.left_menu = pygame.Surface(self.left_menu_shape, pygame.SRCALPHA, 32).convert_alpha()
 
@@ -639,6 +650,8 @@ class Renderer(object):
         if rewards is not None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface
+            cf_surface = self.draw_cascading_failure_info()
+            self.topology_layout.blit(cf_surface, (600, 210))
 
         # Legend
         #legend_surface = self.draw_surface_legend()
