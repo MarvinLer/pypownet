@@ -58,33 +58,49 @@ class Grid(object):
                                  mapping_permutation=mapping_permutation)
 
     def _synchronize_bus_types(self):
-        """ Checks for every bus if there are any active line connected to it; if not, set the associated mpc.bus bus
-        type to 4 for the current self. """
+        """ This helper is responsible for determining the type of any substation of a grid. This step is mandatory
+         prior to compute any loadflow, as matpower is for example expecting a type value of 4 for isolated nodes,
+         which ultimately leads to a matpower error if not correctly mentionned in the input grid.
+
+         The function first seeks all substations that are neither origin of extremity of online lines. Their type
+         values are put to 4. Then, 2 for the PV nodes values, 3 for the slack bus, and 1 for PQ nodes. """
         mpc = self.mpc
         bus = mpc['bus']
         gen = mpc['gen']
-        branch = mpc['branch']
 
-        # Compute the buses origin or extremity of at least one connected line
-        branch_online = branch[branch[:, 10] != 0]  # Retrieves non-disconnected branches
-        bus_orex = np.unique(branch_online[:, [0, 1]])
-        bus_prods = gen[:, 0].astype(int)
-        bus_loads = bus[self.are_loads, 0].astype(int)
-        non_isolated_bus = np.unique(np.concatenate((bus_prods, bus_loads, bus_orex)).astype(int))
-        # Replace type of isolated bus (i.e. not extremity of line, and does not have prod or load) by 4
-        for b, bus_id in enumerate(bus[:, 0].astype(int)):
-            # If bus is isolated, put the value 4 for its type
-            if bus_id not in non_isolated_bus:
+        # Computes the number of cut loads, and a mask array whether the substation is isolated
+        n_isolated_loads, are_isolated_buses = self._count_isolated_loads()
+
+        # Retrieve buses with productions (their type needs to be 2)
+        bus_prods = gen[:, 0]
+        for b, (bus_id, is_isolated) in enumerate(zip(bus[:, 0], are_isolated_buses)):
+            # If bus is isolated, put the value 4 for its type (mandatory for matpower)
+            if is_isolated:
                 bus[b, 1] = 4
             else:  # Otherwise, put 2 for PV node, 1 else
                 if bus_id in bus_prods:
                     # If this is the slack bus and a production, then put its type to 3 (slack bus)
-                    if bus_id == self.new_slack_bus:
+                    if int(bus_id) == int(self.new_slack_bus):
                         bus[b, 1] = 3
                         continue
                     bus[b, 1] = 2
                 else:
                     bus[b, 1] = 1
+
+        return n_isolated_loads
+
+    def _count_isolated_loads(self):
+        mpc = self.mpc
+        bus = mpc['bus']
+        branch = mpc['branch']
+
+        # Retrieves the substations id at the origin or extremity of at least one switched-on line
+        branch_online = branch[branch[:, 10] != 0]  # Get switched on lines
+        non_isolated_buses = np.unique(branch_online[:, [0, 1]])  # Unique ids of origin and ext of lines online
+
+        # Compute the number of isolated substations that are also PQ nodes
+        are_isolated_buses = np.asarray([sub_id not in non_isolated_buses for sub_id in bus[:, 0]])
+        return sum(are_isolated_buses[self.are_loads]), are_isolated_buses
 
     def __vanilla_matpower_callback(self, mpc, pprint=None, fname=None, verbose=False):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
@@ -217,6 +233,7 @@ class Grid(object):
 
         # Save the loadflow output before the cascading failure *simulation*
         self.mpc = output
+
         return loadflow_success
 
     def load_scenario(self, scenario, do_trigger_lf_computation, cascading_failure, apply_cascading_output):

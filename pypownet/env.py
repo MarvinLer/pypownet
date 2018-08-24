@@ -105,15 +105,16 @@ class RunEnv(object):
         self.apply_cascading_output = True
 
         # Reward hyperparameters
-        self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line usage subreward
-        self.multiplicative_factor_distance_reference_grid = -1.  # Mult factor to the sum of differed nodes
-        self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
-        self.loadflow_exception_reward = -grid_case  # Reward in case of loadflow software error
+        self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
+        self.additive_factor_distance_initial_grid = -1.  # Additive factor for each differed node in the grid
+        self.additive_factor_load_cut = -grid_case // 10.  # Additive factor for each isolated load
         self.connexity_exception_reward = -grid_case  # Reward when the grid is not connexe (at least two islands)
-        self.load_cut_exception_reward = -grid_case  # Reward when one load is isolated
+        self.loadflow_exception_reward = -grid_case  # Reward in case of loadflow software error
+
+        self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
-        self.cost_line_switch = 0  # 1 line switch off or switch on
+        self.cost_line_switch = -1  # 1 line switch off or switch on
         self.cost_node_switch = 0  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
@@ -139,7 +140,7 @@ class RunEnv(object):
         current_topology = self._get_obs().topology
         n_differed_nodes = np.sum(np.where(
             initial_topology[:-self.observation_space.n_lines] != current_topology[:-self.observation_space.n_lines]))
-        reference_grid_distance_reward = self.multiplicative_factor_distance_reference_grid * n_differed_nodes
+        reference_grid_distance_reward = self.additive_factor_distance_initial_grid * n_differed_nodes
 
         # Action cost reward: compute the number of line switches, node switches, and return the associated reward
         if action is None:
@@ -173,10 +174,13 @@ class RunEnv(object):
 
         try:
             # Call the step function from the game: if no error raised, then no outage
-            self.game.step(action, cascading_failure=self.simulate_cascading_failure,
-                           apply_cascading_output=self.apply_cascading_output)
+            n_cut_loads, _ = self.game.step(action, cascading_failure=self.simulate_cascading_failure,
+                                            apply_cascading_output=self.apply_cascading_output)
             observation = self.game.get_observation()
-            reward = self.get_reward(observation, None)
+            #reward = self.get_reward(observation, None)
+            rewardprime = self.get_reward(observation, action, False)
+            reward = sum(rewardprime)
+            print('reward', rewardprime)
             done = False
             info = None
         except pypownet.game.NoMoreScenarios as e:  # All input have been played
@@ -184,8 +188,6 @@ class RunEnv(object):
             reward = 0.
             done = True
             info = e
-        except LoadCutException as e:
-            return self.__game_over(reward=self.load_cut_exception_reward, info=e)
         except pypownet.grid.GridNotConnexeException as e:
             return self.__game_over(reward=self.connexity_exception_reward, info=e)
         except pypownet.grid.DivergingLoadflowException as e:
@@ -205,11 +207,11 @@ class RunEnv(object):
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
             simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
                                                        apply_cascading_output=self.apply_cascading_output)
-            reward = self.get_reward(simulated_observation, None)
+            reward = self.get_reward(simulated_observation, action)
         except pypownet.game.NoMoreScenarios:
             reward = 0.
         except LoadCutException:
-            reward = self.load_cut_exception_reward
+            reward = self.additive_factor_load_cut
         except pypownet.grid.GridNotConnexeException:
             reward = self.connexity_exception_reward
         except pypownet.grid.DivergingLoadflowException:
