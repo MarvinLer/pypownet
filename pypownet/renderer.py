@@ -8,6 +8,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.backends.backend_agg as agg
 import matplotlib.pyplot as plt
+import matplotlib.lines as lines
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
 import pylab
 
 case_layouts = {
@@ -115,14 +118,22 @@ class Renderer(object):
         self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
 
     def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed):
+        layout = self.grid_layout
+        from copy import deepcopy
+
+        layout = np.asarray(deepcopy(layout))
+        min_x = np.min(layout[:, 0])
+        min_y = np.min(layout[:, 1])
+        layout[:, 0] -= (min_x + 890)
+        layout[:, 0] *= -1
+        layout[:, 1] = 680 + min_y -layout[:, 1]
+
         self.loads.append(loads)
         surface = self.nodes_surface
-        x_offset = int(self.topology_layout_shape[0] / 2.)
-        y_offset = int(self.topology_layout_shape[1] / 2.)
         prods_iter = iter(prods)
         loads_iter = iter(loads)
         for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
-                zip(self.grid_layout, self.are_prods, self.are_loads, are_substations_changed)):
+                zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
             prod = next(prods_iter) if is_prod else 0.
             load = next(loads_iter) if is_load else 0.
             prod_minus_load = prod - load
@@ -141,16 +152,124 @@ class Renderer(object):
             # Determine the color of the inner filled circle: background if no action changed at the substation,
             # yellow otherwise
             inner_circle_color = (255, 255, 0) if is_changed else self.background_color
-            gfxdraw.aacircle(surface, x + x_offset, y + y_offset, self.nodes_outer_radius + offset_radius, color)
-            gfxdraw.filled_circle(surface, x + x_offset, y + y_offset, self.nodes_outer_radius + offset_radius, color)
-            gfxdraw.aacircle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, inner_circle_color)
-            gfxdraw.filled_circle(surface, x + x_offset, y + y_offset, self.nodes_inner_radius, inner_circle_color)
+            gfxdraw.aacircle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
+            gfxdraw.filled_circle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
+            gfxdraw.aacircle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
+            gfxdraw.filled_circle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
 
         # Print some scenario stats
         surface.blit(self.text_render('Scenario id'), (80, 10))
         surface.blit(self.value_render(str(scenario_id)), (200, 10))
         surface.blit(self.text_render('Date'), (330, 10))
         surface.blit(self.value_render(date.strftime("%a, %d %b %H:%M")), (400, 10))
+
+    def plot_lines_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status,
+                              prods, loads, are_substations_changed):
+        layout = self.grid_layout
+        my_dpi = 200
+        fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
+                         facecolor=[c / 255. for c in self.background_color], clear=True)
+        l = []
+        from copy import deepcopy
+
+        layout = np.asarray(deepcopy(layout))
+        min_x = np.min(layout[:, 0])
+        min_y = np.min(layout[:, 1])
+        layout[:, 0] -= (min_x + 890)
+        layout[:, 0] *= -1
+        layout[:, 1] -= min_y
+        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
+                                                      lines_por, lines_service_status):
+            # Compute line thickness + color based on its thermal usage
+            thickness = 1 if rtl < .25 else 1.5 if rtl < .5 else 2. if rtl < .75 else 2.5
+            thickness = .8 + .3 * (rtl // .1)
+
+            color_low = np.asarray((51, 204, 51))
+            color_middle = np.asarray((255, 165, 0))
+            color_high = np.asarray((214, 0, 0))
+            if rtl < .5:
+                color = color_low + 2. * rtl * (color_middle - color_low)
+            else:
+                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+                color = color_low + min(1., rtl) * (color_high - color_low)
+
+            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
+            if line_por >= 0:
+                ori = layout[or_id]
+                ext = layout[ex_id]
+            else:
+                ori = layout[ex_id]
+                ext = layout[or_id]
+            l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
+                                  color=[c / 255. for c in color], figure=fig))
+        fig.lines.extend(l)
+
+        ######## Draw nodes
+        # ax = fig.add_subplot(1, 1, 1)
+        # ax.set_xlim(np.min(layout[:, 0])-50, np.max(layout[:, 0])+50)
+        # ax.set_ylim(np.min(layout[:, 1])-50, np.max(layout[:, 1])+50)
+        # #ax.set_facecolor([c / 255. for c in self.background_color])
+        # #plt.axis('off')
+        # fig.subplots_adjust(0, 0, 1, 1, 0, 0)
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        # x_offset = int(self.topology_layout_shape[0] / 2.)
+        # y_offset = int(self.topology_layout_shape[1] / 2.)
+        # prods_iter = iter(prods)
+        # loads_iter = iter(loads)
+        # patches = []
+        # ax.lines.extend(l)
+        # for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
+        #         zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
+        #     print((x, y))
+        #     prod = next(prods_iter) if is_prod else 0.
+        #     load = next(loads_iter) if is_load else 0.
+        #     prod_minus_load = prod - load
+        #     relative_prod = abs(prod / np.max(prods))
+        #     relative_load = abs(load / np.max(loads))
+        #     # Determine color of filled circle based on the amount of production - consumption
+        #     if prod_minus_load > 0:
+        #         color = (0, 153, 255)
+        #         offset_radius = 0 if relative_prod < 0.4 else 2 if relative_prod < 0.7 else 3
+        #     elif prod_minus_load < 0:
+        #         color = (210, 77, 255)
+        #         offset_radius = 0 if relative_load < 0.4 else 2 if relative_load < 0.7 else 3
+        #     else:
+        #         color = (255, 255, 255)
+        #         offset_radius = 0
+        #     color = [c / 255. for c in color]
+        #     color = [1., 1., 1.]
+        #     # Determine the color of the inner filled circle: background if no action changed at the substation,
+        #     # yellow otherwise
+        #     inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+        #     inner_circle_color = [c / 255. for c in inner_circle_color]
+        #
+        #     c = Circle((x, y), self.nodes_outer_radius, linewidth=3, fill=True, color=color, figure=fig, zorder=10000)
+        #     patches.append(c)
+        #     print(self.nodes_outer_radius, offset_radius)
+        #     #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+        #
+        # p = PatchCollection(patches, alpha=1.)
+        # ax.add_collection(p)
+        # p.set_array(np.array(color*len(patches)))
+        # Export plot into something readable by pygame
+        canvas = agg.FigureCanvasAgg(fig)
+        canvas.draw()
+        renderer = canvas.get_renderer()
+        raw_data = renderer.tostring_rgb()
+        size = canvas.get_width_height()
+
+        return pygame.image.fromstring(raw_data, size, "RGB")
+
+    def draw_surface_lines2(self, relative_thermal_limits, lines_por, lines_service_status,
+                            prods, loads, are_substations_changed):
+        img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status,
+                                                          prods, loads, are_substations_changed)
+        loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
+        loads_curve_surface.fill(self.background_color)
+        loads_curve_surface.blit(img_loads_curve_week, (0, 30))
+
+        return loads_curve_surface
 
     def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
         def draw_arrow_head(x, y, angle, color, thickness):
@@ -503,6 +622,9 @@ class Renderer(object):
 
         # Lines
         self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
+        lines_surf = self.draw_surface_lines2(relative_thermal_limits, lines_por, lines_service_status,
+                                              prods, loads, are_substations_changed)
+        self.topology_layout.blit(lines_surf, (0, 0))
 
         # Injections
         last_rewards_surface = self.draw_surface_rewards(rewards)
@@ -513,8 +635,8 @@ class Renderer(object):
         # Nodes
         self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed)
 
-        self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(last_rewards_surface, (1, 570))
+        #self.topology_layout.blit(self.lines_surface, (0, 0))
+        self.topology_layout.blit(last_rewards_surface, (600, 1))
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
@@ -523,14 +645,13 @@ class Renderer(object):
             game_over_surface = self.draw_plot_game_over()
             self.topology_layout.blit(game_over_surface, (300, 200))
 
-    def render(self, relative_thermal_limits, lines_por, lines_service_status,
-               epoch, timestep, scenario_id, prods, loads, last_timestep_rewards, date, are_substations_changed,
-               game_over=False):
+    def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
+               loads, last_timestep_rewards, date, are_substations_changed, game_over=False):
         plt.close('all')
         self.screen.fill(self.background_color)
 
-        # Execute full ploting mechanism: order is important
-        self._update_topology(scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
+        # Execute full plotting mechanism: order is important
+        self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
                               prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over)
         self._update_left_menu(epoch, timestep, last_timestep_rewards)
 

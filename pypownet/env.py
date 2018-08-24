@@ -115,8 +115,8 @@ class RunEnv(object):
         self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
-        self.cost_line_switch = -1  # 1 line switch off or switch on
-        self.cost_node_switch = 0  # Changing the node on which an element is directly wired
+        self.cost_line_switch = -.1  # 1 line switch off or switch on
+        self.cost_node_switch = -.1  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
         self.last_action = None
@@ -181,7 +181,6 @@ class RunEnv(object):
             #reward = self.get_reward(observation, None)
             rewardprime = self.get_reward(observation, action, False)
             reward = sum(rewardprime)
-            print('reward', rewardprime)
             done = False
             info = None
         except pypownet.game.NoMoreScenarios as e:  # All input have been played
