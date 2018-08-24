@@ -210,7 +210,7 @@ class RunEnv(object):
             info = e
         except pypownet.grid.DivergingLoadflowException as e:
             observation = e.last_observation
-            reward_aslist = [0., self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            reward_aslist = [0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
             done = True
             info = e
 

@@ -9,9 +9,8 @@ matplotlib.use("Agg")
 import matplotlib.backends.backend_agg as agg
 import matplotlib.pyplot as plt
 import matplotlib.lines as lines
-from matplotlib.patches import Circle
-from matplotlib.collections import PatchCollection
 import pylab
+from copy import deepcopy
 
 case_layouts = {
     14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
@@ -119,7 +118,6 @@ class Renderer(object):
 
     def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed):
         layout = self.grid_layout
-        from copy import deepcopy
 
         layout = np.asarray(deepcopy(layout))
         min_x = np.min(layout[:, 0])
@@ -173,7 +171,6 @@ class Renderer(object):
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
                          facecolor=[c / 255. for c in self.background_color], clear=True)
         l = []
-        from copy import deepcopy
 
         layout = np.asarray(deepcopy(layout))
         min_x = np.min(layout[:, 0])
@@ -187,8 +184,7 @@ class Renderer(object):
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
                                                       lines_por, lines_service_status):
             # Compute line thickness + color based on its thermal usage
-            thickness = 1 if rtl < .25 else 1.5 if rtl < .5 else 2. if rtl < .75 else 2.5
-            thickness = .8 + .3 * (rtl // .1)
+            thickness = .6 + .25 * (rtl // .1)
 
             color_low = np.asarray((51, 204, 51))
             color_middle = np.asarray((255, 165, 0))
@@ -208,11 +204,12 @@ class Renderer(object):
                 ext = layout[or_id]
 
             if not is_on:
-                l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.5,
+                l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.8,
                                       color=[.8, .8, .8], figure=fig, linestyle='dashed'))
             else:
                 l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
-                                      color=[c / 255. for c in color], figure=fig))
+                                      color=[c / 255. for c in color], figure=fig,
+                                      linestyle='--' if rtl > 1. else '-', dashes=(1., .33) if rtl > 1. else (None, None)))
         fig.lines.extend(l)
 
         ######## Draw nodes
@@ -639,7 +636,9 @@ class Renderer(object):
         self.topology_layout.blit(lines_surf, (0, 0))
 
         # Injections
-        last_rewards_surface = self.draw_surface_rewards(rewards)
+        if rewards is not None:
+            last_rewards_surface = self.draw_surface_rewards(rewards)
+            self.last_rewards_surface = last_rewards_surface
 
         # Legend
         #legend_surface = self.draw_surface_legend()
@@ -648,7 +647,7 @@ class Renderer(object):
         self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(last_rewards_surface, (600, 1) if self.grid_case != 14 else (690, 50))
+        self.topology_layout.blit(self.last_rewards_surface, (600, 1) if self.grid_case != 14 else (690, 50))
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
@@ -665,7 +664,9 @@ class Renderer(object):
         # Execute full plotting mechanism: order is important
         self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
                               prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over)
-        self._update_left_menu(epoch, timestep, last_timestep_rewards)
+
+        if last_timestep_rewards is not None:
+            self._update_left_menu(epoch, timestep, last_timestep_rewards)
 
         # Blit all macro surfaces on screen
         self.screen.blit(self.topology_layout, (self.left_menu_shape[0], 0))

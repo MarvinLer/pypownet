@@ -76,8 +76,16 @@ class Game(object):
         # Retrieve the Scenario object associated to the desired id
         scenario = self.chronic.get_scenario(scenario_id)
         # Loads the next scenario: will load values and compute loadflow to compute real flows
-        self.grid.load_scenario(scenario, do_trigger_lf_computation=do_trigger_lf_computation,
-                                cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
+        self.grid.load_scenario(scenario, do_trigger_lf_computation=False,
+                                cascading_failure=False, apply_cascading_output=False)
+        if do_trigger_lf_computation:
+            self.grid.compute_loadflow(perform_cascading_failure=False, apply_cascading_output=False)
+            if scenario_id > 0:
+                if self.gui is not None:
+                    self._render(None, None)
+            if cascading_failure:
+                self.grid.compute_cascading_failure(apply_cascading_output)
+
         self.current_scenario_id = scenario_id
 
     def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
@@ -257,7 +265,6 @@ class Game(object):
         :param game_over: True to plot a "Game over!" over the screen if game is over
         :return: :raise ImportError: pygame not found raises an error (it is mandatory for the renderer)
         """
-
         def initialize_renderer():
             """ initializes the pygame gui with the parameters necessary to e.g. plot colors of productions """
             pygame.init()

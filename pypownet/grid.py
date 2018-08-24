@@ -197,6 +197,24 @@ class Grid(object):
 
         return mpc, loadflow_success
 
+    def compute_cascading_failure(self, apply_cascading_output):
+        if self.save_io:  # Paths for grid s_t+0.5 and s_t+1
+            pprint = os.path.abspath(os.path.join('tmp', 'pp' + os.path.basename(self.filename)))
+            fname = os.path.abspath(os.path.join('tmp', os.path.basename(self.filename)))
+            if not os.path.exists('tmp'):
+                os.makedirs('tmp')
+        else:
+            pprint, fname = None, None
+
+        # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
+        # of the cascading failure
+        cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
+                                                                                   fname, apply_cascading_output)
+        if apply_cascading_output:
+            # Save last cascading failure loadflow output as new self state
+            self.mpc = cascading_output_mpc
+        return cascading_success
+
     def compute_loadflow(self, perform_cascading_failure, apply_cascading_output):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
         """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
@@ -232,14 +250,9 @@ class Grid(object):
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         if perform_cascading_failure:
-            # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
-            # of the cascading failure
-            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
-                                                                                       fname, apply_cascading_output)
-            if apply_cascading_output:
-                # Save last cascading failure loadflow output as new self state
-                self.mpc = cascading_output_mpc
-                return cascading_success
+            cascading_success = self.compute_cascading_failure(apply_cascading_output=apply_cascading_output,
+                                                               pprint=pprint, fname=fname)
+            return cascading_success
 
         return loadflow_success
 
