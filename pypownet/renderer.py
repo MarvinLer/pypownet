@@ -126,7 +126,10 @@ class Renderer(object):
         min_y = np.min(layout[:, 1])
         layout[:, 0] -= (min_x + 890)
         layout[:, 0] *= -1
-        layout[:, 1] = 680 + min_y -layout[:, 1]
+        layout[:, 1] = 680 + min_y - layout[:, 1]
+        if self.grid_case == 14:
+            layout[:, 0] -= 120
+            layout[:, 1] -= 30
 
         self.loads.append(loads)
         surface = self.nodes_surface
@@ -178,6 +181,9 @@ class Renderer(object):
         layout[:, 0] -= (min_x + 890)
         layout[:, 0] *= -1
         layout[:, 1] -= min_y
+        if self.grid_case == 14:
+            layout[:, 0] -= 120
+            layout[:, 1] += 30
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
                                                       lines_por, lines_service_status):
             # Compute line thickness + color based on its thermal usage
@@ -200,8 +206,13 @@ class Renderer(object):
             else:
                 ori = layout[ex_id]
                 ext = layout[or_id]
-            l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
-                                  color=[c / 255. for c in color], figure=fig))
+
+            if not is_on:
+                l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.5,
+                                      color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+            else:
+                l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
+                                      color=[c / 255. for c in color], figure=fig))
         fig.lines.extend(l)
 
         ######## Draw nodes
@@ -501,15 +512,16 @@ class Renderer(object):
         reward_offset = (50, 40)
         x_offset = 180
         line_spacing = 20
-        rewards_labels = ['Line capacity usage', 'Cost of action', 'Distance to initial grid', 'Connexity valuation']
+        rewards_labels = ['Line capacity usage', 'Cost of action', 'Distance to initial grid', 'Loads cut penalty']
         for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
             last_rewards_surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
-            last_rewards_surface.blit(self.value_render('%.1f' % reward),
-                                      (reward_offset[0] + x_offset, reward_offset[1] + i * line_spacing))
+            last_rewards_surface.blit(self.value_render('%.1f' % reward if reward else '0'),
+                                      (reward_offset[0] + x_offset if reward >= 0 else reward_offset[0] + x_offset - 7
+                                       , reward_offset[1] + i * line_spacing))
         last_rewards_surface.blit(self.text_render('Total'),
                                   (reward_offset[0], reward_offset[1] + (i + 1) * line_spacing))
         last_rewards_surface.blit(self.value_render('%.1f' % np.sum(rewards)),
-                                  (reward_offset[0] + x_offset, reward_offset[1] + (i + 1) * line_spacing))
+                                  (reward_offset[0] + x_offset - 7, reward_offset[1] + (i + 1) * line_spacing))
 
         gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
         gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
@@ -636,7 +648,7 @@ class Renderer(object):
         self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(last_rewards_surface, (600, 1))
+        self.topology_layout.blit(last_rewards_surface, (600, 1) if self.grid_case != 14 else (690, 50))
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 

@@ -64,7 +64,7 @@ class Game(object):
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
 
         # Loads first scenario
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=True)
+        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
 
         # Graphical interface container
         self.gui = None
@@ -185,15 +185,15 @@ class Game(object):
 
         self.grid.apply_topology(new_topology)
 
-    def compute_loadflow(self, cascading_failure, apply_cascading_output):
-        """ Wrapper to call the computed a loadflow of the current grid state.
-
-        :param cascading_failure: True to perform cascading failure
-        :param apply_cascading_output: True to apply the lines breaks of cascading failure to future grid state
-        :return: 0 failure, 1 success
-        """
-        return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure,
-                                          apply_cascading_output=apply_cascading_output)
+    # def compute_loadflow(self, cascading_failure, apply_cascading_output):
+    #     """ Wrapper to call the computed a loadflow of the current grid state.
+    #
+    #     :param cascading_failure: True to perform cascading failure
+    #     :param apply_cascading_output: True to apply the lines breaks of cascading failure to future grid state
+    #     :return: 0 failure, 1 success
+    #     """
+    #     return self.grid.compute_loadflow(perform_cascading_failure=cascading_failure,
+    #                                       apply_cascading_output=apply_cascading_output)
 
     def reset_grid(self):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).
@@ -212,7 +212,7 @@ class Game(object):
             self.current_scenario_id = None
             self.timestep = 1
 
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=True)
+        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
 
     def step(self, action, cascading_failure, apply_cascading_output):
         self.apply_action(action)
@@ -220,9 +220,8 @@ class Game(object):
         try:
             self.load_next_scenario(do_trigger_lf_computation=True,
                                     cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output)
-        except (NoMoreScenarios, pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException) as e:
+        except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
             raise e
-
         return
 
     def simulate(self, action, cascading_failure, apply_cascading_output):
@@ -232,7 +231,7 @@ class Game(object):
         # Step the action
         try:
             self.step(action, cascading_failure, apply_cascading_output)
-        except Exception as e:
+        except pypownet.grid.DivergingLoadflowException as e:
             # Put past values back for topo and injection
             self.grid.apply_topology(before_topology)
             self.load_scenario(before_scenario_id, do_trigger_lf_computation=True,
@@ -327,8 +326,4 @@ class NoMoreScenarios(Exception):
 
 
 class IllegalActionException(Exception):
-    pass
-
-
-class LoadCutException(Exception):
     pass

@@ -1,4 +1,4 @@
-from pypownet.game import IllegalActionException, LoadCutException
+from pypownet.game import IllegalActionException
 
 __author__ = 'marvinler'
 import numpy as np
@@ -208,8 +208,8 @@ class RunEnv(object):
             reward_aslist = [0., 0., 0., 0.]
             done = True
             info = e
-        except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException) as e:
-            observation = None
+        except pypownet.grid.DivergingLoadflowException as e:
+            observation = e.last_observation
             reward_aslist = [0., self._get_action_cost(action), self.loadflow_exception_reward, 0.]
             done = True
             info = e

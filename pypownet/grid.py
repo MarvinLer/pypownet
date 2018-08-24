@@ -9,11 +9,16 @@ import pypownet.env
 
 
 class DivergingLoadflowException(Exception):
-    pass
+    def __init__(self, last_observation, *args):
+        super(DivergingLoadflowException, self).__init__(last_observation, *args)
+        self.last_observation = last_observation
+        self.text = args[0]
 
 
 class GridNotConnexeException(Exception):
-    pass
+    def __init__(self, last_observation, *args):
+        super(GridNotConnexeException, self).__init__(last_observation, *args)
+        self.last_observation = last_observation
 
 
 def compute_flows_a(active, reactive, voltage):
@@ -127,7 +132,7 @@ class Grid(object):
         loadflow_success = output['success']  # 0 = failed, 1 = successed
         return output, loadflow_success
 
-    def _simulate_cascading_failure(self, mpc_copy, pprint, fname):
+    def _simulate_cascading_failure(self, mpc, pprint, fname, apply_cascading_output):
         """ Performs a simulation of cascading failure i.e. an algorithm that successively performs:
         1. switch off every line overflowed in the current grid
         2. compute a loadflow of the resulting grid
@@ -136,20 +141,22 @@ class Grid(object):
         This emulates what happens in real life: an overflowed line can break, leading to new overflowed lines that
         can break and so on (cascading lines failures).
 
-        :param mpc_copy: a matpower mpc structure (dic-style); should be a copy for pointer-issue
+        :param mpc: a matpower mpc structure (dic-style); should be a copy for pointer-issue
         :param pprint: if self.save_io, then used for pretty-print file dest path
         :param fname: if self.save_io, then used for loadflow output file dest path
+        :param apply_cascading_output: True to apply cascading failure on the grid state (False = only simulation)
         :raise GridNotConnexeException: a grid not connexe is equivalent to an outage, so raise exception
         """
+        mpc = mpc if apply_cascading_output else copy.deepcopy(mpc)
         if self.verbose:
             print('  Simulating cascading failure')
 
         loadflow_success = True  # True by default, until an error is raised then False
-        depth = 0
+        depth = 1
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
         while True:
-            bus = mpc_copy['bus']
-            branch = mpc_copy['branch']
+            bus = mpc['bus']
+            branch = mpc['branch']
 
             # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
             active = branch[:, 13]  # P
@@ -161,7 +168,7 @@ class Grid(object):
 
             # Sanity check: check flows and angles are not NaN: overwise it is a sign that previous loadflow diverged
             if np.isnan(branch[:, 13]).any() or np.isnan(bus[:, 8]).any():
-                raise DivergingLoadflowException('Loadflow of has diverged')
+                raise DivergingLoadflowException(self.export_to_observation(), 'Loadflow has not converged')
 
             n_overflows = np.sum(branches_flows_a > branches_thermal_limits)
             # If no lines are overflowed, end the cascading failure simulation
@@ -181,14 +188,14 @@ class Grid(object):
                 pprint = pprint[:-2] + '_cascading%d.m' % depth
             else:
                 fname, pprint = None, None
-            mpc_copy, loadflow_success = self.__vanilla_matpower_callback(mpc_copy, pprint, fname, False)
+            mpc, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname, False)
 
             if not loadflow_success:
-                raise GridNotConnexeException(
-                    'Cascading failure of depth %d lead to a non-connexe grid' % (depth + 1))
+                raise DivergingLoadflowException(self.export_to_observation(),
+                                                 'Cascading failure of depth %d lead to a non-connexe grid' % (depth+1))
             depth += 1
 
-        return mpc_copy, loadflow_success
+        return mpc, loadflow_success
 
     def compute_loadflow(self, perform_cascading_failure, apply_cascading_output):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
@@ -200,8 +207,8 @@ class Grid(object):
         the new grid state; False will only *simulate* the cascading failure and the current state would be the loadflow
         output before the cascading failure. Only works when perform_cascading_failure is True.
         :return: 0 for failed computation, 1 for success
-        :raise GridNotConnexeException: If the grid is not connexe,
-        matpower raises an error; when an error is raised after a matpower callback, this exception is raised.
+        :raise DivergingLoadflowException: if the loadflow did not converge, raise diverging exception (could be because
+        of grid not connexe, or voltages issues, or angle issues etc).
         """
         self._synchronize_bus_types()
 
@@ -217,22 +224,22 @@ class Grid(object):
             pprint, fname = None, None
         output, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname)
 
+        # Save the loadflow output before the cascading failure *simulation*
+        self.mpc = output
+
         # If matpower returned a diverging computation, raise proper exception
         if not loadflow_success:
-            raise GridNotConnexeException('The grid is not connexe')
+            raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         if perform_cascading_failure:
             # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
             # of the cascading failure
-            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(copy.deepcopy(output),
-                                                                                       pprint, fname)
+            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
+                                                                                       fname, apply_cascading_output)
             if apply_cascading_output:
                 # Save last cascading failure loadflow output as new self state
                 self.mpc = cascading_output_mpc
                 return cascading_success
-
-        # Save the loadflow output before the cascading failure *simulation*
-        self.mpc = output
 
         return loadflow_success
 
@@ -370,7 +377,7 @@ class Grid(object):
         loads_offset = self.n_prods
         lines_or_offset = self.n_prods + self.n_loads
         lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
-        lines_service_status_offset = self.n_prods + self.n_loads + 2*self.n_lines
+        lines_service_status_offset = self.n_prods + self.n_loads + 2 * self.n_lines
 
         # Get the substations ids (discard the artificially created ones, i.e. half end)
         substations_ids = self.mpc['bus'][:self.n_nodes // 2, 0]
@@ -416,7 +423,7 @@ class Grid(object):
         # Verify that the mapping array has unique values and of expected size (i.e. same as concatenated-style one)
         assert len(np.concatenate(mapping)) == len(
             np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
-        assert sum([len(m) for m in mapping]) == self.n_prods + self.n_loads + 2*self.n_lines + self.n_lines,\
+        assert sum([len(m) for m in mapping]) == self.n_prods + self.n_loads + 2 * self.n_lines + self.n_lines, \
             'Mapping does not have the same number of elements as there are in the grid'
 
         return mapping, substations_n_elements
