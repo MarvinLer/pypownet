@@ -233,7 +233,7 @@ class RunEnv(object):
         except pypownet.game.NoMoreScenarios:
             reward_aslist = [0., 0., 0., 0.]
         except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException):
-            reward_aslist = [0., self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            reward_aslist = [0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
 
         return sum(reward_aslist) if do_sum else reward_aslist
 
