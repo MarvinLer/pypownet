@@ -318,7 +318,7 @@ class Game(object):
             n_elements_substations = self.grid.number_elements_per_substations
             offset = 0
             for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
-                has_been_changed[i] = np.any(last_action[offset:offset + n_elements] != 0)
+                has_been_changed[i] = np.any([l != 0 for l in last_action[offset:offset + n_elements]])
                 offset += n_elements
 
         self.gui.render(lines_capacity_usage, lines_por_values, lines_service_status,
