@@ -116,7 +116,7 @@ class RunEnv(object):
         self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
-        self.cost_line_switch = 0.  # 1 line switch off or switch on
+        self.cost_line_switch = 0.1  # 1 line switch off or switch on
         self.cost_node_switch = 0.  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
