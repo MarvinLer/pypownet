@@ -21,7 +21,7 @@ class RunEnv(object):
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector, n_cut_loads):
+                     thermal_limits, topology_vector, n_cut_loads, n_cut_prods):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
@@ -32,6 +32,7 @@ class RunEnv(object):
             self.active_productions = active_productions
             self.reactive_productions = reactive_productions
             self.voltage_productions = voltage_productions
+            self.number_cut_prods = n_cut_prods
 
             # Origin flows related state values
             self.active_flows_origin = active_flows_origin
@@ -107,10 +108,11 @@ class RunEnv(object):
 
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
-        self.additive_factor_distance_initial_grid = -.05  # Additive factor for each differed node in the grid
-        self.additive_factor_load_cut = -grid_case // 10.  # Additive factor for each isolated load
+        self.additive_factor_distance_initial_grid = -.02  # Additive factor for each differed node in the grid
+        self.additive_factor_load_cut = -grid_case / 10.  # Additive factor for each isolated load
+        self.additive_factor_prod_cut = .5 * self.additive_factor_load_cut
         self.connexity_exception_reward = -self.observation_space.n  # Reward when the grid is not connexe
-                                                                     # (at least two islands)
+        # (at least two islands)
         self.loadflow_exception_reward = -self.observation_space.n  # Reward in case of loadflow software error
 
         self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
@@ -136,7 +138,7 @@ class RunEnv(object):
 
         :return: the number of different nodes between the current topology and the initial one
         """
-        initial_topology = self.game.get_initial_topology(as_array=True)
+        initial_topology = np.ones(len(self.game.get_initial_topology(as_array=True)))
         current_topology = observation.topology
 
         n_lines = self.observation_space.n_lines
@@ -168,13 +170,15 @@ class RunEnv(object):
         return lines_capacity_usage
 
     def get_reward(self, observation, action, do_sum=True):
-        # Load cut reward: TODO
+        # Load cut reward
         load_cut_reward = self.additive_factor_load_cut * observation.number_cut_loads
+
+        # Prod cut reward
+        prod_cut_reward = self.additive_factor_prod_cut * observation.number_cut_prods
 
         # Reference grid distance reward
         reference_grid_distance = self._get_distance_reference_grid(observation)
         reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
-        print('ref grid reward', reference_grid_distance_reward)
 
         # Action cost reward: compute the number of line switches, node switches, and return the associated reward
         action_cost_reward = -1. * self._get_action_cost(action)
@@ -183,9 +187,14 @@ class RunEnv(object):
         lines_capacity_usage = self._get_lines_capacity_usage(observation)
         line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
-        self.last_rewards = [line_usage_reward, action_cost_reward, reference_grid_distance_reward, load_cut_reward]
+        self.last_rewards = [line_usage_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward,
+                             load_cut_reward]
 
-        reward_aslist = [load_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward]
+        reward_aslist = [load_cut_reward,
+                         prod_cut_reward,
+                         action_cost_reward,
+                         reference_grid_distance_reward,
+                         line_usage_reward]
         return sum(reward_aslist) if do_sum else reward_aslist
 
     def step(self, action, do_sum=True):
@@ -207,12 +216,12 @@ class RunEnv(object):
             info = None
         except pypownet.game.NoMoreScenarios as e:
             observation = None
-            reward_aslist = [0., 0., 0., 0.]
+            reward_aslist = [0., 0., 0., 0., 0.]
             done = True
             info = e
         except pypownet.grid.DivergingLoadflowException as e:
             observation = e.last_observation
-            reward_aslist = [0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
             done = True
             info = e
 
@@ -233,9 +242,9 @@ class RunEnv(object):
                                                        apply_cascading_output=self.apply_cascading_output)
             reward_aslist = self.get_reward(simulated_observation, action, False)
         except pypownet.game.NoMoreScenarios:
-            reward_aslist = [0., 0., 0., 0.]
+            reward_aslist = [0., 0., 0., 0., 0.]
         except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException):
-            reward_aslist = [0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
 
         return sum(reward_aslist) if do_sum else reward_aslist
 

@@ -62,22 +62,27 @@ class Grid(object):
                                  lines_service=self.mpc['branch'][:, 10],
                                  mapping_permutation=mapping_permutation)
 
-    def _synchronize_bus_types(self):
+    @staticmethod
+    def _synchronize_bus_types(mpc, are_loads, new_slack_bus):
         """ This helper is responsible for determining the type of any substation of a grid. This step is mandatory
          prior to compute any loadflow, as matpower is for example expecting a type value of 4 for isolated nodes,
          which ultimately leads to a matpower error if not correctly mentionned in the input grid.
 
          The function first seeks all substations that are neither origin of extremity of online lines. Their type
          values are put to 4. Then, 2 for the PV nodes values, 3 for the slack bus, and 1 for PQ nodes. """
-        mpc = self.mpc
         bus = mpc['bus']
         gen = mpc['gen']
 
         # Computes the number of cut loads, and a mask array whether the substation is isolated
-        n_isolated_loads, are_isolated_buses = self._count_isolated_loads()
+        n_isolated_loads, n_isolated_prods, are_isolated_buses = Grid._count_isolated_loads(mpc, are_loads=are_loads)
 
         # Retrieve buses with productions (their type needs to be 2)
         bus_prods = gen[:, 0]
+
+        # Check if the slack bus is isolated
+        if are_isolated_buses[np.where(bus[:, 0] == new_slack_bus)[0][0]]:
+            new_slack_bus = bus_prods[bus_prods != new_slack_bus][0]
+
         for b, (bus_id, is_isolated) in enumerate(zip(bus[:, 0], are_isolated_buses)):
             # If bus is isolated, put the value 4 for its type (mandatory for matpower)
             if is_isolated:
@@ -85,27 +90,37 @@ class Grid(object):
             else:  # Otherwise, put 2 for PV node, 1 else
                 if bus_id in bus_prods:
                     # If this is the slack bus and a production, then put its type to 3 (slack bus)
-                    if int(bus_id) == int(self.new_slack_bus):
+                    if int(bus_id) == int(new_slack_bus):
                         bus[b, 1] = 3
                         continue
                     bus[b, 1] = 2
                 else:
                     bus[b, 1] = 1
 
-        return n_isolated_loads
+        return n_isolated_loads, n_isolated_prods
 
-    def _count_isolated_loads(self):
-        mpc = self.mpc
+    @staticmethod
+    def _count_isolated_loads(mpc, are_loads):
         bus = mpc['bus']
+        gen = mpc['gen']
         branch = mpc['branch']
+
+        substations_ids = bus[:, 0]
+        prods_ids = gen[:, 0]
 
         # Retrieves the substations id at the origin or extremity of at least one switched-on line
         branch_online = branch[branch[:, 10] != 0]  # Get switched on lines
-        non_isolated_buses = np.unique(branch_online[:, [0, 1]])  # Unique ids of origin and ext of lines online
+        # Unique ids of origin and ext of lines online
+        non_isolated_buses, counts = np.unique(branch_online[:, [0, 1]], return_counts=True)
+        fully_connected_buses = [bus for bus, count in zip(non_isolated_buses, counts) if count > 0]
 
-        # Compute the number of isolated substations that are also PQ nodes
-        are_isolated_buses = np.asarray([sub_id not in non_isolated_buses for sub_id in bus[:, 0]])
-        return sum(are_isolated_buses[self.are_loads]), are_isolated_buses
+        # Compute a mask array whether the substation is isolated
+        are_isolated_buses = np.asarray([sub_id not in fully_connected_buses for sub_id in substations_ids])
+
+        # Compute mask whether a substation has a production (PV node)
+        are_prods = np.array([g in prods_ids for g in substations_ids])
+
+        return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
     def __vanilla_matpower_callback(self, mpc, pprint=None, fname=None, verbose=False):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
@@ -182,6 +197,8 @@ class Grid(object):
 
             # Otherwise, switch off overflowed lines
             branch[branches_flows_a > branches_thermal_limits, 10] = 0
+            # Synchronize the bus types because we potentially switched off some lines (so some new isolated elements)
+            n_isolated_loads, n_isolated_prods = self._synchronize_bus_types(mpc, self.are_loads, self.new_slack_bus)
 
             if self.save_io:
                 fname = fname[:-2] + '_cascading%d.m' % depth
@@ -228,7 +245,7 @@ class Grid(object):
         :raise DivergingLoadflowException: if the loadflow did not converge, raise diverging exception (could be because
         of grid not connexe, or voltages issues, or angle issues etc).
         """
-        self._synchronize_bus_types()
+        self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
 
         mpc = self.mpc
 
@@ -468,7 +485,7 @@ class Grid(object):
         active_loads = to_array(loads_buses[:, 2])
         reactive_loads = to_array(loads_buses[:, 3])
         voltage_loads = to_array(loads_buses[:, 7])
-        n_cut_loads, _ = self._count_isolated_loads()
+        n_cut_loads, n_cut_prods, _ = self._count_isolated_loads(self.mpc, are_loads=self.are_loads)
 
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
@@ -477,7 +494,7 @@ class Grid(object):
                                                reactive_prods, voltage_prods, active_flows_origin,
                                                reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                               thermal_limits, topology, n_cut_loads)
+                                               thermal_limits, topology, n_cut_loads, n_cut_prods)
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
@@ -502,7 +519,7 @@ class Grid(object):
 
     def _snapshot(self, dst_fname=None):
         """ Saves a snapshot of current grid state into IEEE format file with path dst_fname. """
-        self._synchronize_bus_types()
+        self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
         if dst_fname is None:
             dst_fname = os.path.abspath(os.path.join('tmp', 'snapshot_' + os.path.basename(self.filename)))
             if not os.path.exists('tmp'):
