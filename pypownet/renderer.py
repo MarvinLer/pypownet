@@ -129,7 +129,12 @@ class Renderer(object):
             layout[:, 0] -= 120
             layout[:, 1] -= 30
 
-        self.loads.append(loads)
+        # Dirty
+        if self.loads:
+            if np.any([l != lo for l, lo in zip(loads, self.loads[-1])]):
+                self.loads.append(loads)
+        else:
+            self.loads.append(loads)
         surface = self.nodes_surface
         prods_iter = iter(prods)
         loads_iter = iter(loads)
@@ -389,6 +394,81 @@ class Renderer(object):
                     y = y_offset + center[1]
                 draw_arrow_head(x, y, angle, color, thickness)
 
+    def draw_surface_arrows(self, relative_thermal_limits, lines_por, lines_service_status):
+        layout = self.grid_layout
+
+        layout = np.asarray(deepcopy(layout))
+        min_x = np.min(layout[:, 0])
+        min_y = np.min(layout[:, 1])
+        layout[:, 0] -= (min_x + 890)
+        layout[:, 0] *= -1
+        layout[:, 1] = 680 + min_y - layout[:, 1]
+        if self.grid_case == 14:
+            layout[:, 0] -= 620
+            layout[:, 1] -= 430
+        if self.grid_case == 118:
+            layout[:, 0] -= 500
+            layout[:, 1] -= 400
+
+        def draw_arrow_head(x, y, angle, color, thickness):
+            head_angle = math.pi / 6.
+            width = 8 + thickness
+            x -= width / 2. * math.cos(angle)
+            y -= width / 2. * math.sin(angle)
+            x1 = x + width * math.cos(angle + head_angle)
+            y1 = y + width * math.sin(angle + head_angle)
+            x2 = x + width * math.cos(angle - head_angle)
+            y2 = y + width * math.sin(angle - head_angle)
+            gfxdraw.aapolygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
+            gfxdraw.filled_polygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
+
+        surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
+        x_offset = int(self.topology_layout_shape[0] / 2.)
+        y_offset = int(self.topology_layout_shape[1] / 2.)
+        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
+                                                      lines_por, lines_service_status):
+            if not is_on:
+                continue
+            # Compute line thickness + color based on its thermal usage
+            thickness = .6 + .25 * (min(1., rtl) // .1)
+
+            color_low = np.asarray((51, 204, 51))
+            color_middle = np.asarray((255, 165, 0))
+            color_high = np.asarray((214, 0, 0))
+            if rtl < .5:
+                color = color_low + 2. * rtl * (color_middle - color_low)
+            else:
+                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+                color = color_low + min(1., rtl) * (color_high - color_low)
+
+            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
+            if line_por >= 0:
+                ori = layout[or_id]
+                ext = layout[ex_id]
+            else:
+                ori = layout[ex_id]
+                ext = layout[or_id]
+
+            # Compute the line characteristics: draxing is done by plotting two lines starting from the center
+            # with a specific angle and semi-length
+            length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
+            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
+            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
+
+            # First, draw the arrow heads; lines will be drawn on top
+            distance_arrow_heads = 25
+            n_arrow_heads = int(max(1, length // distance_arrow_heads))
+            for a in range(n_arrow_heads):
+                if n_arrow_heads != 1:
+                    x = x_offset + center[0] + ((a + .5) * distance_arrow_heads - length / 2.) * math.cos(angle)
+                    y = y_offset + center[1] + ((a + .5) * distance_arrow_heads - length / 2.) * math.sin(angle)
+                else:
+                    x = x_offset + center[0]
+                    y = y_offset + center[1]
+                draw_arrow_head(x, y, angle, color, thickness)
+
+        return surface
+
     def create_plot_loads_curve(self, n_hours, left_xlabel):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
@@ -645,6 +725,8 @@ class Renderer(object):
         lines_surf = self.draw_surface_lines2(relative_thermal_limits, lines_por, lines_service_status,
                                               prods, loads, are_substations_changed)
         self.topology_layout.blit(lines_surf, (0, 0))
+        arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
+        self.topology_layout.blit(arrow_surf, (0, 0))
 
         # Injections
         if rewards is not None:

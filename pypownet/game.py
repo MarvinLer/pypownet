@@ -326,8 +326,8 @@ class Game(object):
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                         date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
 
-        from time import sleep
-        sleep(1)
+        #from time import sleep
+        #sleep(1)
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
