@@ -107,7 +107,7 @@ class RunEnv(object):
 
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
-        self.additive_factor_distance_initial_grid = -1.  # Additive factor for each differed node in the grid
+        self.additive_factor_distance_initial_grid = -.05  # Additive factor for each differed node in the grid
         self.additive_factor_load_cut = -grid_case // 10.  # Additive factor for each isolated load
         self.connexity_exception_reward = -self.observation_space.n  # Reward when the grid is not connexe
                                                                      # (at least two islands)
@@ -116,7 +116,7 @@ class RunEnv(object):
         self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
-        self.cost_line_switch = 0.1  # 1 line switch off or switch on
+        self.cost_line_switch = .1  # 1 line switch off or switch on
         self.cost_node_switch = 0.  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
@@ -125,7 +125,7 @@ class RunEnv(object):
     def _get_obs(self):
         return self.game.get_observation()
 
-    def _get_distance_reference_grid(self):
+    def _get_distance_reference_grid(self, observation):
         # Reference grid distance reward
         """ Computes the distance of the current observation with the reference grid (i.e. initial grid of the game).
         The distance is computed as the number of different nodes on which two identical elements are wired. For
@@ -137,9 +137,10 @@ class RunEnv(object):
         :return: the number of different nodes between the current topology and the initial one
         """
         initial_topology = self.game.get_initial_topology(as_array=True)
-        current_topology = self._get_obs().topology
-        n_differed_nodes = np.sum(np.where(
-            initial_topology[:-self.observation_space.n_lines] != current_topology[:-self.observation_space.n_lines]))
+        current_topology = observation.topology
+
+        n_lines = self.observation_space.n_lines
+        n_differed_nodes = np.sum((initial_topology[:-n_lines] != current_topology[:-n_lines]))
         return n_differed_nodes
 
     def _get_action_cost(self, action):
@@ -171,8 +172,9 @@ class RunEnv(object):
         load_cut_reward = self.additive_factor_load_cut * observation.number_cut_loads
 
         # Reference grid distance reward
-        reference_grid_distance = self._get_distance_reference_grid()
+        reference_grid_distance = self._get_distance_reference_grid(observation)
         reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
+        print('ref grid reward', reference_grid_distance_reward)
 
         # Action cost reward: compute the number of line switches, node switches, and return the associated reward
         action_cost_reward = -1. * self._get_action_cost(action)

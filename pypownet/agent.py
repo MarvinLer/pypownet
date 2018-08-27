@@ -206,11 +206,12 @@ class GreedySearch(Agent):
         # Then test every node configuration for the considered nodes
         # We are only interested in nodes that are connected to at least from 4 to 6 elements
         # Those elements can be transmission lines or injections
-        n_elements_nodes = [5, 8, 4, 7, 3, 8, 4, 1, 5, 3, 1, 3, 3, 1]
+        #n_elements_nodes = [5, 8, 4, 7, 3, 8, 4, 1, 5, 3, 1, 3, 3, 1]
+        n_elements_nodes = [3, 6, 4, 6, 5, 6, 3, 2, 5, 3, 3, 3, 4, 3]
         #element_per_node = {1: 5, 2: 8, 3: 4, 4: 7, 5: 3, 6: 8, 7: 4, 8: 1, 9: 5, 10: 3, 11: 1, 12: 3, 13: 3, 14: 1}
         action_offset = 0
         for node, n_elements in enumerate(n_elements_nodes):
-            if n_elements in [4, 5, 6]:
+            if n_elements in [4, 5]:
                 # Loopking trhough all configurations of n_elements binary vector with first value fixed to 0
                 for configuration in list(itertools.product([0, 1], repeat=n_elements - 1)):
                     conf = [0]+list(configuration)
@@ -254,6 +255,10 @@ class ActionsFileReaderControler(Agent):
         ioman = ActIOnManager(delete=False)
         self.actions = ioman.load(storedactions_file)
         self.action_ctr = 0
+
+        self.number_actions = len(self.actions)
+        number_do_nothing = np.sum([np.sum(action) == 0 for action in self.actions])
+        print('% of do-nothing:', float(number_do_nothing) / float(self.number_actions))
 
     def act(self, observation):
         action = self.actions[self.action_ctr]  # Correspondance first action to be played = first of list

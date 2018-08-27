@@ -250,8 +250,7 @@ class Grid(object):
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         if perform_cascading_failure:
-            cascading_success = self.compute_cascading_failure(apply_cascading_output=apply_cascading_output,
-                                                               pprint=pprint, fname=fname)
+            cascading_success = self.compute_cascading_failure(apply_cascading_output=apply_cascading_output)
             return cascading_success
 
         return loadflow_success
@@ -533,14 +532,10 @@ class Topology(object):
             self.invert_mapping_permutation = lambda x: x  # Identity by default
         else:
             concatenated_mapping_permutation = np.concatenate(mapping_permutation)
-            self.mapping_permutation = lambda array: np.concatenate(
-                ([array[c] for c in concatenated_mapping_permutation],
-                 array[-len(lines_ex_nodes):]))
+            self.mapping_permutation = lambda array: [int(array[c]) for c in concatenated_mapping_permutation]
             invert_indexes = [np.where(concatenated_mapping_permutation == i)[0][0] for i in
                               range(len(concatenated_mapping_permutation))]
-            self.invert_mapping_permutation = lambda array: np.concatenate(
-                ([array[c] for c in invert_indexes],
-                 array[-len(lines_ex_nodes):]))
+            self.invert_mapping_permutation = lambda array: [int(array[c]) for c in invert_indexes]
 
     def get_zipped(self):
         return self.mapping_permutation(np.concatenate(

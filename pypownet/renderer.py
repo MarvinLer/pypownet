@@ -157,7 +157,7 @@ class Renderer(object):
                 offset_radius = 0
             # Determine the color of the inner filled circle: background if no action changed at the substation,
             # yellow otherwise
-            inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+            inner_circle_color = (255, 255, 102) if is_changed else self.background_color
             gfxdraw.aacircle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
             gfxdraw.filled_circle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
             gfxdraw.aacircle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
