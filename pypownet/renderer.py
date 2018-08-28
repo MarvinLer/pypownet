@@ -100,6 +100,8 @@ class Renderer(object):
         value_color = (220, 220, 220)
         self.text_render = lambda s: self.default_font.render(s, False, text_color)
         self.value_render = lambda s: self.default_font.render(s, False, value_color)
+        big_value_font = pygame.font.SysFont('Arial', 18)
+        self.big_value_render = lambda s: big_value_font.render(s, False, value_color)
 
         self.bold_white_font = pygame.font.SysFont(font, 15)
         bold_white = (220, 220, 220)
@@ -116,7 +118,12 @@ class Renderer(object):
         black = (0, 0, 0)
         self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
 
-    def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed):
+        self.black_bold_font = pygame.font.SysFont(font, 15)
+        blackish = (70, 70, 70)
+        self.black_bold_font.set_bold(True)
+        self.black_bold_font_render = lambda s: self.black_bold_font.render(s, False, blackish)
+
+    def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed, cascading_result_frame):
         layout = self.grid_layout
 
         layout = np.asarray(deepcopy(layout))
@@ -164,13 +171,25 @@ class Renderer(object):
             gfxdraw.filled_circle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
 
         # Print some scenario stats
-        surface.blit(self.text_render('Scenario id'), (80, 10))
-        surface.blit(self.value_render(str(scenario_id)), (200, 10))
-        surface.blit(self.text_render('Date'), (330, 10))
-        surface.blit(self.value_render(date.strftime("%a, %d %b %H:%M")), (400, 10))
+        surface.blit(self.text_render('Date'), (25, 15))
+        surface.blit(self.big_value_render(date.strftime("%A %d %b  %H:%M")), (75, 12))
+        surface.blit(self.text_render('Timestep id'), (330, 15))
+        surface.blit(self.big_value_render(str(scenario_id)), (425, 12))
 
-    def plot_lines_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status,
-                              prods, loads, are_substations_changed):
+        width = 300
+        x_offset = 500
+        if cascading_result_frame:
+            gfxdraw.filled_polygon(surface, ((x_offset, 35), (x_offset, 10), (x_offset + width, 10),
+                                             (x_offset + width, 35)),
+                                   (250, 200, 200, 240))
+            surface.blit(self.black_bold_font_render('result of cascading failure frame'), (x_offset + 30, 14))
+        else:
+            gfxdraw.filled_polygon(surface, ((x_offset, 35), (x_offset, 10), (x_offset + width, 10),
+                                             (x_offset + width, 35)),
+                                   (200, 250, 200, 240))
+            surface.blit(self.black_bold_font_render('result of action frame'), (x_offset + 65, 14))
+
+    def plot_lines_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status):
         layout = self.grid_layout
         my_dpi = 200
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
@@ -214,7 +233,8 @@ class Renderer(object):
             else:
                 l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
                                       color=[c / 255. for c in color], figure=fig,
-                                      linestyle='--' if rtl > 1. else '-', dashes=(1., .33) if rtl > 1. else (None, None)))
+                                      linestyle='--' if rtl > 1. else '-',
+                                      dashes=(1., .33) if rtl > 1. else (None, None)))
         fig.lines.extend(l)
 
         ######## Draw nodes
@@ -274,10 +294,8 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_lines2(self, relative_thermal_limits, lines_por, lines_service_status,
-                            prods, loads, are_substations_changed):
-        img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status,
-                                                          prods, loads, are_substations_changed)
+    def draw_surface_lines2(self, relative_thermal_limits, lines_por, lines_service_status):
+        img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status)
         loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.background_color)
         loads_curve_surface.blit(img_loads_curve_week, (0, 30))
@@ -335,7 +353,12 @@ class Renderer(object):
                 gfxdraw.aapolygon(surface, (UL, UR, BR, BL), grey_color)
                 gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), grey_color)
 
-        self.relative_thermal_limits.append(relative_thermal_limits)
+        # Dirty
+        if self.relative_thermal_limits:
+            if np.any([l != lo for l, lo in zip(relative_thermal_limits, self.relative_thermal_limits[-1])]):
+                self.relative_thermal_limits.append(relative_thermal_limits)
+        else:
+            self.relative_thermal_limits.append(relative_thermal_limits)
         surface = self.lines_surface
         layout = self.grid_layout
         x_offset = int(self.topology_layout_shape[0] / 2.)
@@ -581,7 +604,7 @@ class Renderer(object):
         return pygame.image.fromstring(raw_data, size, "RGB")
 
     def draw_surface_rewards(self, rewards):
-        last_rewards_surface_shape = (self.left_menu_shape[0], 160)
+        last_rewards_surface_shape = (self.left_menu_shape[0], 180)
         last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
         last_rewards_surface.fill(self.left_menu_tile_color)
         last_rewards_surface.blit(self.bold_white_render('Last timestep reward'), (30, 20))
@@ -589,7 +612,9 @@ class Renderer(object):
         reward_offset = (50, 40)
         x_offset = 180
         line_spacing = 20
-        rewards_labels = ['Line capacity usage', 'Cost of action', 'Distance to initial grid', 'Loads cut penalty']
+
+        rewards_labels = ['Loads cut', 'Productions cut', 'Last action cost', 'Distance to initial grid',
+                          'Line capacity usage']
         for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
             last_rewards_surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
             last_rewards_surface.blit(self.value_render('%.1f' % reward if reward else '0'),
@@ -673,17 +698,6 @@ class Renderer(object):
 
         return game_over_surface
 
-    def draw_cascading_failure_info(self):
-        cf_surface = pygame.Surface((300, 100), pygame.SRCALPHA, 32).convert_alpha()
-        cf_text = 'Simulating cascading failure'
-
-        cf_font = pygame.font.SysFont("Arial", 18)
-        red = (204, 204, 255)
-        cf_render = lambda s: cf_font.render(s, False, red)
-        cf_surface.blit(cf_render(cf_text), (0, 0))
-
-        return cf_surface
-
     def _update_left_menu(self, epoch, timestep, rewards):
         self.left_menu = pygame.Surface(self.left_menu_shape, pygame.SRCALPHA, 32).convert_alpha()
 
@@ -722,8 +736,7 @@ class Renderer(object):
 
         # Lines
         self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
-        lines_surf = self.draw_surface_lines2(relative_thermal_limits, lines_por, lines_service_status,
-                                              prods, loads, are_substations_changed)
+        lines_surf = self.draw_surface_lines2(relative_thermal_limits, lines_por, lines_service_status)
         self.topology_layout.blit(lines_surf, (0, 0))
         arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
         self.topology_layout.blit(arrow_surf, (0, 0))
@@ -732,15 +745,13 @@ class Renderer(object):
         if rewards is not None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface
-        else:
-            cf_surface = self.draw_cascading_failure_info()
-            self.topology_layout.blit(cf_surface, (600, 210))
 
         # Legend
         #legend_surface = self.draw_surface_legend()
 
         # Nodes
-        self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed)
+        self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed,
+                                cascading_result_frame=rewards is not None)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (600, 1) if self.grid_case != 14 else (690, 50))

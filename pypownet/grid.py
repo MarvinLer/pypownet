@@ -166,7 +166,7 @@ class Grid(object):
         if self.verbose:
             print('  Simulating cascading failure')
 
-        loadflow_success = True  # True by default, until an error is raised then False
+        cascading_success = True  # True by default, until an error is raised then False
         depth = 1
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
         while True:
@@ -205,14 +205,14 @@ class Grid(object):
                 pprint = pprint[:-2] + '_cascading%d.m' % depth
             else:
                 fname, pprint = None, None
-            mpc, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname, False)
+            mpc, cascading_success = self.__vanilla_matpower_callback(mpc, pprint, fname, False)
 
-            if not loadflow_success:
+            if not cascading_success:
                 raise DivergingLoadflowException(self.export_to_observation(),
                                                  'Cascading failure of depth %d lead to a non-connexe grid' % (depth+1))
             depth += 1
 
-        return mpc, loadflow_success
+        return mpc, cascading_success
 
     def compute_cascading_failure(self, apply_cascading_output):
         if self.save_io:  # Paths for grid s_t+0.5 and s_t+1
@@ -565,7 +565,11 @@ class Topology(object):
     def unzip(topology, n_prods, n_loads, n_lines, invert_mapping_function):
         # Shuffle topology parameter based on index positions; invert_mapping_function should be the same as the
         # one used by the environment to convert the sorted topology into its internal representation
+        topology = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        print('topology before', topology)
         topology_shuffled = invert_mapping_function(topology)
+        print('topology after', topology_shuffled)
+        print(invert_mapping_function(np.array(range(len(topology)))))
 
         prods_nodes = topology_shuffled[:n_prods]
         loads_nodes = topology_shuffled[n_prods:n_prods + n_loads]

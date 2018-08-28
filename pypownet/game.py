@@ -68,6 +68,7 @@ class Game(object):
 
         # Graphical interface container
         self.gui = None
+        self.last_action = None
 
         self.epoch = 1
         self.timestep = 1
@@ -75,18 +76,23 @@ class Game(object):
     def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         # Retrieve the Scenario object associated to the desired id
         scenario = self.chronic.get_scenario(scenario_id)
+        print('before load', self.grid.mpc['branch'][:, 10])
         # Loads the next scenario: will load values and compute loadflow to compute real flows
         self.grid.load_scenario(scenario, do_trigger_lf_computation=False,
                                 cascading_failure=False, apply_cascading_output=False)
+        self.current_scenario_id = scenario_id
+        print('after load before compute lf', self.grid.mpc['branch'][:, 10])
         if do_trigger_lf_computation:
             self.grid.compute_loadflow(perform_cascading_failure=False, apply_cascading_output=False)
+            ##################### HACK
             if scenario_id > 0:
                 if self.gui is not None:
-                    self._render(None, None)
+                    self._render(None, self.last_action)
+            print('after comp lf before cascading', self.grid.mpc['branch'][:, 10])
             if cascading_failure:
                 self.grid.compute_cascading_failure(apply_cascading_output)
 
-        self.current_scenario_id = scenario_id
+        print('after cascading', self.grid.mpc['branch'][:, 10], '\n')
 
     def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
@@ -94,6 +100,7 @@ class Game(object):
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
         """
+        print('before load_next_scenario', self.grid.mpc['branch'][:, 10], '\n')
         # If there are no more scenarios to be played, raise NoMoreScenarios exception
         if self.current_scenario_id == self.scenarios_ids[-1]:
             raise NoMoreScenarios('No more scenarios available')
@@ -107,8 +114,10 @@ class Game(object):
         # Update date
         self.current_date += self.timestep_date
 
-        return self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
-                                  apply_cascading_output)
+        self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
+                           apply_cascading_output)
+
+        print('after load_next_scenario', self.grid.mpc['branch'][:, 10], '\n')
 
     def get_current_scenario_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -223,7 +232,10 @@ class Game(object):
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
 
     def step(self, action, cascading_failure, apply_cascading_output):
+        print('before apply_action', self.grid.mpc['branch'][:, 10], '\n')
         self.apply_action(action)
+        self.last_action = action
+        print('after apply_action', self.grid.mpc['branch'][:, 10], '\n')
 
         try:
             self.load_next_scenario(do_trigger_lf_computation=True,
@@ -265,6 +277,7 @@ class Game(object):
         :param game_over: True to plot a "Game over!" over the screen if game is over
         :return: :raise ImportError: pygame not found raises an error (it is mandatory for the renderer)
         """
+
         def initialize_renderer():
             """ initializes the pygame gui with the parameters necessary to e.g. plot colors of productions """
             pygame.init()
@@ -327,6 +340,7 @@ class Game(object):
                         date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
 
         from time import sleep
+
         sleep(1)
 
 

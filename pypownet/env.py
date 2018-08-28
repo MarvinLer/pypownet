@@ -187,14 +187,13 @@ class RunEnv(object):
         lines_capacity_usage = self._get_lines_capacity_usage(observation)
         line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
-        self.last_rewards = [line_usage_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward,
-                             load_cut_reward]
-
         reward_aslist = [load_cut_reward,
                          prod_cut_reward,
                          action_cost_reward,
                          reference_grid_distance_reward,
                          line_usage_reward]
+        self.last_rewards = reward_aslist
+
         return sum(reward_aslist) if do_sum else reward_aslist
 
     def step(self, action, do_sum=True):
