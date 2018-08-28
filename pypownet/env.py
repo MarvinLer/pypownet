@@ -90,15 +90,15 @@ class RunEnv(object):
             if not set(action).issubset([0, 1]):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
-    def __init__(self, grid_case=118):
-        # Instantiate game & action space
+    def __init__(self, grid_case=118, start_id=0):
         """
         Instante the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
-            case14 and case118.
+        case14 and case118.
         """
-        self.game = pypownet.game.Game(grid_case=grid_case)
+        # Instantiate game & action space
+        self.game = pypownet.game.Game(grid_case=grid_case, start_id=start_id)
         self.action_space = self.ActionSpace(grid_case)
         self.observation_space = self.ObservationSpace(grid_case)
 

@@ -57,10 +57,12 @@ class Grid(object):
 
         mapping_permutation, self.number_elements_per_substations = self.compute_topological_mapping_permutation()
         # Topology container: initially, all elements are on the node 0
-        self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)), loads_nodes=np.zeros((self.n_loads,)),
-                                 lines_or_nodes=np.zeros((self.n_lines,)), lines_ex_nodes=np.zeros((self.n_lines,)),
+        self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)),
+                                 loads_nodes=np.zeros((self.n_loads,)),
+                                 lines_or_nodes=np.zeros((self.n_lines,)),
+                                 lines_ex_nodes=np.zeros((self.n_lines,)),
                                  lines_service=self.mpc['branch'][:, 10],
-                                 mapping_permutation=mapping_permutation)
+                                 mapping_array=mapping_permutation)
 
     @staticmethod
     def _synchronize_bus_types(mpc, are_loads, new_slack_bus):
@@ -230,6 +232,7 @@ class Grid(object):
         if apply_cascading_output:
             # Save last cascading failure loadflow output as new self state
             self.mpc = cascading_output_mpc
+            self.topology.set_lines_services(self.mpc['branch'][:, 10])
         return cascading_success
 
     def compute_loadflow(self, perform_cascading_failure, apply_cascading_output):
@@ -261,6 +264,7 @@ class Grid(object):
 
         # Save the loadflow output before the cascading failure *simulation*
         self.mpc = output
+        self.topology.set_lines_services(self.mpc['branch'][:, 10])
 
         # If matpower returned a diverging computation, raise proper exception
         if not loadflow_success:
@@ -323,12 +327,13 @@ class Grid(object):
 
         :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
         """
-        assert new_topology.get_length() == self.get_topology().get_length()
-        assert set(new_topology.get_zipped()).issubset([0, 1])
+        cpy_new_topology = copy.deepcopy(new_topology)
+        assert cpy_new_topology.get_length() == self.get_topology().get_length()
+        assert set(cpy_new_topology.get_zipped()).issubset([0, 1])
 
         # Split topology vector into the four chunks
         new_prods_nodes, new_loads_nodes, new_lines_or_nodes, new_lines_ex_nodes, new_lines_service = \
-            new_topology.get_unzipped()
+            cpy_new_topology.get_unzipped()
 
         # Function to find the true id of the substation associated with one node
         node_to_substation = lambda node_id: str(node_id).replace(ARTIFICIAL_NODE_STARTING_STRING, '')
@@ -381,7 +386,10 @@ class Grid(object):
         # Change line status (equivalent to reco/disco calls as a function of values of new_line_status)
         branch[:, 10] = new_lines_service
 
-        self.topology = new_topology
+        #self.topology = cpy_new_topology
+        self.topology = cpy_new_topology
+        # self.topology = Topology(new_prods_nodes, new_loads_nodes, new_lines_or_nodes, new_lines_ex_nodes,
+        #                          new_lines_service, new_topology.mapping_array)
 
     def get_topology(self):
         return self.topology
@@ -534,8 +542,7 @@ class Topology(object):
     be manipulated using this class, as it maintains the adopted convention consistently.
     """
 
-    def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, lines_service,
-                 mapping_permutation=None):
+    def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, lines_service, mapping_array):
         self.prods_nodes = prods_nodes
         self.loads_nodes = loads_nodes
         self.lines_or_nodes = lines_or_nodes
@@ -544,15 +551,13 @@ class Topology(object):
 
         # Function that sorts the internal topological array into a more intuitive representation: the nodes of the
         # elements of a substation are consecutive (first prods, then loads, then lines origin, then line ext.)
-        if not mapping_permutation:
-            self.mapping_permutation = lambda x: x  # Identity by default i.e. no permutation
-            self.invert_mapping_permutation = lambda x: x  # Identity by default
-        else:
-            concatenated_mapping_permutation = np.concatenate(mapping_permutation)
-            self.mapping_permutation = lambda array: [int(array[c]) for c in concatenated_mapping_permutation]
-            invert_indexes = [np.where(concatenated_mapping_permutation == i)[0][0] for i in
-                              range(len(concatenated_mapping_permutation))]
-            self.invert_mapping_permutation = lambda array: [int(array[c]) for c in invert_indexes]
+        concatenated_mapping_permutation = np.concatenate(mapping_array)
+        self.mapping_permutation = lambda array: [int(array[c]) for c in concatenated_mapping_permutation]
+        invert_indexes = [np.where(concatenated_mapping_permutation == i)[0][0] for i in
+                          range(len(concatenated_mapping_permutation))]
+        self.invert_mapping_permutation = lambda array: [int(array[c]) for c in invert_indexes]
+
+        self.mapping_array = mapping_array
 
     def get_zipped(self):
         return self.mapping_permutation(np.concatenate(
@@ -565,11 +570,7 @@ class Topology(object):
     def unzip(topology, n_prods, n_loads, n_lines, invert_mapping_function):
         # Shuffle topology parameter based on index positions; invert_mapping_function should be the same as the
         # one used by the environment to convert the sorted topology into its internal representation
-        topology = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-        print('topology before', topology)
         topology_shuffled = invert_mapping_function(topology)
-        print('topology after', topology_shuffled)
-        print(invert_mapping_function(np.array(range(len(topology)))))
 
         prods_nodes = topology_shuffled[:n_prods]
         loads_nodes = topology_shuffled[n_prods:n_prods + n_loads]
@@ -582,39 +583,18 @@ class Topology(object):
         return len(self.prods_nodes) + len(self.loads_nodes) + len(self.lines_ex_nodes) + len(
             self.lines_or_nodes) + len(self.lines_service)
 
+    def set_lines_services(self, new_lines_services):
+        self.lines_service = new_lines_services
 
-if __name__ == '__main__':
-    # For testing purposes... might be outdated
-    ###########################################
-
-    source = '/home/marvin/Documents/pro/stagemaster_inria/PowerGrid-UI/input/reference_grid118.m'
-    grid = Grid(source, False, 69, new_imaps=3900)
-    grid._snapshot(os.path.join('tmp', 'snapshot_before.m'))
-    top = grid.get_topology()
-    topology = grid.get_topology().get_zipped()
-    print(topology)
-    print(np.argmax(grid.get_topology().get_zipped()))
-    print(np.argmax(grid.get_topology().mapping_permutation(topology)))
-
-    offset = 1
-    new_topo = copy.deepcopy(topology)
-    new_topo[offset] = 1
-    new_topo = Topology(*(Topology.unzip(new_topo, grid.n_prods, grid.n_loads, grid.n_lines,
-                                         top.invert_mapping_permutation)))
-    new_topo.mapping_permutation = grid.get_topology().mapping_permutation
-    grid.apply_topology(new_topo)
-    grid._snapshot(os.path.join('tmp', 'snapshot_middle.m'))
-    print(np.argmax(grid.get_topology().get_zipped()))
-    print(grid.get_topology().get_zipped())
-
-    new_topo = copy.deepcopy(topology)
-    new_topo[offset] = 0
-    new_topo = Topology(*Topology.unzip(new_topo, grid.n_prods, grid.n_loads, grid.n_lines,
-                                        top.invert_mapping_permutation))
-    new_topo.mapping_permutation = grid.get_topology().mapping_permutation
-    grid.apply_topology(new_topo)
-    #grid.compute_loadflow(perform_cascading_failure=True)
-    grid._snapshot(os.path.join('tmp', 'snapshot_after.m'))
-    print(np.argmax(grid.get_topology().get_zipped()))
-    print(np.argmax(grid.get_topology().mapping_permutation(topology)))
+    def __deepcopy__(self, memo):
+        cpy = object.__new__(type(self))
+        cpy.prods_nodes = copy.deepcopy(self.prods_nodes)
+        cpy.loads_nodes = copy.deepcopy(self.loads_nodes)
+        cpy.lines_or_nodes = copy.deepcopy(self.lines_or_nodes)
+        cpy.lines_ex_nodes = copy.deepcopy(self.lines_ex_nodes)
+        cpy.lines_service = copy.deepcopy(self.lines_service)
+        cpy.mapping_array = self.mapping_array
+        cpy.mapping_permutation = self.mapping_permutation
+        cpy.invert_mapping_permutation = self.invert_mapping_permutation
+        return cpy
 

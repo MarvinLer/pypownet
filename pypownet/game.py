@@ -7,10 +7,11 @@ import numpy as np
 import pypownet.grid
 from pypownet.scenarios_chronic import ScenariosChronic
 from pypownet import root_path, ARTIFICIAL_NODE_STARTING_STRING
+from pypownet.grid import DivergingLoadflowException
 
 
 class Game(object):
-    def __init__(self, grid_case, seed=None):
+    def __init__(self, grid_case, start_id=0, seed=None):
         """
         Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
@@ -60,11 +61,19 @@ class Game(object):
                                        dc_loadflow=dc_loadflow,
                                        new_slack_bus=new_slack_bus,
                                        new_imaps=self.chronic.get_imaps())
-        # Save the initial topology to potentially reset the game (=reset topology)
+        # Save the initial topology (explicitely create another copy)
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
+        # initial_topology = self.grid.get_topology()
+        # self.initial_topology = pypownet.grid.Topology(prods_nodes=copy.deepcopy(initial_topology.prods_nodes),
+        #                                                loads_nodes=copy.deepcopy(initial_topology.loads_nodes),
+        #                                                lines_or_nodes=copy.deepcopy(initial_topology.lines_or_nodes),
+        #                                                lines_ex_nodes=copy.deepcopy(initial_topology.lines_ex_nodes),
+        #                                                lines_service=copy.deepcopy(initial_topology.lines_service),
+        #                                                mapping_array=copy.deepcopy(initial_topology.mapping_array))
 
         # Loads first scenario
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
+        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False,
+                                scenario_id=start_id)
 
         # Graphical interface container
         self.gui = None
@@ -76,48 +85,52 @@ class Game(object):
     def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         # Retrieve the Scenario object associated to the desired id
         scenario = self.chronic.get_scenario(scenario_id)
-        print('before load', self.grid.mpc['branch'][:, 10])
+
         # Loads the next scenario: will load values and compute loadflow to compute real flows
         self.grid.load_scenario(scenario, do_trigger_lf_computation=False,
                                 cascading_failure=False, apply_cascading_output=False)
+        past_scenario_id = self.current_scenario_id
         self.current_scenario_id = scenario_id
-        print('after load before compute lf', self.grid.mpc['branch'][:, 10])
         if do_trigger_lf_computation:
-            self.grid.compute_loadflow(perform_cascading_failure=False, apply_cascading_output=False)
+            try:
+                self.grid.compute_loadflow(perform_cascading_failure=False, apply_cascading_output=False)
+            except DivergingLoadflowException as e:
+                raise e
             ##################### HACK
-            if scenario_id > 0:
+            if past_scenario_id is not None:
                 if self.gui is not None:
                     self._render(None, self.last_action)
-            print('after comp lf before cascading', self.grid.mpc['branch'][:, 10])
             if cascading_failure:
                 self.grid.compute_cascading_failure(apply_cascading_output)
 
-        print('after cascading', self.grid.mpc['branch'][:, 10], '\n')
-
-    def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
+    def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output,
+                           scenario_id=None):
         """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
         not  necessarly consecutive).
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
         """
-        print('before load_next_scenario', self.grid.mpc['branch'][:, 10], '\n')
         # If there are no more scenarios to be played, raise NoMoreScenarios exception
         if self.current_scenario_id == self.scenarios_ids[-1]:
             raise NoMoreScenarios('No more scenarios available')
 
         # If no scenario has been loaded so far, loads the first one
         if self.current_scenario_id is None:
-            next_scenario_id = self.scenarios_ids[0]
+            if scenario_id is None:
+                next_scenario_id = self.scenarios_ids[0]
+            else:
+                next_scenario_id = scenario_id
         else:  # Otherwise loads the next one in the list of scenarios
             next_scenario_id = self.scenarios_ids[self.scenarios_ids.index(self.current_scenario_id) + 1]
 
         # Update date
         self.current_date += self.timestep_date
 
-        self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
-                           apply_cascading_output)
-
-        print('after load_next_scenario', self.grid.mpc['branch'][:, 10], '\n')
+        try:
+            self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
+                               apply_cascading_output)
+        except DivergingLoadflowException as e:
+            raise e
 
     def get_current_scenario_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -183,22 +196,25 @@ class Game(object):
         if action is None:
             return
 
+        grid_topology = self.grid.get_topology()
+        grid_topology_mapping_array = grid_topology.mapping_array
+        grid_topology_invert_mapping_function = grid_topology.invert_mapping_permutation
+
         # Convert the action into the corresponding topology vector
-        prods_nodes, loads_nodes, lines_or_nodes, line_ex_nodes, lines_service = self.grid.get_topology().get_unzipped()
+        prods_nodes, loads_nodes, lines_or_nodes, line_ex_nodes, lines_service = grid_topology.get_unzipped()
         a_prods_nodes, a_loads_nodes, a_lines_or_nodes, a_line_ex_nodes, a_lines_service = \
             pypownet.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
-                                         self.grid.get_topology().invert_mapping_permutation)
+                                         grid_topology_invert_mapping_function)
 
         prods_nodes = np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes)
         loads_nodes = np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes)
         lines_or_nodes = np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
         lines_ex_nodes = np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes)
         lines_service = np.where(a_lines_service, 1 - lines_service, lines_service)
-        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes,
-                                              loads_nodes=loads_nodes,
-                                              lines_or_nodes=lines_or_nodes,
-                                              lines_ex_nodes=lines_ex_nodes,
-                                              lines_service=lines_service)
+        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
+                                              lines_service=lines_service, mapping_array=grid_topology_mapping_array)
+        new_topology = copy.deepcopy(new_topology)
 
         self.grid.apply_topology(new_topology)
 
@@ -229,13 +245,17 @@ class Game(object):
             self.current_scenario_id = None
             self.timestep = 1
 
-        self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
+        #self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False)
+
+        try:
+            self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False,
+                                    apply_cascading_output=False)
+        except pypownet.grid.DivergingLoadflowException as e:
+            raise e
 
     def step(self, action, cascading_failure, apply_cascading_output):
-        print('before apply_action', self.grid.mpc['branch'][:, 10], '\n')
         self.apply_action(action)
         self.last_action = action
-        print('after apply_action', self.grid.mpc['branch'][:, 10], '\n')
 
         try:
             self.load_next_scenario(do_trigger_lf_computation=True,
@@ -245,7 +265,7 @@ class Game(object):
         return
 
     def simulate(self, action, cascading_failure, apply_cascading_output):
-        before_topology = self.grid.get_topology()
+        before_topology = copy.deepcopy(self.grid.get_topology())
         before_scenario_id = self.current_scenario_id
 
         # Step the action
@@ -341,7 +361,7 @@ class Game(object):
 
         from time import sleep
 
-        sleep(1)
+        sleep(.3)
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)

@@ -19,6 +19,8 @@ parser.add_argument('-v', '--verbose', action='store_true',
                     help='display cumulative reward results at each step')
 parser.add_argument('-r', '--render', action='store_true',
                     help='render the power network observation at each timestep (not available if --batch is not 1)')
+parser.add_argument('--start', type=int, default=None,
+                    help='id of the timestep to start the game at (>= 0)')
 
 
 def main():
@@ -26,10 +28,12 @@ def main():
     env_class = RunEnv
     agent_class = eval('pypownet.agent.{}'.format(args.agent))
 
+    start_id = args.start
+
     if not args.batch:
         print("Running a single instance simulation on case", args.case, "for", args.niter, "iterations...")
         # Instantiate environment and agent
-        env = env_class(grid_case=args.case)
+        env = env_class(grid_case=args.case, start_id=start_id)
         agent = agent_class(env)
         # Instantiate game runner and loop
         runner = Runner(env, agent, args.verbose, args.render)
