@@ -8,8 +8,7 @@ import pypownet.grid
 
 class RunEnv(object):
     class Observation(object):
-        """
-        The class State is a container for all the values representing the state of a given grid at a given time. It
+        """ The class State is a container for all the values representing the state of a given grid at a given time. It
         contains the following values:
         * The active and reactive power values of the loads
         * The active power values and the voltage setpoints of the productions
@@ -49,6 +48,62 @@ class RunEnv(object):
 
             # Topology vector
             self.topology = topology_vector
+
+        def __str__(self):
+            def tabular_prettifier(matrix, headers, formats, column_widths):
+                res = ''
+
+                matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
+                # Plot headers
+                headers_str = '|' + ' |'.join(
+                    ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+                # Plot content
+                res += headers_str
+                for line in matrix_str:
+                    line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
+                    res += line_str
+
+                return res
+
+            # Loads
+            headers = ['Load id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+            content = np.vstack(([0] * len(self.active_loads),
+                                 self.active_loads,
+                                 self.reactive_loads,
+                                 self.voltage_loads,
+                                 [0] * len(self.active_loads))).T
+            loads_str = tabular_prettifier(content, headers, formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
+                                           column_widths=[9, 14, 16, 9, 8])
+
+            # Prods
+            headers = ['Prod id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+            content = np.vstack(([0] * len(self.active_productions),
+                                 self.active_productions,
+                                 self.reactive_productions,
+                                 self.voltage_productions,
+                                 [0] * len(self.active_productions))).T
+            prods_str = tabular_prettifier(content, headers, formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
+                                           column_widths=[9, 14, 16, 9, 8])
+
+            # Lines
+            headers = ['Line id origin', 'Line id extremity', 'Act. power ori.', 'Act. power ext.',
+                       'React. power ori.', 'React. power ext.', 'Voltage ori.', 'Voltage ext.', 'Is on']
+            content = np.vstack(([0] * len(self.active_flows_origin),
+                                 [0] * len(self.active_flows_origin),
+                                 self.active_flows_origin,
+                                 self.active_flows_extremity,
+                                 self.reactive_flows_origin,
+                                 self.reactive_flows_extremity,
+                                 self.voltage_flows_origin,
+                                 self.voltage_flows_extremity,
+                                 [0] * len(self.active_flows_origin))).T
+            lines_str = tabular_prettifier(content, headers,
+                                           formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
+                                                    '{:.1f}', '{:.1f}', '{:.3f}', '{:.3f}', '{:.0f}'],
+                                           column_widths=[16, 19, 17, 17, 19, 19, 14, 14, 7])
+            lines_str += 'TODO: Load id and is cut + Prod id and is cut + line id or and ext and is on'
+
+            return '\n\n'.join([prods_str, loads_str, lines_str])
 
     class ObservationSpace(object):
         def __init__(self, grid_case):
@@ -91,8 +146,7 @@ class RunEnv(object):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
     def __init__(self, grid_case=118, start_id=0):
-        """
-        Instante the game Environment as well as the Action Space.
+        """ Instante the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
         case14 and case118.
@@ -138,7 +192,8 @@ class RunEnv(object):
 
         :return: the number of different nodes between the current topology and the initial one
         """
-        initial_topology = np.ones(len(self.game.get_initial_topology(as_array=True)))
+        #initial_topology = np.ones(len(self.game.get_initial_topology(as_array=True)))
+        initial_topology = np.asarray(self.game.get_initial_topology(as_array=True))
         current_topology = observation.topology
 
         n_lines = self.observation_space.n_lines
