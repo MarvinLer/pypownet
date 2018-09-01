@@ -46,30 +46,22 @@ class Game(object):
             raise FileExistsError('The chronic folder %s does not exist' % chronic_folder)
 
         # Loads the scenarios chronic and retrieve reference grid file
-        self.chronic_folder = os.path.abspath(chronic_folder)
-        self.chronic = ScenariosChronic(source_folder=self.chronic_folder)
+        self.__chronic_folder = os.path.abspath(chronic_folder)
+        self.__chronic = ScenariosChronic(source_folder=self.__chronic_folder)
         self.reference_grid_file = os.path.abspath(reference_grid)
-        print('Using chronics folder', self.chronic_folder, 'and reference grid', self.reference_grid_file)
 
         # Retrieve all the pertinent values of the chronic
-        self.scenarios_ids = self.chronic.get_scenarios_ids()
-        self.number_scenarios = self.chronic.get_number_scenarios()
+        self.scenarios_ids = self.__chronic.get_scenarios_ids()
+        self.number_scenarios = self.__chronic.get_number_scenarios()
         self.current_scenario_id = None
 
         # Loads the grid in a container for the EmulGrid object given the current scenario + current RL state container
         self.grid = pypownet.grid.Grid(src_filename=self.reference_grid_file,
                                        dc_loadflow=dc_loadflow,
                                        new_slack_bus=new_slack_bus,
-                                       new_imaps=self.chronic.get_imaps())
+                                       new_imaps=self.__chronic.get_imaps())
         # Save the initial topology (explicitely create another copy)
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
-        # initial_topology = self.grid.get_topology()
-        # self.initial_topology = pypownet.grid.Topology(prods_nodes=copy.deepcopy(initial_topology.prods_nodes),
-        #                                                loads_nodes=copy.deepcopy(initial_topology.loads_nodes),
-        #                                                lines_or_nodes=copy.deepcopy(initial_topology.lines_or_nodes),
-        #                                                lines_ex_nodes=copy.deepcopy(initial_topology.lines_ex_nodes),
-        #                                                lines_service=copy.deepcopy(initial_topology.lines_service),
-        #                                                mapping_array=copy.deepcopy(initial_topology.mapping_array))
 
         # Loads first scenario
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False,
@@ -84,7 +76,7 @@ class Game(object):
 
     def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
         # Retrieve the Scenario object associated to the desired id
-        scenario = self.chronic.get_scenario(scenario_id)
+        scenario = self.__chronic.get_scenario(scenario_id)
 
         # Loads the next scenario: will load values and compute loadflow to compute real flows
         self.grid.load_scenario(scenario, do_trigger_lf_computation=False,
@@ -358,10 +350,6 @@ class Game(object):
                         self.epoch, self.timestep, self.current_scenario_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                         date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
-
-        from time import sleep
-
-        sleep(.3)
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
