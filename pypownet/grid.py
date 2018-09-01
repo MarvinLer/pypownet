@@ -476,7 +476,7 @@ class Grid(object):
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
-        voltage_prods = to_array(gen[:, 5])  # Vg
+        voltage_prods = to_array(gen[:, 5]) / to_array(gen[:, 6])  # Vg
 
         # Branch data
         active_flows_origin = to_array(branch[:, 13])  # Pf
