@@ -94,8 +94,9 @@ The html will be available within the folder [doc/build](doc/build/index.html).
 
 # License Information:
 
-Copyright 2015-2016 RTE (France)
+Copyright 2017-2018 RTE and INRIA (France)
 
     RTE: http://www.rte-france.com
+    INRIA: https://www.inria.fr/
 
 This Source Code is subject to the terms of the GNU Lesser General Public License v3.0. If a copy of the LGPL-v3 was not distributed with this file, You can obtain one at https://www.gnu.org/licenses/lgpl-3.0.fr.html.
