@@ -12,6 +12,7 @@ import matplotlib.lines as lines
 import pylab
 from copy import deepcopy
 
+from time import sleep
 case_layouts = {
     14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
          (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216)],
@@ -698,6 +699,15 @@ class Renderer(object):
 
         return game_over_surface
 
+    def draw_test(self):
+        game_over_surface = pygame.Surface((500, 200), pygame.SRCALPHA, 32).convert_alpha()
+        game_over_text = 'Game Paused'
+        game_over_surface.blit(self.game_over_shadow_render(game_over_text), (2, 2))
+        game_over_surface.blit(self.game_over_render(game_over_text), (0, 0))
+
+        return game_over_surface
+
+
     def _update_left_menu(self, epoch, timestep, rewards):
         self.left_menu = pygame.Surface(self.left_menu_shape, pygame.SRCALPHA, 32).convert_alpha()
 
@@ -766,6 +776,27 @@ class Renderer(object):
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, game_over=False):
         plt.close('all')
+        display_test = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            elif event.type == pygame.KEYDOWN: #and event.key == pygame.K_ESCAPE:
+                display_test = True
+
+        if display_test:
+            # I paused the game
+            # I just need to print the word "Game Paused"
+            game_over_surface = self.draw_test()
+            self.screen.blit(game_over_surface, (300, 200))
+            pygame.display.flip()
+            again = True
+            while again:
+                # stay in the loop until a key is being pressed
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:  # and event.key == pygame.K_ESCAPE:
+                        again = False
+
+        # The game is not paused anymore (or never has been), I can render the next surface
         self.screen.fill(self.background_color)
 
         # Execute full plotting mechanism: order is important
@@ -778,17 +809,9 @@ class Renderer(object):
         # Blit all macro surfaces on screen
         self.screen.blit(self.topology_layout, (self.left_menu_shape[0], 0))
         self.screen.blit(self.left_menu, (0, 0))
-
         pygame.display.flip()
-        from time import sleep
-        if game_over:
-            sleep(2.)
-        if self.grid_case == 14:
-            sleep(1.5)
-        elif self.grid_case == 118:
-            sleep(0.)
         # Bugfix for mac
-        pygame.event.get()
+        #pygame.event.get()
 
 
 def scale(u, z, t):
