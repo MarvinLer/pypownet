@@ -21,7 +21,7 @@ class Runner(object):
         assert isinstance(agent, Agent)
 
         # Loggger part
-        logging.basicConfig(filename=log_filepath, level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING)
         self.logger = logging.getLogger(__file__)
 
         # Always create a log file for runners
@@ -33,11 +33,11 @@ class Runner(object):
         if verbose or vverbose:
             # create console handler, set level to debug, create formatter
             ch = logging.StreamHandler()
-            ch.setLevel(logging.INFO if not vverbose else logging.DEBUG)
-            ch.setFormatter(logging.Formatter('%(levelname)s     %(message)s'))
+            ch.setLevel(logging.DEBUG if vverbose else logging.INFO)
+            ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
             # add ch to logger
             self.logger.addHandler(ch)
-            self.logger.setLevel(logging.INFO if not vverbose else logging.DEBUG)
+            self.logger.setLevel(logging.DEBUG if vverbose else logging.INFO)
 
         self.environment = environment
         self.agent = agent
@@ -67,7 +67,7 @@ class Runner(object):
 
         self.last_observation = observation
 
-        self.logger.debug('observation: \n%s', observation.__str__())
+        self.logger.debug('observation: \n%s' % observation.__str__())
         self.logger.debug('reward: {}'.format('['+','.join(list(map(str, reward_aslist)))+']'))
         self.logger.debug('done: {}'.format(done))
         self.logger.debug('info: {}'.format(info if not info else info.text))
