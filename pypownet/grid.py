@@ -3,6 +3,7 @@ import os
 import numpy as np
 import copy
 from oct2py import octave
+from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.scenarios_chronic import Scenario
 import pypownet.env
@@ -227,8 +228,12 @@ class Grid(object):
 
         # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
         # of the cascading failure
-        cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
-                                                                                   fname, apply_cascading_output)
+        try:
+            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
+                                                                                       fname, apply_cascading_output)
+        except Oct2PyError as e:
+            raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
+
         if apply_cascading_output:
             # Save last cascading failure loadflow output as new self state
             self.mpc = cascading_output_mpc
