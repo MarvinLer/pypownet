@@ -25,10 +25,10 @@ class Runner(object):
         self.logger = logging.getLogger(__file__)
 
         # Always create a log file for runners
-        sh = logging.FileHandler(filename='runner.log', mode='w')
-        sh.setLevel(logging.DEBUG)
-        sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger.addHandler(sh)
+        fh = logging.FileHandler(filename='runner.log', mode='w+')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(fh)
 
         if verbose or vverbose:
             # create console handler, set level to debug, create formatter
@@ -38,7 +38,6 @@ class Runner(object):
             # add ch to logger
             self.logger.addHandler(ch)
             self.logger.setLevel(logging.INFO if not vverbose else logging.DEBUG)
-            print(self.logger.getEffectiveLevel())
 
         self.environment = environment
         self.agent = agent
@@ -78,7 +77,7 @@ class Runner(object):
     def loop(self, iterations):
         cumul_rew = 0.0
         for i in range(1, iterations + 1):
-            (obs, act, rew) = self.step()  # Close if last iteration
+            (obs, act, rew) = self.step()
             cumul_rew += rew
             self.logger.info("Step %d/%d - reward: %.2f; cumulative reward: %.2f" % (i, iterations, rew, cumul_rew))
 
@@ -125,23 +124,3 @@ class BatchRunner(object):
                 print(" ->       average step reward: {}".format(avg_reward))
                 print(" -> cumulative average reward: {}".format(cum_avg_reward))
         return cum_avg_reward
-
-
-if __name__ == '__main__':
-    # Here is a code-snippet for running one single experiment
-    # Instantiate an environment, an agent and an associated experiment runner
-    single_environment = RunEnv(grid_case=118)
-    agent = Agent()  # The basic Agent class is equivalent to a do-nothing policy
-    experiment_runner = Runner(single_environment, agent, verbose=True)
-    # Run the Agent on the environment for 100 iterations
-    iterations = 100
-    experiment_runner.loop(iterations)
-
-    # Here is a code-snippet for running 4 experiments simultaneously
-    experiments_batch_runner = BatchRunner(env_maker=RunEnv,
-                                           agent_maker=Agent,
-                                           count=4,
-                                           verbose=True)
-    # Run the Agent on the environment for 100 iterations for each environment
-    iterations = 100
-    experiments_batch_runner.loop(iterations)

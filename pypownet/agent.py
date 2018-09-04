@@ -13,6 +13,7 @@ class Agent(object):
 
     def __init__(self, environment):
         """Initialize a new agent."""
+        assert isinstance(environment, RunEnv)
         self.environment = environment
         # Do not forget to call super() for the daughter classes
 
@@ -24,6 +25,7 @@ class Agent(object):
         assert isinstance(observation, RunEnv.Observation)
 
         # Implement your policy here.
+
         return None
 
     def feed_reward(self, observation, action, reward):
