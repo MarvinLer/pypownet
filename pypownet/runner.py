@@ -8,13 +8,37 @@ This is not intented to be modified during the practical.
 """
 from pypownet.env import RunEnv
 from pypownet.agent import Agent
+import logging
+import logging.handlers
+
+LOG_FILENAME = 'runner.log'
 
 
 class Runner(object):
-    def __init__(self, environment, agent, verbose=False, render=False):
+    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False):
         # Sanity checks: both environment and agent should inherit resp. RunEnv and Agent
         assert isinstance(environment, RunEnv)
         assert isinstance(agent, Agent)
+
+        # Loggger part
+        logging.basicConfig(filename='runner.log', level=logging.WARNING)
+        self.logger = logging.getLogger(__file__)
+
+        # Always create a log file for runners
+        sh = logging.FileHandler(filename='runner.log', mode='w')
+        sh.setLevel(logging.DEBUG)
+        sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(sh)
+
+        if verbose or vverbose:
+            # create console handler, set level to debug, create formatter
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.INFO if not vverbose else logging.DEBUG)
+            ch.setFormatter(logging.Formatter('%(levelname)s     %(message)s'))
+            # add ch to logger
+            self.logger.addHandler(ch)
+            self.logger.setLevel(logging.INFO if not vverbose else logging.DEBUG)
+            print(self.logger.getEffectiveLevel())
 
         self.environment = environment
         self.agent = agent
@@ -29,7 +53,8 @@ class Runner(object):
         action = self.agent.act(self.last_observation)
 
         # Update the environment with the chosen action
-        observation, reward, done, info = self.environment.step(action)
+        observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
+        reward = sum(reward_aslist)
 
         if self.render:
             self.environment.render(game_over=done)  # Propagate game over signal to plot 'Game over' on screen
@@ -38,32 +63,30 @@ class Runner(object):
         self.agent.feed_reward(self.last_observation, action, reward)
 
         if done:
-            if self.verbose:
-                print(info.text)  # Print the reason raised by the environment for the game over
-                print("Game over! Restarting game")
+            self.logger.info('Game over! hint: %s. Resetting grid...' % info.text)
             observation = self.environment.reset(restart=False)
 
         self.last_observation = observation
 
+        self.logger.debug('observation: \n%s', observation.__str__())
+        self.logger.debug('reward: {}'.format('['+','.join(list(map(str, reward_aslist)))+']'))
+        self.logger.debug('done: {}'.format(done))
+        self.logger.debug('info: {}'.format(info if not info else info.text))
+
         return observation, action, reward
 
     def loop(self, iterations):
-        cumul_reward = 0.0
+        cumul_rew = 0.0
         for i in range(1, iterations + 1):
             (obs, act, rew) = self.step()  # Close if last iteration
-            cumul_reward += rew
-            if self.verbose:
-                print("Simulation step {}:".format(i))
-                #print(" ->       observation: {}".format(obs))
-                #print(" ->            action: {}".format(act))
-                print(" ->            reward: {}".format(rew))
-                print(" -> cumulative reward: {}".format(cumul_reward))
+            cumul_rew += rew
+            self.logger.info("Step %d/%d - reward: %.2f; cumulative reward: %.2f" % (i, iterations, rew, cumul_rew))
 
-        # Close pygame
+        # Close pygame if renderer has been used
         if self.render:
             self.environment.render(close=True)
 
-        return cumul_reward
+        return cumul_rew
 
 
 def iter_or_loopcall(o, count):
@@ -79,7 +102,7 @@ class BatchRunner(object):
     def __init__(self, env_maker, agent_maker, count, verbose=False, render=False):
         environments = iter_or_loopcall(env_maker, count)
         agents = iter_or_loopcall(agent_maker, count)
-        self.runners = [Runner(env, agent, verbose=False, render=False) for (env, agent) in zip(environments, agents)]
+        self.runners = [Runner(env, agent, render=False, verbose=False) for (env, agent) in zip(environments, agents)]
 
         self.verbose = verbose
         self.render = render
