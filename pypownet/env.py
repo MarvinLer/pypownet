@@ -49,22 +49,25 @@ class RunEnv(object):
             # Topology vector
             self.topology = topology_vector
 
+        @staticmethod
+        def _tabular_prettifier(matrix, headers, formats, column_widths):
+            """ Used for printing well shaped tables within terminal and log files
+            """
+            res = ''
+
+            matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
+            # Plot headers
+            headers_str = '|' + ' |'.join(
+                ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+            # Plot content
+            res += headers_str
+            for line in matrix_str:
+                line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
+                res += line_str
+
+            return res
+
         def __str__(self):
-            def tabular_prettifier(matrix, headers, formats, column_widths):
-                res = ''
-
-                matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
-                # Plot headers
-                headers_str = '|' + ' |'.join(
-                    ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
-                # Plot content
-                res += headers_str
-                for line in matrix_str:
-                    line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
-                    res += line_str
-
-                return res
-
             # Loads
             headers = ['Load id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
             content = np.vstack(([0] * len(self.active_loads),
@@ -72,8 +75,9 @@ class RunEnv(object):
                                  self.reactive_loads,
                                  self.voltage_loads,
                                  [0] * len(self.active_loads))).T
-            loads_str = tabular_prettifier(content, headers, formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
-                                           column_widths=[9, 14, 16, 9, 8])
+            loads_str = self._tabular_prettifier(content, headers,
+                                                 formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
+                                                 column_widths=[9, 14, 16, 9, 8])
 
             # Prods
             headers = ['Prod id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
@@ -82,8 +86,9 @@ class RunEnv(object):
                                  self.reactive_productions,
                                  self.voltage_productions,
                                  [0] * len(self.active_productions))).T
-            prods_str = tabular_prettifier(content, headers, formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
-                                           column_widths=[9, 14, 16, 9, 8])
+            prods_str = self._tabular_prettifier(content, headers,
+                                                 formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
+                                                 column_widths=[9, 14, 16, 9, 8])
 
             # Lines
             headers = ['Line id origin', 'Line id extremity', 'Act. power ori.', 'Act. power ext.',
@@ -97,10 +102,10 @@ class RunEnv(object):
                                  self.voltage_flows_origin,
                                  self.voltage_flows_extremity,
                                  [0] * len(self.active_flows_origin))).T
-            lines_str = tabular_prettifier(content, headers,
-                                           formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
-                                                    '{:.1f}', '{:.1f}', '{:.3f}', '{:.3f}', '{:.0f}'],
-                                           column_widths=[16, 19, 17, 17, 19, 19, 14, 14, 7])
+            lines_str = self._tabular_prettifier(content, headers,
+                                                 formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
+                                                          '{:.1f}', '{:.1f}', '{:.3f}', '{:.3f}', '{:.0f}'],
+                                                 column_widths=[16, 19, 17, 17, 19, 19, 14, 14, 7])
             lines_str += 'TODO: Load id and is cut + Prod id and is cut + line id or and ext and is on'
 
             return '\n\n'.join([prods_str, loads_str, lines_str])
@@ -257,7 +262,7 @@ class RunEnv(object):
         try:
             self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
-            return self.__game_over(reward=self.illegal_action_exception_reward, info=e)
+            raise e
         self.last_action = action  # Store action to plot indicators in renderer if used
 
         try:
