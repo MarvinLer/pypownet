@@ -25,7 +25,7 @@ class Runner(object):
         self.logger = logging.getLogger(__file__)
 
         # Always create a log file for runners
-        fh = logging.FileHandler(filename='runner.log', mode='w+')
+        fh = logging.FileHandler(filename=log_filepath, mode='w+')
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.logger.addHandler(fh)
