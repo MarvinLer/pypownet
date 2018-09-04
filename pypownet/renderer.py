@@ -617,12 +617,12 @@ class Renderer(object):
                           'Line capacity usage']
         for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
             last_rewards_surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
-            last_rewards_surface.blit(self.value_render('%.1f' % reward if reward else '0'),
+            last_rewards_surface.blit(self.value_render('%.2f' % reward if reward else '0'),
                                       (reward_offset[0] + x_offset if reward >= 0 else reward_offset[0] + x_offset - 7
                                        , reward_offset[1] + i * line_spacing))
         last_rewards_surface.blit(self.text_render('Total'),
                                   (reward_offset[0], reward_offset[1] + (i + 1) * line_spacing))
-        last_rewards_surface.blit(self.value_render('%.1f' % np.sum(rewards)),
+        last_rewards_surface.blit(self.value_render('%.2f' % np.sum(rewards)),
                                   (reward_offset[0] + x_offset - 7, reward_offset[1] + (i + 1) * line_spacing))
 
         gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
@@ -754,7 +754,7 @@ class Renderer(object):
                                 cascading_result_frame=rewards is not None)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(self.last_rewards_surface, (600, 1) if self.grid_case != 14 else (690, 50))
+        self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case != 14 else (690, 50))
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
@@ -780,8 +780,13 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
 
         pygame.display.flip()
-        # from time import sleep
-        # sleep(5)
+        from time import sleep
+        if game_over:
+            sleep(2.)
+        if self.grid_case == 14:
+            sleep(1.5)
+        elif self.grid_case == 118:
+            sleep(0.)
         # Bugfix for mac
         pygame.event.get()
 
