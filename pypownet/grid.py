@@ -6,7 +6,7 @@ from oct2py import octave
 from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.scenarios_chronic import Scenario
-import pypownet.env
+import pypownet.environment
 
 
 class DivergingLoadflowException(Exception):
@@ -503,7 +503,7 @@ class Grid(object):
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
 
-        return pypownet.env.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
+        return pypownet.environment.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
                                                reactive_prods, voltage_prods, active_flows_origin,
                                                reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                reactive_flows_extremity, voltage_extremity, ampere_flows,

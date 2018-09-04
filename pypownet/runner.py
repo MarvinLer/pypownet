@@ -6,7 +6,7 @@ the reward signal to the appropriate function (feed_reward) of the Agent.
 
 This is not intented to be modified during the practical.
 """
-from pypownet.env import RunEnv
+from pypownet.environment import RunEnv
 from pypownet.agent import Agent
 import logging
 import logging.handlers
@@ -15,13 +15,13 @@ LOG_FILENAME = 'runner.log'
 
 
 class Runner(object):
-    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False):
+    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, log_filepath='runner.log'):
         # Sanity checks: both environment and agent should inherit resp. RunEnv and Agent
         assert isinstance(environment, RunEnv)
         assert isinstance(agent, Agent)
 
         # Loggger part
-        logging.basicConfig(filename='runner.log', level=logging.WARNING)
+        logging.basicConfig(filename=log_filepath, level=logging.WARNING)
         self.logger = logging.getLogger(__file__)
 
         # Always create a log file for runners

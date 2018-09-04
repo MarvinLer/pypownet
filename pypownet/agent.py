@@ -3,7 +3,7 @@ __author__ = 'marvinler'
 #Copyright (C) 2017-2018 RTE and INRIA (France)
 #Authors: Marvin Lerousseau
 #This file is under the LGPL-v3 license and is part of PyPownet.
-from pypownet.env import RunEnv
+from pypownet.environment import RunEnv
 
 
 class Agent(object):

@@ -1,6 +1,6 @@
 __author__ = 'marvinler'
 import argparse
-from pypownet.env import RunEnv
+from pypownet.environment import RunEnv
 from pypownet.runner import Runner, BatchRunner
 import pypownet.agent
 
