@@ -21,7 +21,6 @@ class Runner(object):
         assert isinstance(agent, Agent)
 
         # Loggger part
-        logging.basicConfig(level=logging.WARNING)
         self.logger = logging.getLogger(__file__)
 
         # Always create a log file for runners
@@ -33,7 +32,7 @@ class Runner(object):
         if verbose or vverbose:
             # create console handler, set level to debug, create formatter
             ch = logging.StreamHandler()
-            ch.setLevel(logging.DEBUG if vverbose else logging.INFO)
+            ch.setLevel(logging.DEBUG if vverbose and verbose else logging.INFO)
             ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
             # add ch to logger
             self.logger.addHandler(ch)
