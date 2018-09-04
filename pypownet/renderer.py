@@ -12,16 +12,12 @@ import matplotlib.lines as lines
 import pylab
 from copy import deepcopy
 
-from time import sleep
 case_layouts = {
     14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
          (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216)],
 
-    30: [(-452.0, -423.0), (-315.0, -558.0), (-318.0, -430.0), (-187.0, -428.0), (44.0, -561.0), (112.0, -446.0),
-         (106.0, -509.0), (294.0, -452.0), (88.0, -315.0), (128.0, -285.0), (-29.0, -312.0), (-183.0, -267.0),
-         (-312.0, -269.0), (-285.0, -185.0), (-185.0, -75.0), (-134.0, -203.0), (-14.0, -175.0), (-27.0, -52.0),
-         (172.0, -36.0), (130.0, -79.0), (168.0, -133.0), (214.0, -160.0), (-17.0, 20.0), (221.0, 21.0),
-         (108.0, 126.0), (-19.0, 130.0), (-15.0, 234.0), (293.0, 203.0), (-306.0, 228.0), (-308.0, 114.0)],
+    30: [(-320, -217), (-188, -306), (-191, -221), (-64, -220), (156, -307), (223, -232), (217, -274), (401, -236), (200, -145), (238, -125), (87, -143), (-60, -113), (-185, -114), (-159, -60), (-62, 12), (-13, -73), (102, -54), (89, 26), (281, 37), (240, 9), (278, -27), (322, -44), (99, 74), (328, 74), (219, 144), (97, 147), (101, 215), (400, 195), (-179, 211), (-181, 136)]
+,
 
     96: [(49.0, -243.0), (95.5, -242.5), (24.5, -195.5), (41.5, -216.0), (87.5, -220.5), (154.0, -205.0),
          (132.0, -243.0), (154.5, -228.0), (80.0, -196.5), (121.5, -197.0), (77.0, -163.5), (121.0, -163.0),
@@ -299,7 +295,7 @@ class Renderer(object):
         img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status)
         loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.background_color)
-        loads_curve_surface.blit(img_loads_curve_week, (0, 30))
+        loads_curve_surface.blit(img_loads_curve_week, (0, 30) if self.grid_case != 30 else (-100, 0))
 
         return loads_curve_surface
 
@@ -429,6 +425,9 @@ class Renderer(object):
         layout[:, 1] = 680 + min_y - layout[:, 1]
         if self.grid_case == 14:
             layout[:, 0] -= 620
+            layout[:, 1] -= 430
+        if self.grid_case == 30:
+            layout[:, 0] -= 600
             layout[:, 1] -= 430
         if self.grid_case == 118:
             layout[:, 0] -= 500
@@ -764,9 +763,9 @@ class Renderer(object):
                                 cascading_result_frame=rewards is not None)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case != 14 else (690, 50))
+        self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case == 118 else (690, 50))
         #self.topology_layout.blit(legend_surface, (1, 470))
-        self.topology_layout.blit(self.nodes_surface, (0, 0))
+        self.topology_layout.blit(self.nodes_surface, (0, 0) if self.grid_case != 30 else (-100, -30))
 
         # Print a game over message if game has been lost
         if game_over:
@@ -817,7 +816,7 @@ class Renderer(object):
 def scale(u, z, t):
     for k, v in case_layouts.items():
         print(k)
-        print([(int(a * u + +30), int(b * z + -0)) for a, b in v])
+        print([(int(a * u + -0), int(b * z + -40)) for a, b in v])
 
 
 def recenter():
@@ -835,14 +834,15 @@ def recenter():
 
 
 if __name__ == '__main__':
-    a = np.asarray(case_layouts[118])
+    a = np.asarray(case_layouts[30])
     print(np.min(a[:, 0]))
     print(np.max(a[:, 0]))
     print(np.min(a[:, 1]))
     print(np.max(a[:, 1]))
     a = np.asarray(case_layouts[14])
+    print()
     print(np.min(a[:, 0]))
     print(np.max(a[:, 0]))
     print(np.min(a[:, 1]))
     print(np.max(a[:, 1]))
-    scale(1., 1., 0)
+    scale(1.01, 1., 0)

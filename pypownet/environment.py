@@ -120,13 +120,13 @@ class RunEnv(object):
         def __init__(self, grid_case):
             assert isinstance(grid_case, int), 'The argument grid_case should be an integer of the case number'
             if grid_case == 14:
+                self.n_prods = 5
                 self.n_loads = 11
                 self.n_lines = 20
-                self.n_prods = 5
             elif grid_case == 30:
+                self.n_prods = 6
                 self.n_loads = 20
                 self.n_lines = 41
-                self.n_prods = 6
             elif grid_case == 118:
                 self.n_prods = 56
                 self.n_loads = 99
@@ -136,14 +136,18 @@ class RunEnv(object):
     class ActionSpace(object):
         def __init__(self, grid_case):
             assert isinstance(grid_case, int), 'The argument grid_case should be an integer of the case number'
-            if grid_case == 118:
+            if grid_case == 14:
+                self.n_prods = 5
+                self.n_loads = 11
+                self.n_lines = 20
+            elif grid_case == 30:
+                self.n_prods = 6
+                self.n_loads = 20
+                self.n_lines = 41
+            elif grid_case == 118:
                 self.n_prods = 56
                 self.n_loads = 99
                 self.n_lines = 186
-            elif grid_case == 14:
-                self.n_loads = 11
-                self.n_lines = 20
-                self.n_prods = 5
             self.n = self.n_prods + self.n_loads + 3 * self.n_lines
 
         def verify_action_shape(self, action):

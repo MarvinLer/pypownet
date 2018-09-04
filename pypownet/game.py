@@ -27,16 +27,15 @@ class Game(object):
         # Check that the grid case is one of the expected
         if not isinstance(grid_case, int):
             raise ValueError('grid_case parameter should be an integer instead of', type(grid_case))
-        if grid_case == 14:
-            reference_grid = os.path.join(root_path, 'input/reference_grid14.m')
-            chronic_folder = os.path.join(root_path, 'input/chronics/14/')
-            new_slack_bus = 1
-        elif grid_case == 118:
-            reference_grid = os.path.join(root_path, 'input/reference_grid118.m')
-            chronic_folder = os.path.join(root_path, 'input/chronics/118/')
-            new_slack_bus = 69
-        else:
-            raise ValueError('The game does not currently support a grid with %d substations' % grid_case)
+
+        reference_grid = os.path.join(root_path, 'input/reference_grid%d.m' % grid_case)
+        chronic_folder = os.path.join(root_path, 'input/chronics/%d/' % grid_case)
+        if not os.path.exists(reference_grid) or not os.path.exists(chronic_folder):
+            raise FileNotFoundError('Grid case %d not currently handled by the software' % grid_case)
+
+        # Todo: refacto, should not change new slack bus as should be mandatory in reference grid
+        new_slack_bus = 69 if grid_case == 118 else 1
+
         self.grid_case = grid_case
 
         # Date variables
