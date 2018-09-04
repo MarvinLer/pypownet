@@ -33,7 +33,7 @@ class Runner(object):
             # create console handler, set level to debug, create formatter
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG if vverbose and verbose else logging.INFO)
-            ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
+            ch.setFormatter(logging.Formatter('%(levelname)s        %(message)s'))
             # add ch to logger
             self.logger.addHandler(ch)
             self.logger.setLevel(logging.DEBUG if vverbose else logging.INFO)
@@ -42,6 +42,11 @@ class Runner(object):
         self.agent = agent
         self.verbose = verbose
         self.render = render
+
+        if verbose or vverbose:
+            self.environment.logger.setLevel(logging.WARNING)
+        if verbose and vverbose:
+            self.environment.logger.setLevel(logging.DEBUG)
 
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()

@@ -4,6 +4,7 @@ __author__ = 'marvinler'
 import numpy as np
 import pypownet.game
 import pypownet.grid
+import logging
 
 
 class RunEnv(object):
@@ -20,7 +21,8 @@ class RunEnv(object):
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector, n_cut_loads, n_cut_prods):
+                     thermal_limits, topology_vector, n_cut_loads, n_cut_prods,
+                     timesteps_before_lines_reconnectable):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
@@ -48,6 +50,10 @@ class RunEnv(object):
 
             # Topology vector
             self.topology = topology_vector
+
+            # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
+            # random hazards, or shut down for maintenance (e.g. painting)
+            self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
 
         @staticmethod
         def _tabular_prettifier(matrix, headers, formats, column_widths):
@@ -150,7 +156,7 @@ class RunEnv(object):
             if not set(action).issubset([0, 1]):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
-    def __init__(self, grid_case=118, start_id=0):
+    def __init__(self, log_filepath, grid_case=118, start_id=0, verbose=True):
         """ Instante the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
@@ -174,7 +180,7 @@ class RunEnv(object):
         # (at least two islands)
         self.loadflow_exception_reward = -self.observation_space.n  # Reward in case of loadflow software error
 
-        self.illegal_action_exception_reward = -grid_case  # Reward in case of bad action shape/form
+        self.illegal_action_exception_reward = -grid_case / 10.  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
         self.cost_line_switch = .1  # 1 line switch off or switch on
@@ -182,6 +188,23 @@ class RunEnv(object):
 
         self.last_rewards = []
         self.last_action = None
+
+        # Loggger part
+        self.logger = logging.getLogger(__file__)
+
+        # Always create a log file for runners
+        fh = logging.FileHandler(filename=log_filepath, mode='w+')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(fh)
+
+        # create console handler, set level to debug, create formatter
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.WARNING)
+        ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
+        # add ch to logger
+        self.logger.addHandler(ch)
+        self.logger.setLevel(logging.ERROR)
 
     def _get_obs(self):
         return self.game.get_observation()
@@ -256,8 +279,10 @@ class RunEnv(object):
 
         return sum(reward_aslist) if do_sum else reward_aslist
 
-    def step(self, action, do_sum=True):
-        """ Performs a game step given an action. """
+    def step(self, action, do_sum=True, decrement_reconnectable_timesteps=True):
+        """ Performs a game step given an action. The as list pattern is:
+        load_cut_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward
+        """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
@@ -275,14 +300,23 @@ class RunEnv(object):
             info = None
         except pypownet.game.NoMoreScenarios as e:
             observation = None
+            # No mistake from playyer so reward is none
             reward_aslist = [0., 0., 0., 0., 0.]
             done = True
             info = e
         except pypownet.grid.DivergingLoadflowException as e:
             observation = e.last_observation
+            # Returns loadflow exception reward and also action cost to still favorize small actions taken
             reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
             done = True
             info = e
+        except pypownet.game.IllegalActionException as e:
+            # If illegal actions (e.g. reco crashed line), then apply nothing and add illegal action reward to
+            # do nothing reward
+            self.logger.warn('  %s' % e.text)
+            observation, reward_aslist, done, info = self.step(action=None, do_sum=False,
+                                                               decrement_reconnectable_timesteps=False)
+            reward_aslist[2] += self.illegal_action_exception_reward
 
         reward = sum(reward_aslist) if do_sum else reward_aslist
         return observation, reward, done, info
@@ -293,7 +327,7 @@ class RunEnv(object):
         try:
             self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
-            return self.illegal_action_exception_reward
+            raise e
 
         try:
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged

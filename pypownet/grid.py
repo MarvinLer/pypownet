@@ -31,7 +31,7 @@ class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
@@ -169,6 +169,9 @@ class Grid(object):
         if self.verbose:
             print('  Simulating cascading failure')
 
+        # Saved the lines that have been switched off by force (usually ~broke)
+        forced_disconnected_lines = np.full((self.n_lines,), False)
+
         cascading_success = True  # True by default, until an error is raised then False
         depth = 1
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
@@ -200,6 +203,10 @@ class Grid(object):
 
             # Otherwise, switch off overflowed lines
             branch[branches_flows_a > branches_thermal_limits, 10] = 0
+            # Update the forced disconnected lines
+            forced_disconnected_lines = np.logical_or(forced_disconnected_lines,
+                                                      branches_flows_a > branches_thermal_limits)
+
             # Synchronize the bus types because we potentially switched off some lines (so some new isolated elements)
             n_isolated_loads, n_isolated_prods = self._synchronize_bus_types(mpc, self.are_loads, self.new_slack_bus)
 
@@ -212,10 +219,11 @@ class Grid(object):
 
             if not cascading_success:
                 raise DivergingLoadflowException(self.export_to_observation(),
-                                                 'Cascading failure of depth %d lead to a non-connexe grid' % (depth+1))
+                                                 'Cascading failure of depth %d lead to a non-connexe grid' % (
+                                                     depth + 1))
             depth += 1
 
-        return mpc, cascading_success
+        return mpc, cascading_success, forced_disconnected_lines
 
     def compute_cascading_failure(self, apply_cascading_output):
         if self.save_io:  # Paths for grid s_t+0.5 and s_t+1
@@ -229,23 +237,22 @@ class Grid(object):
         # Call the cascading failure simulation function: cascading_success indicates the final loadflow success
         # of the cascading failure
         try:
-            cascading_output_mpc, cascading_success = self._simulate_cascading_failure(self.mpc, pprint,
-                                                                                       fname, apply_cascading_output)
-        except Oct2PyError as e:
+            cascading_output_mpc, cascading_success, forced_disconnected_lines = self._simulate_cascading_failure(
+                self.mpc, pprint, fname, apply_cascading_output)
+        except Oct2PyError:
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         if apply_cascading_output:
             # Save last cascading failure loadflow output as new self state
             self.mpc = cascading_output_mpc
             self.topology.set_lines_services(self.mpc['branch'][:, 10])
-        return cascading_success
+        return cascading_success, forced_disconnected_lines
 
-    def compute_loadflow(self, perform_cascading_failure, apply_cascading_output):
+    def compute_loadflow(self):
         # Ensure that all isolated bus has their type put to 4 (otherwise matpower diverged)
         """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
         function subtreats the Octave pipeline to self.__vanilla_matpower_callback.
 
-        :param perform_cascading_failure: True to compute a loadflow after loading the new injections
         :param apply_cascading_output: True will effectively apply the output of the cascading failure computation as
         the new grid state; False will only *simulate* the cascading failure and the current state would be the loadflow
         output before the cascading failure. Only works when perform_cascading_failure is True.
@@ -275,13 +282,9 @@ class Grid(object):
         if not loadflow_success:
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
-        if perform_cascading_failure:
-            cascading_success = self.compute_cascading_failure(apply_cascading_output=apply_cascading_output)
-            return cascading_success
-
         return loadflow_success
 
-    def load_scenario(self, scenario, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
+    def load_scenario(self, scenario):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.
 
         :param scenario: an instance of class Scenario
@@ -313,11 +316,6 @@ class Grid(object):
         assert len(loads_q) == len(loads_p), 'Not the same number of active loads values than reactives loads'
         bus[self.are_loads, 2] = loads_p
         bus[self.are_loads, 3] = loads_q
-
-        if do_trigger_lf_computation:
-            return self.compute_loadflow(perform_cascading_failure=cascading_failure,
-                                         apply_cascading_output=apply_cascading_output)
-        return
 
     def disconnect_line(self, id_line):
         self.mpc['branch'][id_line, 10] = 0
@@ -504,10 +502,11 @@ class Grid(object):
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
 
         return pypownet.environment.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
-                                               reactive_prods, voltage_prods, active_flows_origin,
-                                               reactive_flows_origin, voltage_origin, active_flows_extremity,
-                                               reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                               thermal_limits, topology, n_cut_loads, n_cut_prods)
+                                                       reactive_prods, voltage_prods, active_flows_origin,
+                                                       reactive_flows_origin, voltage_origin, active_flows_extremity,
+                                                       reactive_flows_extremity, voltage_extremity, ampere_flows,
+                                                       thermal_limits, topology, n_cut_loads, n_cut_prods,
+                                                       timesteps_before_lines_reconnectable=None)  # kwargs set by game
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
@@ -554,6 +553,8 @@ class Topology(object):
         self.lines_ex_nodes = lines_ex_nodes
         self.lines_service = lines_service
 
+        self.n_lines = len(lines_service)
+
         # Function that sorts the internal topological array into a more intuitive representation: the nodes of the
         # elements of a substation are consecutive (first prods, then loads, then lines origin, then line ext.)
         concatenated_mapping_permutation = np.concatenate(mapping_array)
@@ -593,6 +594,7 @@ class Topology(object):
 
     def __deepcopy__(self, memo):
         cpy = object.__new__(type(self))
+        cpy.n_lines = self.n_lines
         cpy.prods_nodes = copy.deepcopy(self.prods_nodes)
         cpy.loads_nodes = copy.deepcopy(self.loads_nodes)
         cpy.lines_or_nodes = copy.deepcopy(self.lines_or_nodes)
