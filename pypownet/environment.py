@@ -1,10 +1,12 @@
-from pypownet.game import IllegalActionException
-
 __author__ = 'marvinler'
+# Copyright (C) 2017-2018 RTE and INRIA (France)
+# Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
+# This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
+import logging
+
 import pypownet.game
 import pypownet.grid
-import logging
 
 
 class RunEnv(object):
@@ -17,7 +19,6 @@ class RunEnv(object):
         lines as well as the lines capacity usage
         * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
         """
-
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
@@ -156,9 +157,9 @@ class RunEnv(object):
                 return
 
             if len(action) != self.n:
-                raise IllegalActionException('Expected action of size %d, got %d' % (self.n, len(action)))
+                raise pypownet.game.IllegalActionException('Expected action of size %d, got %d' % (self.n, len(action)))
             if not set(action).issubset([0, 1]):
-                raise IllegalActionException('Some values of the action are not 0 nor 1')
+                raise pypownet.game.IllegalActionException('Some values of the action are not 0 nor 1')
 
     def __init__(self, log_filepath, grid_case=118, start_id=0, verbose=True):
         """ Instante the game Environment as well as the Action Space.
@@ -184,7 +185,7 @@ class RunEnv(object):
         # (at least two islands)
         self.loadflow_exception_reward = -self.observation_space.n  # Reward in case of loadflow software error
 
-        self.illegal_action_exception_reward = -grid_case / 10.  # Reward in case of bad action shape/form
+        self.illegal_action_exception_reward = -grid_case / 100.  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
         self.cost_line_switch = .1  # 1 line switch off or switch on
@@ -290,15 +291,16 @@ class RunEnv(object):
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
-        except IllegalActionException as e:
+        except pypownet.game.IllegalActionException as e:
             raise e
         self.last_action = action  # Store action to plot indicators in renderer if used
 
         try:
             # Call the step function from the game: if no error raised, then no outage
             self.game.step(action, cascading_failure=self.simulate_cascading_failure,
-                           apply_cascading_output=self.apply_cascading_output)
-            observation = self.game.get_observation()
+                           apply_cascading_output=self.apply_cascading_output,
+                           decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
+            observation = self._get_obs()
             reward_aslist = self.get_reward(observation, action, False)
             done = False
             info = None
@@ -330,7 +332,7 @@ class RunEnv(object):
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
-        except IllegalActionException as e:
+        except pypownet.game.IllegalActionException as e:
             raise e
 
         try:

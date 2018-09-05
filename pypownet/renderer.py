@@ -1,4 +1,7 @@
 __author__ = 'marvinler'
+# Copyright (C) 2017-2018 RTE and INRIA (France)
+# Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
+# This file is under the LGPL-v3 license and is part of PyPowNet.
 import pygame
 import math
 from pygame import gfxdraw

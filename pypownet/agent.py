@@ -1,8 +1,7 @@
 __author__ = 'marvinler'
-
-#Copyright (C) 2017-2018 RTE and INRIA (France)
-#Authors: Marvin Lerousseau
-#This file is under the LGPL-v3 license and is part of PyPownet.
+# Copyright (C) 2017-2018 RTE and INRIA (France)
+# Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
+# This file is under the LGPL-v3 license and is part of PyPowNet.
 from pypownet.environment import RunEnv
 
 

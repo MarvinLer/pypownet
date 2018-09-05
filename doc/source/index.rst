@@ -33,7 +33,7 @@ Module grid
 =================
 Module env
 =================
-.. automodule:: pypownet.env
+.. automodule:: pypownet.environment
    :members:
    :undoc-members:
    :private-members:

@@ -1,4 +1,7 @@
 __author__ = 'marvinler'
+# Copyright (C) 2017-2018 RTE and INRIA (France)
+# Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
+# This file is under the LGPL-v3 license and is part of PyPowNet.
 import datetime
 
 import os
@@ -127,10 +130,6 @@ class Game(object):
         # Update date
         self.current_date += self.timestep_date
 
-        # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
-        if decrement_reconnectable_timesteps:
-            self.timesteps_before_lines_reconnectable[self.timesteps_before_lines_reconnectable > 0] -= 1
-
         try:
             self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
                                apply_cascading_output)
@@ -168,6 +167,7 @@ class Game(object):
         """
         observation = self.grid.export_to_observation()
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
+
         return observation
 
     def get_initial_topology(self, as_array=False):
@@ -284,6 +284,10 @@ class Game(object):
                                     decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
         except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
             raise e
+
+        # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
+        if decrement_reconnectable_timesteps:
+            self.timesteps_before_lines_reconnectable[self.timesteps_before_lines_reconnectable > 0] -= 1
         return
 
     def simulate(self, action, cascading_failure, apply_cascading_output):

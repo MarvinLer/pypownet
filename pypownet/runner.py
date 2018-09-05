@@ -1,4 +1,7 @@
 __author__ = 'marvinler'
+# Copyright (C) 2017-2018 RTE and INRIA (France)
+# Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
+# This file is under the LGPL-v3 license and is part of PyPowNet.
 """
 This is the machinnery that runs your agent in an environment. Note that this is not the machinnery of the update of the
 environment; it is purely related to perform policy inference at each timestep given the last observation, and feeding
