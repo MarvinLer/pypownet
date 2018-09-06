@@ -8,7 +8,7 @@ import inspect
 
 
 class TimestepInjections(object):
-    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v):
+    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance):
         self.id = timestep_id
 
         # Prods container
@@ -17,6 +17,8 @@ class TimestepInjections(object):
         # Loads container
         self.loads_p = loads_p
         self.loads_q = loads_q
+
+        self.maintenance = maintenance
 
     def get_prods_p(self):
         return self.prods_p
@@ -32,6 +34,9 @@ class TimestepInjections(object):
 
     def get_id(self):
         return self.id
+
+    def get_maintenance(self):
+        return self.maintenance
 
 
 class Chronic(object):
@@ -140,9 +145,10 @@ class Chronic(object):
         Loop over all the pertinent data row by row creating scenarios that are stored within the self.scenarios
         container.
         """
-        for scen_id, loads_p, loads_q, prods_p, prods_v in zip(self.timestep_ids, self.loads_p, self.loads_q,
-                                                               self.prods_p, self.prods_v):
-            timestep_injections = TimestepInjections(scen_id, loads_p, loads_q, prods_p, prods_v)
+        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance in zip(self.timestep_ids, self.loads_p,
+                                                                            self.loads_q, self.prods_p, self.prods_v,
+                                                                            self.maintenance):
+            timestep_injections = TimestepInjections(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance)
             self.timesteps_injections.append(timestep_injections)
 
     def get_timestep_injections(self, timestep_id):
@@ -155,7 +161,3 @@ class Chronic(object):
 
     def get_imaps(self):
         return self.imaps
-
-
-if __name__ == '__main__':
-    Chronic('/home/marvin/Documents/pro/stagemaster_rte_lri/resources_project/118')
