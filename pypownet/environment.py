@@ -9,6 +9,13 @@ import pypownet.game
 import pypownet.grid
 
 
+class IllegalActionException(Exception):
+    def __init__(self, text, illegal_lines_reconnections, *args):
+        super(IllegalActionException, self).__init__(*args)
+        self.text = text
+        self.illegal_lines_reconnections = illegal_lines_reconnections
+
+
 class RunEnv(object):
     class Observation(object):
         """ The class State is a container for all the values representing the state of a given grid at a given time. It
@@ -165,9 +172,9 @@ class RunEnv(object):
                 return
 
             if len(action) != self.n:
-                raise pypownet.game.IllegalActionException('Expected action of size %d, got %d' % (self.n, len(action)))
+                raise IllegalActionException('Expected action of size %d, got %d' % (self.n, len(action)))
             if not set(action).issubset([0, 1]):
-                raise pypownet.game.IllegalActionException('Some values of the action are not 0 nor 1')
+                raise IllegalActionException('Some values of the action are not 0 nor 1')
 
     def __init__(self, log_filepath, grid_case=118, start_id=0, verbose=True):
         """ Instante the game Environment as well as the Action Space.
@@ -230,7 +237,7 @@ class RunEnv(object):
         :return: the number of different nodes between the current topology and the initial one
         """
         #initial_topology = np.ones(len(self.game.get_initial_topology(as_array=True)))
-        initial_topology = np.asarray(self.game.get_initial_topology(as_array=True))
+        initial_topology = np.asarray(self.game.get_initial_topology())
         current_topology = observation.topology
 
         n_lines = self.observation_space.n_lines
@@ -268,6 +275,11 @@ class RunEnv(object):
                 reward_aslist = [0, 0, 0, 0, 0]
             elif isinstance(flag, pypownet.grid.DivergingLoadflowException):
                 reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            elif isinstance(flag, IllegalActionException):
+                # If some broken lines are attempted to be switched on, put the switches to 0, and add penalty to
+                # the reward consequent to the newly submitted action
+                reward_aslist = self.get_reward(observation, action, flag=None)
+                reward_aslist[2] += self.illegal_action_exception_reward
             else:  # Should not happen
                 raise flag
         else:
@@ -305,61 +317,27 @@ class RunEnv(object):
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
             self.action_space.verify_action_shape(action)
-        except pypownet.game.IllegalActionException as e:
+        except IllegalActionException as e:
             raise e
         self.last_action = action  # Store action to plot indicators in renderer if used: hack
 
-        step_flag = self.game.step(action)
-        reward_aslist = self.get_reward(observation=self._get_obs(), action=action, flag=step_flag)
-        observation = self._get_obs()
-        done = step_flag is not None
+        observation, reward_flag, done = self.game.step(action)
 
-        return observation, sum(reward_aslist) if do_sum else reward_aslist, done, step_flag
+        reward_aslist = self.get_reward(observation=self._get_obs(), action=action, flag=reward_flag)
 
-        # try:
-        #     # Call the step function from the game: if no error raised, then no outage
-        #     self.game.step(action, cascading_failure=self.simulate_cascading_failure,
-        #                    apply_cascading_output=self.apply_cascading_output,
-        #                    decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
-        #     observation = self._get_obs()
-        #     reward_aslist = self.get_reward(observation, action)
-        #     done = False
-        #     info = None
-        # except pypownet.game.NoMoreScenarios as e:
-        #     observation = None
-        #     # No mistake from playyer so reward is none
-        #     reward_aslist = [0., 0., 0., 0., 0.]
-        #     done = True
-        #     info = e
-        # except pypownet.grid.DivergingLoadflowException as e:
-        #     observation = e.last_observation
-        #     # Returns loadflow exception reward and also action cost to still favorize small actions taken
-        #     reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
-        #     done = True
-        #     info = e
-        # except pypownet.game.IllegalActionException as e:
-        #     # If illegal actions (e.g. reco crashed line), then apply nothing and add illegal action reward to
-        #     # do nothing reward
-        #     self.logger.warn('  %s' % e.text)
-        #     observation, reward_aslist, done, info = self.step(action=None, do_sum=False,
-        #                                                        decrement_reconnectable_timesteps=False)
-        #     reward_aslist[2] += self.illegal_action_exception_reward
-        #
-        # reward = sum(reward_aslist) if do_sum else reward_aslist
-        # return observation, reward, done, info
+        return observation, sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
     def simulate(self, action=None, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition (if it is not None); if not, end the game
         try:
             self.action_space.verify_action_shape(action)
-        except pypownet.game.IllegalActionException as e:
+        except IllegalActionException as e:
             raise e
 
         try:
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
-            simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
-                                                       apply_cascading_output=self.apply_cascading_output)
+            simulated_observation = self.game.simulate(action)
             reward_aslist = self.get_reward(simulated_observation, action)
         except pypownet.game.NoMoreScenarios:
             reward_aslist = [0., 0., 0., 0., 0.]
@@ -380,7 +358,7 @@ class RunEnv(object):
             raise ValueError("Unsupported render mode: " + mode)
 
     def get_current_scenario_id(self):
-        return self.game.get_current_scenario_id()
+        return self.game.get_current_timestep_id()
 
 
 # TODO
