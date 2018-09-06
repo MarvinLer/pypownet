@@ -33,23 +33,20 @@ def compute_flows_a(active, reactive, voltage):
 class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
-        self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.dc_loadflow = False  # true to compute loadflow with Direct Current model, False for Alternative Cur.
+        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
         self.mpc = octave.loadcase(self.filename, verbose=False)
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
-        self.mpc['branch'][:, 5] = new_imaps
-        self.mpc['branch'][:, 6] = new_imaps
-        self.mpc['branch'][:, 7] = new_imaps
+        self.mpc['branch'][:, 5] = np.asarray(new_imaps) / 10.
+        self.mpc['branch'][:, 6] = np.asarray(new_imaps) / 10.
+        self.mpc['branch'][:, 7] = np.asarray(new_imaps) / 10.
 
         self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
         # Containers that keep in mind the PQ nodes (consumers)
         self.are_loads = np.logical_or(self.mpc['bus'][:, 2] != 0, self.mpc['bus'][:, 3] != 0)
-
-        # Instantiate once and for all matpower options, and change algo if AC
-        self.mpoption = octave.mpoption() if dc_loadflow else octave.mpoption('pf.alg', 'NR')
 
         # Fixed ids of substations associated with prods, loads and lines (init.,  all elements on real substation id)
         self.loads_ids = self.mpc['bus'][self.are_loads, 0]
@@ -80,7 +77,10 @@ class Grid(object):
         gen = mpc['gen']
 
         # Computes the number of cut loads, and a mask array whether the substation is isolated
-        n_isolated_loads, n_isolated_prods, are_isolated_buses = Grid._count_isolated_loads(mpc, are_loads=are_loads)
+        are_isolated_loads, are_isolated_prods, are_isolated_buses = Grid._count_isolated_loads(mpc,
+                                                                                                are_loads=are_loads)
+        n_isolated_loads = sum(are_isolated_loads)
+        n_isolated_prods = sum(are_isolated_prods)
 
         # Retrieve buses with productions (their type needs to be 2)
         bus_prods = gen[:, 0]
@@ -126,7 +126,8 @@ class Grid(object):
         # Compute mask whether a substation has a production (PV node)
         are_prods = np.array([g in prods_ids for g in substations_ids])
 
-        return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
+        return are_isolated_buses[are_loads], are_isolated_buses[are_prods], are_isolated_buses
+        #return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
     def __vanilla_matpower_callback(self, mpc, pprint=None, fname=None, verbose=False):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
@@ -142,13 +143,14 @@ class Grid(object):
         # Fonction of matpower to compute loadflow
         matpower_function = octave.rundcpf if self.dc_loadflow else octave.runpf
 
+        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 30)
         # pprint is None or the path to the prettyprint output file; fname is None or the path to the output IEEE grid
         # file (those are related to self.save_io)
         if pprint and fname:
             octave.savecase(fname, mpc)
-            output = matpower_function(mpc, self.mpoption, pprint, fname, verbose=verbose)
+            output = matpower_function(mpc, mpopt, pprint, fname, verbose=verbose)
         else:
-            output = matpower_function(mpc, self.mpoption, verbose=verbose)
+            output = matpower_function(mpc, mpopt, verbose=verbose)
 
         loadflow_success = output['success']  # 0 = failed, 1 = successed
         return output, loadflow_success
@@ -243,12 +245,13 @@ class Grid(object):
             cascading_output_mpc, cascading_success, forced_disconnected_lines = self._simulate_cascading_failure(
                 self.mpc, pprint, fname, apply_cascading_output)
         except Oct2PyError:
-            raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
+            raise DivergingLoadflowException(self.export_to_observation(), 'The grid is in too poor shape.')
 
         if apply_cascading_output:
             # Save last cascading failure loadflow output as new self state
             self.mpc = cascading_output_mpc
             self.topology.set_lines_services(self.mpc['branch'][:, 10])
+
         return cascading_success, forced_disconnected_lines
 
     def compute_loadflow(self):
@@ -278,11 +281,13 @@ class Grid(object):
         output, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname)
 
         # Save the loadflow output before the cascading failure *simulation*
+
         self.mpc = output
         self.topology.set_lines_services(self.mpc['branch'][:, 10])
 
         # If matpower returned a diverging computation, raise proper exception
         if not loadflow_success:
+            self._snapshot('lala.m')
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         return loadflow_success
@@ -310,7 +315,10 @@ class Grid(object):
         # Check that there are the same number of productions names and values
         assert len(prods_v) == len(prods_p), 'Not the same number of active prods values than reactives prods'
         gen[:, 1] = prods_p
+        # Change prods v: put negative voltage generators to offline, put all to online
         gen[:, 5] = prods_v
+        gen[:, 7] = 1
+        gen[prods_v <= 0, 7] = 0
 
         # Import new loads values
         loads_p = scenario.get_loads_p()
@@ -478,19 +486,30 @@ class Grid(object):
         gen = mpc['gen']
         branch = mpc['branch']
 
+        # Lists and arrays helpers
         to_array = lambda array: np.asarray(array)
+        nodes_to_substations = lambda array: list(
+            map(lambda x: int(float(x)),
+                list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
+
+
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
-        voltage_prods = to_array(gen[:, 5]) / to_array(gen[:, 6])  # Vg
+        voltage_prods = to_array(gen[:, 5])  # Vg
+        substations_ids_prods = to_array(nodes_to_substations(gen[:, 0]))
 
-        # Branch data
+        # Branch data origin
         active_flows_origin = to_array(branch[:, 13])  # Pf
         reactive_flows_origin = to_array(branch[:, 14])  # Qf
+        voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
+        substations_ids_lines_or = to_array(nodes_to_substations(branch[:, 0]))
+        # Branch data extremity
         active_flows_extremity = to_array(branch[:, 15])  # Pt
         reactive_flows_extremity = to_array(branch[:, 16])  # Qt
-        voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
         voltage_extremity = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 1]]).flatten()
+        substations_ids_lines_ex = to_array(nodes_to_substations(branch[:, 1]))
+
         thermal_limits = branch[:, 5]
         ampere_flows = compute_flows_a(active_flows_origin, reactive_flows_origin, voltage_origin)
 
@@ -499,7 +518,11 @@ class Grid(object):
         active_loads = to_array(loads_buses[:, 2])
         reactive_loads = to_array(loads_buses[:, 3])
         voltage_loads = to_array(loads_buses[:, 7])
-        n_cut_loads, n_cut_prods, _ = self._count_isolated_loads(self.mpc, are_loads=self.are_loads)
+        substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads]))
+
+        # Retrieve isolated buses
+        are_isolated_loads, are_isolated_prods, are_isolated_buses = self._count_isolated_loads(mpc,
+                                                                                                are_loads=self.are_loads)
 
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
@@ -508,15 +531,18 @@ class Grid(object):
                                                        reactive_prods, voltage_prods, active_flows_origin,
                                                        reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                        reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                                       thermal_limits, topology, n_cut_loads, n_cut_prods,
+                                                       thermal_limits, topology,
+                                                       are_isolated_loads, are_isolated_prods,
+                                                       substations_ids_loads, substations_ids_prods,
+                                                       substations_ids_lines_or, substations_ids_lines_ex,
                                                        timesteps_before_lines_reconnectable=None)  # kwargs set by game
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
-        lines nominal thermal limit.
+            lines nominal thermal limit.
 
-        :return: a list of size the number of lines of positive values
-        """
+            :return: a list of size the number of lines of positive values
+            """
         mpc = self.mpc
         bus = mpc['bus']
         branch = mpc['branch']
