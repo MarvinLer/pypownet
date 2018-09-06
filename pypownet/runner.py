@@ -73,6 +73,8 @@ class Runner(object):
         if done:
             self.logger.info('Game over! hint: %s. Resetting grid...' % info.text)
             observation = self.environment.reset(restart=False)
+        elif info:
+            self.logger.warn(info.text)
 
         self.last_observation = observation
 
