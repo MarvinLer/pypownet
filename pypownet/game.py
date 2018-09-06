@@ -13,9 +13,15 @@ from pypownet import root_path, ARTIFICIAL_NODE_STARTING_STRING
 
 
 class IllegalActionException(Exception):
-    def __init__(self, *args):
+    def __init__(self, text, illegal_lines_reconnections, *args):
         super(IllegalActionException, self).__init__(*args)
-        self.text = args[0]
+        self.text = text
+        self.illegal_lines_reconnections = illegal_lines_reconnections
+
+
+# Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
+class NoMoreScenarios(Exception):
+    pass
 
 
 class Game(object):
@@ -40,6 +46,10 @@ class Game(object):
         new_slack_bus = 69 if grid_case == 118 else 1
 
         self.grid_case = grid_case
+
+        # Configuration parameters
+        self.simulate_cascading_failure = True
+        self.apply_cascading_output = True
 
         # Date variables
         self.initial_date = datetime.datetime(2017, month=1, day=2, hour=0, minute=0, second=0)
@@ -69,6 +79,8 @@ class Game(object):
                                        new_imaps=self.__chronic.get_imaps())
         # Save the initial topology (explicitely create another copy)
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
+        self.initial_angles_magnitudes = copy.deepcopy(self.grid.mpc['bus'][:, 7])
+        self.initial_angles = copy.deepcopy(self.grid.mpc['bus'][:, 8])
 
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
@@ -81,60 +93,6 @@ class Game(object):
         # Loads first scenario
         self.load_next_scenario(do_trigger_lf_computation=True, cascading_failure=False, apply_cascading_output=False,
                                 scenario_id=start_id)
-
-    def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
-        # Retrieve the Scenario object associated to the desired id
-        scenario = self.__chronic.get_scenario(scenario_id)
-
-        # Loads the next scenario: will load values and compute loadflow to compute real flows
-        self.grid.load_scenario(scenario)
-        past_scenario_id = self.current_scenario_id
-        self.current_scenario_id = scenario_id
-        if do_trigger_lf_computation:
-            try:
-                self.grid.compute_loadflow()
-            except pypownet.grid.DivergingLoadflowException as e:
-                raise e
-
-            ##################### HACK
-            if past_scenario_id is not None:
-                if self.gui is not None:
-                    self._render(None, self.last_action)
-            #####################
-
-            if cascading_failure:
-                _, forced_disconnected_lines = self.grid.compute_cascading_failure(
-                    apply_cascading_output)
-                self.timesteps_before_lines_reconnectable[forced_disconnected_lines] = 10
-
-    def load_next_scenario(self, do_trigger_lf_computation, cascading_failure, apply_cascading_output,
-                           scenario_id=None, decrement_reconnectable_timesteps=True):
-        """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids are
-        not  necessarly consecutive).
-
-        :return: :raise ValueError: raised in the case where they are no more scenarios available
-        """
-        # If there are no more scenarios to be played, raise NoMoreScenarios exception
-        if self.current_scenario_id == self.scenarios_ids[-1]:
-            raise NoMoreScenarios('No more scenarios available')
-
-        # If no scenario has been loaded so far, loads the first one
-        if self.current_scenario_id is None:
-            if scenario_id is None:
-                next_scenario_id = self.scenarios_ids[0]
-            else:
-                next_scenario_id = scenario_id
-        else:  # Otherwise loads the next one in the list of scenarios
-            next_scenario_id = self.scenarios_ids[self.scenarios_ids.index(self.current_scenario_id) + 1]
-
-        # Update date
-        self.current_date += self.timestep_date
-
-        try:
-            self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
-                               apply_cascading_output)
-        except pypownet.grid.DivergingLoadflowException as e:
-            raise e
 
     def get_current_scenario_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -160,12 +118,13 @@ class Game(object):
         """
         return self.number_scenarios
 
-    def get_observation(self):
+    def export_observation(self):
         """ Retrieves an observation of the current state of the grid.
 
         :return: an instance of class pypownet.env.RunEnv.Observation
         """
         observation = self.grid.export_to_observation()
+        # Fill additional parameters: starts with substations ids of all elements
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
 
         return observation
@@ -188,6 +147,73 @@ class Game(object):
         :return:
         """
         return self.current_date
+
+    def compute_loadflow(self, cascading_failure, apply_cascading_output, past_scenario_id):
+        try:
+            self.grid.compute_loadflow()
+        except pypownet.grid.DivergingLoadflowException as e:
+            raise e
+
+        ##################### HACK
+        if past_scenario_id is not None:
+            if self.gui is not None:
+                self._render(None, self.last_action)
+        #####################
+
+        if cascading_failure:
+            try:
+                _, forced_disconnected_lines = self.grid.compute_cascading_failure(apply_cascading_output)
+            except pypownet.grid.DivergingLoadflowException as e:
+                raise e
+        else:
+            forced_disconnected_lines = None
+
+        return forced_disconnected_lines
+
+    def load_scenario(self, scenario_id, do_trigger_lf_computation, cascading_failure, apply_cascading_output):
+        # Retrieve the Scenario object associated to the desired id
+        scenario = self.__chronic.get_scenario(scenario_id)
+
+        # Loads the next scenario: will load values and compute loadflow to compute real flows
+        self.grid.load_scenario(scenario)
+        past_scenario_id = self.current_scenario_id  # Tmp
+        self.current_scenario_id = scenario_id
+
+        if do_trigger_lf_computation:
+            try:
+                forced_disconnected_lines = self.compute_loadflow(cascading_failure, apply_cascading_output,
+                                                                  past_scenario_id)
+            except pypownet.grid.DivergingLoadflowException as e:
+                raise e
+
+            if forced_disconnected_lines is not None:
+                self.timesteps_before_lines_reconnectable[forced_disconnected_lines] = 10
+
+    def load_next_scenario(self, do_trigger_lf_computation, cascading_failure=None, apply_cascading_output=None,
+                           scenario_id=None):
+        """ Loads the next scenario, in the sense that it loads the scenario with the smaller greater id (scenarios ids
+        are not  necessarly consecutive).
+
+        :return: :raise ValueError: raised in the case where they are no more scenarios available
+        """
+        # If there are no more scenarios to be played, raise NoMoreScenarios exception
+        if self.current_scenario_id == self.scenarios_ids[-1]:
+            raise NoMoreScenarios('All timesteps have been played.')
+
+        # If no scenario has been loaded so far, loads the first one
+        if self.current_scenario_id is None:
+            next_scenario_id = self.scenarios_ids[0] if scenario_id is None else scenario_id
+        else:  # Otherwise loads the next one in the list of scenarios
+            next_scenario_id = self.scenarios_ids[self.scenarios_ids.index(self.current_scenario_id) + 1]
+
+        # Update date
+        self.current_date += self.timestep_date
+
+        try:
+            self.load_scenario(next_scenario_id, do_trigger_lf_computation, cascading_failure,
+                               apply_cascading_output)
+        except pypownet.grid.DivergingLoadflowException as e:
+            raise e
 
     def apply_action(self, action):
         """ Applies an action on the current grid (topology). The action is first into lists of same objects (e.g. nodes
@@ -240,10 +266,9 @@ class Game(object):
             if number_invalid_reconnections > 1:
                 timesteps_to_wait_as_str = 'resp. ' + timesteps_to_wait_as_str
 
-            raise IllegalActionException('Trying to reconnect broken line%s %s, must wait %s timesteps. '
-                                         'Replacing invalid action with no action move.' % (
-                                             's' if number_invalid_reconnections > 1 else '',
-                                             non_reconnectable_lines_as_str, timesteps_to_wait_as_str))
+            raise IllegalActionException('Trying to reconnect broken line%s %s, must wait %s timesteps. ' % (
+                's' if number_invalid_reconnections > 1 else '',
+                non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
 
         self.grid.apply_topology(new_topology)
 
@@ -252,6 +277,11 @@ class Game(object):
         """
         self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
         self.grid.apply_topology(self.initial_topology)
+        self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1
+        self.grid.mpc['branch'] = self.grid.mpc['branch'][:, :13]
+
+        self.grid.mpc['bus'][:, 7] = self.initial_angles_magnitudes
+        self.grid.mpc['bus'][:, 8] = self.initial_angles
 
     def reset(self, restart):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
@@ -271,19 +301,30 @@ class Game(object):
         except pypownet.grid.DivergingLoadflowException as e:
             raise e
 
-    def step(self, action, cascading_failure, apply_cascading_output, decrement_reconnectable_timesteps=True):
+    def step(self, action, decrement_reconnectable_timesteps=True):
+        self.last_action = action  # Hack for GUI double-frame
+
+        # Apply action, or raises eception if some broken lines are attempted to be switched on
         try:
             self.apply_action(action)
         except IllegalActionException as e:
-            raise e
-        self.last_action = action
+            e.text += ' Ignoring action switches of broken lines.'
+            illegal_lines_reconnections = e.illegal_lines_reconnections
+            action[-self.grid.n_lines:][illegal_lines_reconnections] = 0  # Put switches of illegal reco to 0 (nothing)
+            assert np.sum(action[-self.grid.n_lines:][illegal_lines_reconnections]) == 0
+
+            # Resubmit step with modified valid action and return either exception of new step, or this exception
+            correct_step = self.step(action, decrement_reconnectable_timesteps)
+            return correct_step if correct_step else e
 
         try:
-            self.load_next_scenario(do_trigger_lf_computation=True,
-                                    cascading_failure=cascading_failure, apply_cascading_output=apply_cascading_output,
-                                    decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
+            past_scenario_id = self.current_scenario_id  # Tmp for fouble-frame GUI hack
+            self.load_next_scenario(do_trigger_lf_computation=False)
+            self.compute_loadflow(cascading_failure=self.simulate_cascading_failure,
+                                  apply_cascading_output=self.apply_cascading_output,
+                                  past_scenario_id=past_scenario_id)
         except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
-            raise e
+            return e
 
         # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
         if decrement_reconnectable_timesteps:
@@ -306,7 +347,7 @@ class Game(object):
 
         # If no error raised, return the simulated output observation, such that reward can be computed, then
         # put topological and injections values back
-        simulated_state = self.get_observation()
+        simulated_state = self.export_observation()
         # Put past values back for topo and injection
         self.grid.apply_topology(before_topology)
         self.load_scenario(before_scenario_id, do_trigger_lf_computation=True,
@@ -384,8 +425,3 @@ class Game(object):
                         self.epoch, self.timestep, self.current_scenario_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                         date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
-
-
-# Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
-class NoMoreScenarios(Exception):
-    pass
