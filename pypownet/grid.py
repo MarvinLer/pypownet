@@ -8,7 +8,7 @@ import copy
 from oct2py import octave
 from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
-from pypownet.scenarios_chronic import Scenario
+from pypownet.chronic import TimestepInjections
 import pypownet.environment
 
 
@@ -40,9 +40,9 @@ class Grid(object):
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
         self.mpc = octave.loadcase(self.filename, verbose=False)
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
-        self.mpc['branch'][:, 5] = np.asarray(new_imaps) / 10.
-        self.mpc['branch'][:, 6] = np.asarray(new_imaps) / 10.
-        self.mpc['branch'][:, 7] = np.asarray(new_imaps) / 10.
+        self.mpc['branch'][:, 5] = np.asarray(new_imaps)
+        self.mpc['branch'][:, 6] = np.asarray(new_imaps)
+        self.mpc['branch'][:, 7] = np.asarray(new_imaps)
 
         self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
         # Containers that keep in mind the PQ nodes (consumers)
@@ -259,9 +259,6 @@ class Grid(object):
         """ Given the current state of the grid (topology + injections), compute the new loadflow of the grid. This
         function subtreats the Octave pipeline to self.__vanilla_matpower_callback.
 
-        :param apply_cascading_output: True will effectively apply the output of the cascading failure computation as
-        the new grid state; False will only *simulate* the cascading failure and the current state would be the loadflow
-        output before the cascading failure. Only works when perform_cascading_failure is True.
         :return: 0 for failed computation, 1 for success
         :raise DivergingLoadflowException: if the loadflow did not converge, raise diverging exception (could be because
         of grid not connexe, or voltages issues, or angle issues etc).
@@ -278,7 +275,11 @@ class Grid(object):
                 os.makedirs('tmp')
         else:
             pprint, fname = None, None
-        output, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname)
+
+        try:
+            output, loadflow_success = self.__vanilla_matpower_callback(mpc, pprint, fname)
+        except Oct2PyError:
+            raise DivergingLoadflowException(mpc, 'Loadflow could not be computed: grid collapsed')
 
         # Save the loadflow output before the cascading failure *simulation*
 
@@ -292,37 +293,36 @@ class Grid(object):
 
         return loadflow_success
 
-    def load_scenario(self, scenario):
+    def load_timestep_injections(self, timestep_injections):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.
 
-        :param scenario: an instance of class Scenario
-        :param do_trigger_lf_computation: True to compute a loadflow after loading the new injections
-        :param cascading_failure: True to simulate a cascading failure after loading the new injections
+        :param timestep_injections: an instance of class Scenario
         :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
         """
-        assert isinstance(scenario, Scenario), 'Trying to load a scenario which is not an instance of class Scenario'
+        assert isinstance(timestep_injections, TimestepInjections), 'Should not happen'
 
         # Change the filename of self to pretty print middle-end created temporary files
-        self.filename = 'scenario%d.m' % (scenario.get_id())
+        self.filename = 'scenario%d.m' % (timestep_injections.get_id())
 
         mpc = self.mpc
         gen = mpc['gen']
         bus = mpc['bus']
 
         # Import new productions values
-        prods_p = scenario.get_prods_p()
-        prods_v = scenario.get_prods_v()
+        prods_p = timestep_injections.get_prods_p()
+        prods_v = timestep_injections.get_prods_v()
         # Check that there are the same number of productions names and values
         assert len(prods_v) == len(prods_p), 'Not the same number of active prods values than reactives prods'
         gen[:, 1] = prods_p
         # Change prods v (divide by bus baseKV); put all to online then negative voltage to offline
-        gen[:, 5] = np.asarray(prods_v / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
+        gen[:, 5] = np.asarray(
+            prods_v / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
         gen[:, 7] = 1
         gen[prods_v <= 0, 7] = 0
 
         # Import new loads values
-        loads_p = scenario.get_loads_p()
-        loads_q = scenario.get_loads_q()
+        loads_p = timestep_injections.get_loads_p()
+        loads_q = timestep_injections.get_loads_q()
         # Check that there are the same number of productions names and values
         assert len(loads_q) == len(loads_p), 'Not the same number of active loads values than reactives loads'
         bus[self.are_loads, 2] = loads_p
@@ -400,10 +400,7 @@ class Grid(object):
         # Change line status (equivalent to reco/disco calls as a function of values of new_line_status)
         branch[:, 10] = new_lines_service
 
-        #self.topology = cpy_new_topology
         self.topology = cpy_new_topology
-        # self.topology = Topology(new_prods_nodes, new_loads_nodes, new_lines_or_nodes, new_lines_ex_nodes,
-        #                          new_lines_service, new_topology.mapping_array)
 
     def get_topology(self):
         return self.topology
