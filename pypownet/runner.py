@@ -57,6 +57,8 @@ class Runner(object):
     def step(self):
         # Policy inference
         action = self.agent.act(self.last_observation)
+        self.logger.debug(
+            'action: \n%s' % ' '.join(list(map(lambda x: str(int(x)), action))) if action is not None else 'no action')
 
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
@@ -75,7 +77,7 @@ class Runner(object):
         self.last_observation = observation
 
         self.logger.debug('observation: \n%s' % observation.__str__())
-        self.logger.debug('reward: {}'.format('['+','.join(list(map(str, reward_aslist)))+']'))
+        self.logger.debug('reward: {}'.format('[' + ','.join(list(map(str, reward_aslist))) + ']'))
         self.logger.debug('done: {}'.format(done))
         self.logger.debug('info: {}'.format(info if not info else info.text))
 
@@ -86,7 +88,7 @@ class Runner(object):
         for i in range(1, iterations + 1):
             (obs, act, rew) = self.step()
             cumul_rew += rew
-            self.logger.info("Step %d/%d - reward: %.2f; cumulative reward: %.2f" % (i, iterations, rew, cumul_rew))
+            self.logger.info("step %d/%d - reward: %.2f; cumulative reward: %.2f" % (i, iterations, rew, cumul_rew))
 
         # Close pygame if renderer has been used
         if self.render:
@@ -105,6 +107,7 @@ def iter_or_loopcall(o, count):
 
 class BatchRunner(object):
     """ Runs several instances of the game simultaneously and aggregates the results. """
+
     def __init__(self, env_maker, agent_maker, count, verbose=False, render=False):
         environments = iter_or_loopcall(env_maker, count)
         agents = iter_or_loopcall(agent_maker, count)
@@ -127,7 +130,7 @@ class BatchRunner(object):
             avg_reward = self.step()
             cum_avg_reward += avg_reward
             if self.verbose:
-                print("Simulation step {}:".format(i+1))
+                print("Simulation step {}:".format(i + 1))
                 print(" ->       average step reward: {}".format(avg_reward))
                 print(" -> cumulative average reward: {}".format(cum_avg_reward))
         return cum_avg_reward
