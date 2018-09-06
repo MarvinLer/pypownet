@@ -19,31 +19,37 @@ class RunEnv(object):
         lines as well as the lines capacity usage
         * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
         """
+
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector, n_cut_loads, n_cut_prods,
+                     thermal_limits, topology_vector, are_isolated_loads, are_isolated_prods,
+                     loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
                      timesteps_before_lines_reconnectable):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
             self.voltage_loads = voltage_loads
-            self.number_cut_loads = n_cut_loads
+            self.are_loads_cut = are_isolated_loads
+            self.loads_substations_ids = loads_substations_ids
 
             # Productions related state values
             self.active_productions = active_productions
             self.reactive_productions = reactive_productions
             self.voltage_productions = voltage_productions
-            self.number_cut_prods = n_cut_prods
+            self.are_prods_cut = are_isolated_prods
+            self.prods_substations_ids = prods_substations_ids
 
             # Origin flows related state values
             self.active_flows_origin = active_flows_origin
             self.reactive_flows_origin = reactive_flows_origin
             self.voltage_flows_origin = voltage_flows_origin
+            self.lines_or_substations_ids = lines_or_substations_ids
             # Extremity flows related state values
             self.active_flows_extremity = active_flows_extremity
             self.reactive_flows_extremity = reactive_flows_extremity
             self.voltage_flows_extremity = voltage_flows_extremity
+            self.lines_ex_substations_ids = lines_ex_substations_ids
 
             # Ampere flows and thermal limits
             self.ampere_flows = ampere_flows
@@ -77,42 +83,44 @@ class RunEnv(object):
         def __str__(self):
             # Loads
             headers = ['Load id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-            content = np.vstack(([0] * len(self.active_loads),
+            content = np.vstack((self.loads_substations_ids,
                                  self.active_loads,
                                  self.reactive_loads,
                                  self.voltage_loads,
-                                 [0] * len(self.active_loads))).T
+                                 self.are_loads_cut)).T
             loads_str = self._tabular_prettifier(content, headers,
                                                  formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
                                                  column_widths=[9, 14, 16, 9, 8])
 
             # Prods
             headers = ['Prod id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-            content = np.vstack(([0] * len(self.active_productions),
+            content = np.vstack((self.prods_substations_ids,
                                  self.active_productions,
                                  self.reactive_productions,
                                  self.voltage_productions,
-                                 [0] * len(self.active_productions))).T
+                                 self.are_prods_cut)).T
             prods_str = self._tabular_prettifier(content, headers,
                                                  formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
                                                  column_widths=[9, 14, 16, 9, 8])
 
             # Lines
-            headers = ['Line id origin', 'Line id extremity', 'Act. power ori.', 'Act. power ext.',
-                       'React. power ori.', 'React. power ext.', 'Voltage ori.', 'Voltage ext.', 'Is on']
-            content = np.vstack(([0] * len(self.active_flows_origin),
-                                 [0] * len(self.active_flows_origin),
+            headers = ['Origin', 'Extremity', 'P ori.', 'Q ori.', 'V ori.', 'P ext.', 'Q ext.', 'V ext.',
+                       'Flows A', 'Thermal limit', 'Is on']
+            content = np.vstack((self.lines_or_substations_ids,
+                                 self.lines_ex_substations_ids,
                                  self.active_flows_origin,
-                                 self.active_flows_extremity,
                                  self.reactive_flows_origin,
-                                 self.reactive_flows_extremity,
                                  self.voltage_flows_origin,
+                                 self.active_flows_extremity,
+                                 self.reactive_flows_extremity,
                                  self.voltage_flows_extremity,
+                                 self.ampere_flows,
+                                 self.thermal_limits,
                                  [0] * len(self.active_flows_origin))).T
             lines_str = self._tabular_prettifier(content, headers,
-                                                 formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
-                                                          '{:.1f}', '{:.1f}', '{:.3f}', '{:.3f}', '{:.0f}'],
-                                                 column_widths=[16, 19, 17, 17, 19, 19, 14, 14, 7])
+                                                 formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                          '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
+                                                 column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
             lines_str += 'TODO: Load id and is cut + Prod id and is cut + line id or and ext and is on'
 
             return '\n\n'.join([prods_str, loads_str, lines_str])
@@ -172,10 +180,6 @@ class RunEnv(object):
         self.action_space = self.ActionSpace(grid_case)
         self.observation_space = self.ObservationSpace(grid_case)
 
-        # Configuration parameters
-        self.simulate_cascading_failure = True
-        self.apply_cascading_output = True
-
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
         self.additive_factor_distance_initial_grid = -.02  # Additive factor for each differed node in the grid
@@ -212,7 +216,7 @@ class RunEnv(object):
         self.logger.setLevel(logging.ERROR)
 
     def _get_obs(self):
-        return self.game.get_observation()
+        return self.game.export_observation()
 
     def _get_distance_reference_grid(self, observation):
         # Reference grid distance reward
@@ -257,75 +261,92 @@ class RunEnv(object):
         lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
         return lines_capacity_usage
 
-    def get_reward(self, observation, action, do_sum=True):
-        # Load cut reward
-        load_cut_reward = self.additive_factor_load_cut * observation.number_cut_loads
+    def get_reward(self, observation, action, flag=None):
+        # First, check for flag raised during step, as they indicate errors from grid computations
+        if flag is not None:
+            if isinstance(flag, pypownet.game.NoMoreScenarios):
+                reward_aslist = [0, 0, 0, 0, 0]
+            elif isinstance(flag, pypownet.grid.DivergingLoadflowException):
+                reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+            else:  # Should not happen
+                raise flag
+        else:
+            # Load cut reward
+            number_cut_loads = sum(observation.are_loads_cut)
+            load_cut_reward = self.additive_factor_load_cut * number_cut_loads
 
-        # Prod cut reward
-        prod_cut_reward = self.additive_factor_prod_cut * observation.number_cut_prods
+            # Prod cut reward
+            number_cut_prods = sum(observation.are_prods_cut)
+            prod_cut_reward = self.additive_factor_prod_cut * number_cut_prods
 
-        # Reference grid distance reward
-        reference_grid_distance = self._get_distance_reference_grid(observation)
-        reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
+            # Reference grid distance reward
+            reference_grid_distance = self._get_distance_reference_grid(observation)
+            reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
 
-        # Action cost reward: compute the number of line switches, node switches, and return the associated reward
-        action_cost_reward = -1. * self._get_action_cost(action)
+            # Action cost reward: compute the number of line switches, node switches, and return the associated reward
+            action_cost_reward = -self._get_action_cost(action)
 
-        # The line usage subreward is the sum of the square of the lines capacity usage
-        lines_capacity_usage = self._get_lines_capacity_usage(observation)
-        line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
+            # The line usage subreward is the sum of the square of the lines capacity usage
+            lines_capacity_usage = self._get_lines_capacity_usage(observation)
+            line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
 
-        reward_aslist = [load_cut_reward,
-                         prod_cut_reward,
-                         action_cost_reward,
-                         reference_grid_distance_reward,
-                         line_usage_reward]
+            # Format reward
+            reward_aslist = [load_cut_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward,
+                             line_usage_reward]
+
         self.last_rewards = reward_aslist
 
-        return sum(reward_aslist) if do_sum else reward_aslist
+        return reward_aslist
 
-    def step(self, action, do_sum=True, decrement_reconnectable_timesteps=True):
+    def step(self, action, do_sum=True):
         """ Performs a game step given an action. The as list pattern is:
         load_cut_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward, line_usage_reward
         """
-        # First verify that the action is in expected condition (if it is not None); if not, end the game
+        # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
             self.action_space.verify_action_shape(action)
         except pypownet.game.IllegalActionException as e:
             raise e
-        self.last_action = action  # Store action to plot indicators in renderer if used
+        self.last_action = action  # Store action to plot indicators in renderer if used: hack
 
-        try:
-            # Call the step function from the game: if no error raised, then no outage
-            self.game.step(action, cascading_failure=self.simulate_cascading_failure,
-                           apply_cascading_output=self.apply_cascading_output,
-                           decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
-            observation = self._get_obs()
-            reward_aslist = self.get_reward(observation, action, False)
-            done = False
-            info = None
-        except pypownet.game.NoMoreScenarios as e:
-            observation = None
-            # No mistake from playyer so reward is none
-            reward_aslist = [0., 0., 0., 0., 0.]
-            done = True
-            info = e
-        except pypownet.grid.DivergingLoadflowException as e:
-            observation = e.last_observation
-            # Returns loadflow exception reward and also action cost to still favorize small actions taken
-            reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
-            done = True
-            info = e
-        except pypownet.game.IllegalActionException as e:
-            # If illegal actions (e.g. reco crashed line), then apply nothing and add illegal action reward to
-            # do nothing reward
-            self.logger.warn('  %s' % e.text)
-            observation, reward_aslist, done, info = self.step(action=None, do_sum=False,
-                                                               decrement_reconnectable_timesteps=False)
-            reward_aslist[2] += self.illegal_action_exception_reward
+        step_flag = self.game.step(action)
+        reward_aslist = self.get_reward(observation=self._get_obs(), action=action, flag=step_flag)
+        observation = self._get_obs()
+        done = step_flag is not None
 
-        reward = sum(reward_aslist) if do_sum else reward_aslist
-        return observation, reward, done, info
+        # return observation, sum(reward_aslist) if do_sum else reward_aslist, done, step_flag
+        #
+        # try:
+        #     # Call the step function from the game: if no error raised, then no outage
+        #     self.game.step(action, cascading_failure=self.simulate_cascading_failure,
+        #                    apply_cascading_output=self.apply_cascading_output,
+        #                    decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
+        #     observation = self._get_obs()
+        #     reward_aslist = self.get_reward(observation, action)
+        #     done = False
+        #     info = None
+        # except pypownet.game.NoMoreScenarios as e:
+        #     observation = None
+        #     # No mistake from playyer so reward is none
+        #     reward_aslist = [0., 0., 0., 0., 0.]
+        #     done = True
+        #     info = e
+        # except pypownet.grid.DivergingLoadflowException as e:
+        #     observation = e.last_observation
+        #     # Returns loadflow exception reward and also action cost to still favorize small actions taken
+        #     reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+        #     done = True
+        #     info = e
+        # except pypownet.game.IllegalActionException as e:
+        #     # If illegal actions (e.g. reco crashed line), then apply nothing and add illegal action reward to
+        #     # do nothing reward
+        #     self.logger.warn('  %s' % e.text)
+        #     observation, reward_aslist, done, info = self.step(action=None, do_sum=False,
+        #                                                        decrement_reconnectable_timesteps=False)
+        #     reward_aslist[2] += self.illegal_action_exception_reward
+        #
+        # reward = sum(reward_aslist) if do_sum else reward_aslist
+        # return observation, reward, done, info
 
     def simulate(self, action=None, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
@@ -339,7 +360,7 @@ class RunEnv(object):
             # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
             simulated_observation = self.game.simulate(action, cascading_failure=self.simulate_cascading_failure,
                                                        apply_cascading_output=self.apply_cascading_output)
-            reward_aslist = self.get_reward(simulated_observation, action, False)
+            reward_aslist = self.get_reward(simulated_observation, action)
         except pypownet.game.NoMoreScenarios:
             reward_aslist = [0., 0., 0., 0., 0.]
         except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException):
