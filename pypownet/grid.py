@@ -34,7 +34,7 @@ class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
         self.dc_loadflow = False  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
@@ -315,8 +315,8 @@ class Grid(object):
         # Check that there are the same number of productions names and values
         assert len(prods_v) == len(prods_p), 'Not the same number of active prods values than reactives prods'
         gen[:, 1] = prods_p
-        # Change prods v: put negative voltage generators to offline, put all to online
-        gen[:, 5] = prods_v
+        # Change prods v (divide by bus baseKV); put all to online then negative voltage to offline
+        gen[:, 5] = np.asarray(prods_v / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
         gen[:, 7] = 1
         gen[prods_v <= 0, 7] = 0
 

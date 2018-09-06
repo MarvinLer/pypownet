@@ -116,10 +116,10 @@ class ScenariosChronic(object):
 
     def import_data(self, data):
         # Save productions and loads data
-        self.prods_p = data['fpath_prods_p'] / 20.
-        self.prods_v = data['fpath_prods_v'] / 100.  # Divide by 100 because chronics generated using absolute values
-        self.loads_p = data['fpath_loads_p'] / 20.
-        self.loads_q = data['fpath_loads_q'] / 20.
+        self.prods_p = data['fpath_prods_p']
+        self.prods_v = data['fpath_prods_v']
+        self.loads_p = data['fpath_loads_p']
+        self.loads_q = data['fpath_loads_q']
         self.imaps = data['fpath_imaps'].tolist()
 
         # Scenarios ids

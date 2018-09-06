@@ -315,7 +315,7 @@ class RunEnv(object):
         done = step_flag is not None
 
         return observation, sum(reward_aslist) if do_sum else reward_aslist, done, step_flag
-            
+
         # try:
         #     # Call the step function from the game: if no error raised, then no outage
         #     self.game.step(action, cascading_failure=self.simulate_cascading_failure,
