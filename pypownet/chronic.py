@@ -7,8 +7,8 @@ import numpy as np
 import inspect
 
 
-class TimestepInjections(object):
-    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance):
+class TimestepEntries(object):
+    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards):
         self.id = timestep_id
 
         # Prods container
@@ -19,6 +19,7 @@ class TimestepInjections(object):
         self.loads_q = loads_q
 
         self.maintenance = maintenance
+        self.hazards = hazards
 
     def get_prods_p(self):
         return self.prods_p
@@ -38,6 +39,9 @@ class TimestepInjections(object):
     def get_maintenance(self):
         return self.maintenance
 
+    def get_hazards(self):
+        return self.hazards
+
 
 class Chronic(object):
     def __init__(self, source_folder):
@@ -53,6 +57,7 @@ class Chronic(object):
         self.fpath_ids = None
         self.fpath_imaps = None
         self.fpath_maintenance = None
+        self.fpath_hazards = None
 
         # Containers for the productions and loads data
         self.prods_p = None
@@ -62,11 +67,12 @@ class Chronic(object):
 
         self.imaps = None
         self.maintenance = None
+        self.hazards = None
 
         self.timestep_ids = None
 
         # Overall ordered container for the Scenarios
-        self.timesteps_injections = []
+        self.timesteps_entries = []
 
         # Retrieve the input files of the chronic
         self.retrieve_input_files()
@@ -92,9 +98,10 @@ class Chronic(object):
         fname_imaps = '_N_imaps.csv'
         # Maintenance and hazards
         fname_maintenance = 'maintenance.csv'
+        fname_hazards = 'hazards.csv'
 
         mandatory_files = [fname_loads_p, fname_loads_q, fname_prods_p, fname_prods_v, fname_ids, fname_imaps,
-                           fname_maintenance]
+                           fname_maintenance, fname_hazards]
         # Check whether all mandatory files are present within the source directory
         for mandatory_file in mandatory_files:
             if mandatory_file not in csv_files:
@@ -108,6 +115,7 @@ class Chronic(object):
         self.fpath_ids = os.path.join(self.source_folder, fname_ids)
         self.fpath_imaps = os.path.join(self.source_folder, fname_imaps)
         self.fpath_maintenance = os.path.join(self.source_folder, fname_maintenance)
+        self.fpath_hazards = os.path.join(self.source_folder, fname_hazards)
 
     @staticmethod
     def get_csv_content(csv_absolute_fpath):
@@ -134,6 +142,7 @@ class Chronic(object):
         self.imaps = data['fpath_imaps'].tolist()
 
         self.maintenance = data['fpath_maintenance']
+        self.hazards = data['fpath_hazards']
 
         # Scenarios ids
         self.timestep_ids = data['fpath_ids'].astype(np.int32).tolist()
@@ -145,16 +154,17 @@ class Chronic(object):
         Loop over all the pertinent data row by row creating scenarios that are stored within the self.scenarios
         container.
         """
-        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance in zip(self.timestep_ids, self.loads_p,
-                                                                            self.loads_q, self.prods_p, self.prods_v,
-                                                                            self.maintenance):
-            timestep_injections = TimestepInjections(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance)
-            self.timesteps_injections.append(timestep_injections)
+        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards in zip(self.timestep_ids, self.loads_p,
+                                                                                     self.loads_q, self.prods_p,
+                                                                                     self.prods_v,
+                                                                                     self.maintenance, self.hazards):
+            timestep_entries = TimestepEntries(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards)
+            self.timesteps_entries.append(timestep_entries)
 
-    def get_timestep_injections(self, timestep_id):
+    def get_timestep_entries(self, timestep_id):
         if timestep_id not in self.timestep_ids:
             raise ValueError('Could not find TimestepInjections with id', timestep_id)
-        return self.timesteps_injections[self.timestep_ids.index(timestep_id)]
+        return self.timesteps_entries[self.timestep_ids.index(timestep_id)]
 
     def get_timestep_ids(self):
         return self.timestep_ids

@@ -2,8 +2,7 @@ __author__ = 'marvinler'
 # Copyright (C) 2017-2018 RTE and INRIA (France)
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
-"""
-This is the machinnery that runs your agent in an environment. Note that this is not the machinnery of the update of the
+""" This is the machinnery that runs your agent in an environment. Note that this is not the machinnery of the update of the
 environment; it is purely related to perform policy inference at each timestep given the last observation, and feeding
 the reward signal to the appropriate function (feed_reward) of the Agent.
 
@@ -24,7 +23,7 @@ class Runner(object):
         assert isinstance(agent, Agent)
 
         # Loggger part
-        self.logger = logging.getLogger(__file__)
+        self.logger = logging.getLogger('pypownet')
 
         # Always create a log file for runners
         fh = logging.FileHandler(filename=log_filepath, mode='w+')
@@ -46,10 +45,10 @@ class Runner(object):
         self.verbose = verbose
         self.render = render
 
-        if verbose or vverbose:
-            self.environment.logger.setLevel(logging.WARNING)
-        if verbose and vverbose:
-            self.environment.logger.setLevel(logging.DEBUG)
+        # if verbose or vverbose:
+        #     self.environment.logger.setLevel(logging.WARNING)
+        # if verbose and vverbose:
+        #     self.environment.logger.setLevel(logging.DEBUG)
 
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()

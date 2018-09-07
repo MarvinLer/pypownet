@@ -176,7 +176,7 @@ class RunEnv(object):
             if not set(action).issubset([0, 1]):
                 raise IllegalActionException('Some values of the action are not 0 nor 1')
 
-    def __init__(self, log_filepath, grid_case=118, start_id=0, verbose=True):
+    def __init__(self, grid_case=118, start_id=0):
         """ Instante the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
@@ -206,21 +206,21 @@ class RunEnv(object):
         self.last_action = None
 
         # Loggger part
-        self.logger = logging.getLogger(__file__)
-
-        # Always create a log file for runners
-        fh = logging.FileHandler(filename=log_filepath, mode='w+')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger.addHandler(fh)
-
-        # create console handler, set level to debug, create formatter
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.WARNING)
-        ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
-        # add ch to logger
-        self.logger.addHandler(ch)
-        self.logger.setLevel(logging.ERROR)
+        # self.logger = logging.getLogger(__file__)
+        #
+        # # Always create a log file for runners
+        # fh = logging.FileHandler(filename=log_filepath, mode='w+')
+        # fh.setLevel(logging.DEBUG)
+        # fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        # self.logger.addHandler(fh)
+        #
+        # # create console handler, set level to debug, create formatter
+        # ch = logging.StreamHandler()
+        # ch.setLevel(logging.WARNING)
+        # ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
+        # # add ch to logger
+        # self.logger.addHandler(ch)
+        # self.logger.setLevel(logging.ERROR)
 
     def _get_obs(self):
         return self.game.export_observation()
