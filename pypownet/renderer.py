@@ -778,25 +778,27 @@ class Renderer(object):
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, game_over=False):
         plt.close('all')
-        display_test = False
+
+        pause_game = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return
-            elif event.type == pygame.KEYDOWN: #and event.key == pygame.K_ESCAPE:
-                display_test = True
-
-        if display_test:
-            # I paused the game
-            # I just need to print the word "Game Paused"
-            game_over_surface = self.draw_test()
-            self.screen.blit(game_over_surface, (300, 200))
-            pygame.display.flip()
-            again = True
-            while again:
-                # stay in the loop until a key is being pressed
-                for event in pygame.event.get():
-                    if event.type == pygame.KEYDOWN:  # and event.key == pygame.K_ESCAPE:
-                        again = False
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    exit()
+                if event.key == pygame.K_SPACE:
+                    game_over_surface = self.draw_test()
+                    self.screen.blit(game_over_surface, (300, 200))
+                    pygame.display.flip()
+                    again = True
+                    while again:
+                        # stay in the loop until a key is being pressed
+                        for e in pygame.event.get():
+                            if e.type == pygame.KEYDOWN:  # and event.key == pygame.K_ESCAPE:
+                                if event.key == pygame.K_SPACE:
+                                    again = False
 
         # The game is not paused anymore (or never has been), I can render the next surface
         self.screen.fill(self.background_color)

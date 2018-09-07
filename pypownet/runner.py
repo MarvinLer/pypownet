@@ -70,7 +70,7 @@ class Runner(object):
         self.agent.feed_reward(self.last_observation, action, reward)
 
         if done:
-            self.logger.info('Game over! hint: %s. Resetting grid...' % info.text)
+            self.logger.info('\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
             observation = self.environment.reset(restart=False)
         elif info:
             self.logger.warn(info.text)
