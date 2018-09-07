@@ -3,6 +3,7 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import datetime
+import logging
 
 import os
 import copy
@@ -20,8 +21,7 @@ class NoMoreScenarios(Exception):
 
 class Game(object):
     def __init__(self, grid_case, start_id=0, seed=None):
-        """
-        Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
+        """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
         dc_loadflow = True  # True if DC approximation for loadflow computation; False for AC
         if seed:
@@ -83,6 +83,8 @@ class Game(object):
         self.epoch = 1
         self.timestep = 1
 
+        self.logger = logging.getLogger('pypownet.'+__name__)
+
         # Loads first scenario
         self.load_next_timestep_injections(do_trigger_lf_computation=True, cascading_failure=False,
                                            apply_cascading_output=False, starting_timestep_id=start_id)
@@ -138,32 +140,75 @@ class Game(object):
             except pypownet.grid.DivergingLoadflowException as e:
                 raise e
 
-    def load_timestep_injections_id(self, timestep_id, do_trigger_lf_computation, cascading_failure,
-                                    apply_cascading_output):
+    def load_timestep_entries_id(self, timestep_id, do_trigger_lf_computation, cascading_failure,
+                                 apply_cascading_output):
         # Retrieve the Scenario object associated to the desired id
-        timestep_injections = self.__chronic.get_timestep_injections(timestep_id)
+        timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
 
-        # Loads the next timestep injections: will load values and compute loadflow to compute real flows
-        self.grid.load_timestep_injections(timestep_injections)
-        timestep_maintenance = timestep_injections.get_maintenance()
-        # Effectively set maintenance-planned lines status to 0
+        # Loads the next timestep injections: PQ and PV
+        self.grid.load_timestep_injections(timestep_entries)
+
+        # Integration of timestep maintenance: disco lines for which current maintenance not 0 (equal to time to wait)
+        timestep_maintenance = timestep_entries.get_maintenance()
         mask_affected_lines = timestep_maintenance > 0
         self.grid.mpc['branch'][mask_affected_lines, 10] = 0
-        assert not np.any(
-            timestep_maintenance[mask_affected_lines] == 0), 'Trying to perform line maintenance for 0 timestep'
-        self.timesteps_before_lines_reconnectable[mask_affected_lines] = timestep_maintenance[mask_affected_lines]
+        assert not np.any(timestep_maintenance[mask_affected_lines] == 0), 'Line maintenance cant last for 0 timestep'
 
-        past_timestep_id = self.current_timestep_id  # Tmp
-        self.current_timestep_id = timestep_id
+        # For cases when multiple events (mtn, hazards) can overlap, put the max time to wait as new value between new
+        # time to wait and previous one
+        self.timesteps_before_lines_reconnectable[mask_affected_lines] = np.max(
+            np.vstack((self.timesteps_before_lines_reconnectable[mask_affected_lines],
+                       timestep_maintenance[mask_affected_lines],)), axis=0)
 
+        # Logs data about lines just put into maintenance
+        n_maintained = sum(mask_affected_lines)
+        if n_maintained > 0:
+            self.logger.info(
+                '  MAINTENANCE: switching off line%s %s for %s%s timestep%s' %
+                ('s' if n_maintained > 1 else '',
+                 ', '.join(list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[mask_affected_lines]))),
+                 'resp. ' if n_maintained > 1 else '',
+                 ', '.join(list(map(lambda i: '%.0f' % i, timestep_maintenance[mask_affected_lines]))),
+                 's' if n_maintained > 1 or np.any(timestep_maintenance[mask_affected_lines] > 1) else '')
+            )
+
+        # Integration of timestep hazards: disco freshly broken lines (just now)
+        timestep_hazards = timestep_entries.get_hazards()
+        mask_affected_lines = timestep_hazards > 0
+        self.grid.mpc['branch'][mask_affected_lines, 10] = 0
+        assert not np.any(timestep_hazards[mask_affected_lines] == 0), 'Line hazard cant last for 0 timestep'
+
+        # For cases when multiple events (mtn, hazards) can overlap, put the max time to wait as new value between new
+        # time to wait and previous one
+        self.timesteps_before_lines_reconnectable[mask_affected_lines] = np.max(
+            np.vstack((self.timesteps_before_lines_reconnectable[mask_affected_lines],
+                       timestep_hazards[mask_affected_lines],)), axis=0)
+
+        # Logs data about lines just put into maintenance
+        n_maintained = sum(mask_affected_lines)
+        if n_maintained > 0:
+            self.logger.info(
+                '  HAZARD: line%s %s broke; reparations will take %s%s timestep%s' %
+                ('s' if n_maintained > 1 else '',
+                 ', '.join(list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[mask_affected_lines]))),
+                 'resp. ' if n_maintained > 1 else '',
+                 ', '.join(list(map(lambda i: '%.0f' % i, timestep_maintenance[mask_affected_lines]))),
+                 's' if n_maintained > 1 or np.any(timestep_maintenance[mask_affected_lines] > 1) else '')
+            )
+
+        self.current_timestep_id = timestep_id  # Update id of current timestep after whole entries are in place
+
+        # Loadflow computation if needed
         if do_trigger_lf_computation:
+            past_timestep_id = self.current_timestep_id  # Tmp
             try:
                 self.compute_loadflow(cascading_failure, apply_cascading_output, past_timestep_id)
             except pypownet.grid.DivergingLoadflowException as e:
                 raise e
 
     def load_next_timestep_injections(self, do_trigger_lf_computation, cascading_failure=None,
-                                      apply_cascading_output=None, starting_timestep_id=None):
+                                      apply_cascading_output=None, starting_timestep_id=None,
+                                      decrement_reconnectable_timesteps=False):
         """ Loads the next timestep injections (set of injections, maintenance, hazard etc for the next timestep id.
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
@@ -181,10 +226,16 @@ class Game(object):
         # Update date
         self.current_date += self.timestep_date
 
+        # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
+        if decrement_reconnectable_timesteps:
+            self.timesteps_before_lines_reconnectable[self.timesteps_before_lines_reconnectable > 0] -= 1
+
         try:
-            self.load_timestep_injections_id(next_timestep_id, do_trigger_lf_computation, cascading_failure,
-                                             apply_cascading_output)
+            self.load_timestep_entries_id(next_timestep_id, do_trigger_lf_computation, cascading_failure,
+                                          apply_cascading_output)
         except pypownet.grid.DivergingLoadflowException as e:
+            self.load_next_timestep_injections(do_trigger_lf_computation, cascading_failure, apply_cascading_output,
+                                               None)
             raise e
 
     def apply_action(self, action):
@@ -211,18 +262,7 @@ class Game(object):
             pypownet.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
                                          grid_topology_invert_mapping_function)
 
-        # Compute the destination nodes of all elements + the lines service finale values
-        prods_nodes = np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes)
-        loads_nodes = np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes)
-        lines_or_nodes = np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
-        lines_ex_nodes = np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes)
-        new_lines_service = np.where(a_lines_service, 1 - lines_service, lines_service)
-        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
-                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
-                                              lines_service=new_lines_service,
-                                              mapping_array=grid_topology_mapping_array)
-
-        # Verify that the player is not intended to reconnect not reconnectable lines
+        # Verify that the player is not intended to reconnect not reconnectable lines (broken or being maintained)
         to_reconnect_lines = np.equal(a_lines_service, 1)
         non_reconnectable_lines = self.timesteps_before_lines_reconnectable > 0
         illegal_lines_reconnections = np.logical_and(to_reconnect_lines, non_reconnectable_lines)
@@ -243,16 +283,30 @@ class Game(object):
                     's' if number_invalid_reconnections > 1 else '',
                     non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
 
+        # Compute the destination nodes of all elements + the lines service finale values
+        prods_nodes = np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes)
+        loads_nodes = np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes)
+        lines_or_nodes = np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
+        lines_ex_nodes = np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes)
+        new_lines_service = np.where(a_lines_service, 1 - lines_service, lines_service)
+        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
+                                              lines_service=new_lines_service,
+                                              mapping_array=grid_topology_mapping_array)
+
         self.grid.apply_topology(new_topology)
 
     def reset_grid(self):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).
         """
         self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
-        self.grid.apply_topology(self.initial_topology)
-        self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1
-        self.grid.mpc['branch'] = self.grid.mpc['branch'][:, :13]
 
+        self.grid.apply_topology(self.initial_topology)
+        self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1 (ON)
+        self.grid.mpc['branch'] = self.grid.mpc['branch'][:, :13]  # Discard flows: not mandatory
+        self.grid.mpc['branch'][:, 10] = 1  # Ensure lines are all switched on
+
+        # Reset voltage magnitude and angles: they change when using AC mode
         self.grid.mpc['bus'][:, 7] = self.initial_angles_magnitudes
         self.grid.mpc['bus'][:, 8] = self.initial_angles
 
@@ -294,15 +348,13 @@ class Game(object):
 
         try:
             past_timestep_id = self.current_timestep_id  # Tmp for fouble-frame GUI hack
-            self.load_next_timestep_injections(do_trigger_lf_computation=False)
+            self.load_next_timestep_injections(do_trigger_lf_computation=False,
+                                               decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
             self.compute_loadflow(cascading_failure=self.simulate_cascading_failure,
                                   apply_cascading_output=self.apply_cascading_output, past_timestep_id=past_timestep_id)
         except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
             return None, e, True
 
-        # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
-        if decrement_reconnectable_timesteps:
-            self.timesteps_before_lines_reconnectable[self.timesteps_before_lines_reconnectable > 0] -= 1
         return self.export_observation(), None, False
 
     def simulate(self, action, cascading_failure, apply_cascading_output):
@@ -315,9 +367,9 @@ class Game(object):
         except pypownet.grid.DivergingLoadflowException as e:
             # Put past values back for topo and injection
             self.grid.apply_topology(before_topology)
-            self.load_timestep_injections_id(before_timestep_id, do_trigger_lf_computation=True,
-                                             cascading_failure=cascading_failure,
-                                             apply_cascading_output=apply_cascading_output)
+            self.load_timestep_entries_id(before_timestep_id, do_trigger_lf_computation=True,
+                                          cascading_failure=cascading_failure,
+                                          apply_cascading_output=apply_cascading_output)
             raise e
 
         # If no error raised, return the simulated output observation, such that reward can be computed, then
@@ -325,9 +377,9 @@ class Game(object):
         simulated_state = self.export_observation()
         # Put past values back for topo and injection
         self.grid.apply_topology(before_topology)
-        self.load_timestep_injections_id(before_timestep_id, do_trigger_lf_computation=True,
-                                         cascading_failure=cascading_failure,
-                                         apply_cascading_output=apply_cascading_output)
+        self.load_timestep_entries_id(before_timestep_id, do_trigger_lf_computation=True,
+                                      cascading_failure=cascading_failure,
+                                      apply_cascading_output=apply_cascading_output)
 
         return simulated_state
 
