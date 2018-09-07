@@ -8,7 +8,7 @@ import copy
 from oct2py import octave
 from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
-from pypownet.chronic import TimestepInjections
+from pypownet.chronic import TimestepEntries
 import pypownet.environment
 
 
@@ -55,6 +55,8 @@ class Grid(object):
         self.n_prods = len(self.mpc['gen'])
         self.n_loads = np.sum(self.are_loads)
         self.n_lines = len(self.mpc['branch'])
+
+        self.ids_lines = np.arange(self.n_lines)
 
         mapping_permutation, self.number_elements_per_substations = self.compute_topological_mapping_permutation()
         # Topology container: initially, all elements are on the node 0
@@ -143,7 +145,7 @@ class Grid(object):
         # Fonction of matpower to compute loadflow
         matpower_function = octave.rundcpf if self.dc_loadflow else octave.runpf
 
-        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 30)
+        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 50)
         # pprint is None or the path to the prettyprint output file; fname is None or the path to the output IEEE grid
         # file (those are related to self.save_io)
         if pprint and fname:
@@ -283,23 +285,26 @@ class Grid(object):
 
         # Save the loadflow output before the cascading failure *simulation*
 
+        # if not loadflow_success:
+        #     self._snapshot('lolo.m')
         self.mpc = output
         self.topology.set_lines_services(self.mpc['branch'][:, 10])
 
         # If matpower returned a diverging computation, raise proper exception
         if not loadflow_success:
-            self._snapshot('lala.m')
+            #self._snapshot('lala.m')
             raise DivergingLoadflowException(self.export_to_observation(), 'The grid is not connexe')
 
         return loadflow_success
 
     def load_timestep_injections(self, timestep_injections):
-        """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads.
+        """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads. Other
+        timestep entries are loaded using other modules (including pypownet.game).
 
         :param timestep_injections: an instance of class Scenario
         :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
         """
-        assert isinstance(timestep_injections, TimestepInjections), 'Should not happen'
+        assert isinstance(timestep_injections, TimestepEntries), 'Should not happen'
 
         # Change the filename of self to pretty print middle-end created temporary files
         self.filename = 'scenario%d.m' % (timestep_injections.get_id())

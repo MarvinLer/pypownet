@@ -38,8 +38,7 @@ def main():
     if not args.batch:
         print("Running a single instance simulation on case", args.case, "for", args.niter, "iterations...")
         # Instantiate environment and agent
-        log_filepath = 'runner.log'
-        env = env_class(log_filepath=log_filepath, grid_case=args.case, start_id=start_id)
+        env = env_class(grid_case=args.case, start_id=start_id)
         agent = agent_class(env)
         # Instantiate game runner and loop
         runner = Runner(env, agent, args.render, args.verbose, args.vverbose)
