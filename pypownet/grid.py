@@ -494,7 +494,6 @@ class Grid(object):
             map(lambda x: int(float(x)),
                 list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
 
-
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
@@ -537,7 +536,8 @@ class Grid(object):
                                                        are_isolated_loads, are_isolated_prods,
                                                        substations_ids_loads, substations_ids_prods,
                                                        substations_ids_lines_or, substations_ids_lines_ex,
-                                                       timesteps_before_lines_reconnectable=None)  # kwargs set by game
+                                                       timesteps_before_lines_reconnectable=None,
+                                                       timesteps_before_planned_maintenance=None)  # kwargs set by game
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the

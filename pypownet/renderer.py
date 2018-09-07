@@ -779,7 +779,6 @@ class Renderer(object):
                loads, last_timestep_rewards, date, are_substations_changed, game_over=False):
         plt.close('all')
 
-        pause_game = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()

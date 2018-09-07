@@ -32,7 +32,7 @@ class RunEnv(object):
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
                      thermal_limits, topology_vector, are_isolated_loads, are_isolated_prods,
                      loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
-                     timesteps_before_lines_reconnectable):
+                     timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance):
             # Loads related state values
             self.active_loads = active_loads
             self.reactive_loads = reactive_loads
@@ -68,6 +68,7 @@ class RunEnv(object):
             # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
             # random hazards, or shut down for maintenance (e.g. painting)
             self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
+            self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
 
         @staticmethod
         def _tabular_prettifier(matrix, headers, formats, column_widths):

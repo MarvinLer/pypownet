@@ -77,6 +77,7 @@ class Game(object):
 
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
+        self.timesteps_before_planned_maintenance = np.zeros((self.initial_topology.n_lines,))
 
         self.gui = None
         self.last_action = None
@@ -97,6 +98,10 @@ class Game(object):
         """
         return self.current_timestep_id
 
+    def _get_planned_maintenance(self, horizon=10):
+        timestep_id = self.current_timestep_id
+        return self.__chronic.get_planned_maintenance(timestep_id, horizon)
+
     def export_observation(self):
         """ Retrieves an observation of the current state of the grid.
 
@@ -105,6 +110,8 @@ class Game(object):
         observation = self.grid.export_to_observation()
         # Fill additional parameters: starts with substations ids of all elements
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
+        self.timesteps_before_planned_maintenance = self._get_planned_maintenance()
+        observation.timesteps_before_planned_maintenance = self.timesteps_before_planned_maintenance
 
         return observation
 
@@ -192,8 +199,8 @@ class Game(object):
                 ('s' if n_maintained > 1 else '',
                  ', '.join(list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[mask_affected_lines]))),
                  'resp. ' if n_maintained > 1 else '',
-                 ', '.join(list(map(lambda i: '%.0f' % i, timestep_maintenance[mask_affected_lines]))),
-                 's' if n_maintained > 1 or np.any(timestep_maintenance[mask_affected_lines] > 1) else '')
+                 ', '.join(list(map(lambda i: '%.0f' % i, timestep_hazards[mask_affected_lines]))),
+                 's' if n_maintained > 1 or np.any(timestep_hazards[mask_affected_lines] > 1) else '')
             )
 
         self.current_timestep_id = timestep_id  # Update id of current timestep after whole entries are in place

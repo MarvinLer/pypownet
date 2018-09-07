@@ -166,6 +166,15 @@ class Chronic(object):
             raise ValueError('Could not find TimestepInjections with id', timestep_id)
         return self.timesteps_entries[self.timestep_ids.index(timestep_id)]
 
+    def get_planned_maintenance(self, timestep_id, horizon):
+        index_begin_timestep = self.timestep_ids.index(timestep_id)
+        timesteps_entries = self.timesteps_entries[index_begin_timestep:index_begin_timestep + horizon]
+        maintenances = np.asarray([entry.get_maintenance() for entry in timesteps_entries])
+
+        # Construct a vector of the timesteps before a maintenance will start on each line; 0 for no planned maintenance
+        planned_maintenance = (maintenances != 0).argmax(axis=0)
+        return planned_maintenance
+
     def get_timestep_ids(self):
         return self.timestep_ids
 
