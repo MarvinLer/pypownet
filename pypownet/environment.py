@@ -3,7 +3,6 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
-import logging
 
 import pypownet.game
 import pypownet.grid
@@ -14,6 +13,78 @@ class IllegalActionException(Exception):
         super(IllegalActionException, self).__init__(*args)
         self.text = text
         self.illegal_lines_reconnections = illegal_lines_reconnections
+
+
+class ActionSpace(object):
+    def __init__(self, number_generators, number_consumers, number_power_lines):
+        self._n_prods = number_generators
+        self._n_loads = number_consumers
+        self._n_lines = number_power_lines
+
+        self.topological_subaction_length = self._n_prods + self._n_loads + 2 * self._n_lines
+        self.lines_status_subaction_length = self._n_lines
+
+        # In an environment, the actions have fixed shape: self.action_length is expected action list size
+        self.action_length = self.topological_subaction_length + self.lines_status_subaction_length
+
+    def get_do_nothing_action(self):
+        """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
+        not activated.
+
+        :return: an instance of Action that is equivalent to an action doing nothing
+        """
+        return pypownet.game.Action(topological_subaction=np.zeros(self.topological_subaction_length),
+                                    lines_status_subaction=np.zeros(self.lines_status_subaction_length))
+
+    def array_to_action(self, array):
+        """ Converts and returns an Action from a array-object (e.g. list, numpy arrays).
+
+        :param array: array-style object
+        :return: an instance of Action equivalent to input action :raise ValueError: the input array is not of the
+        same length than the expected action (self.action_length)
+        """
+        if len(array) != self.action_length:
+            raise ValueError('Expected binary array of length %d, got %d' % (self.action_length, len(array)))
+
+        topological_subaction = array[:self.topological_subaction_length]
+        lines_status_subaction = array[self.topological_subaction_length:]
+
+        return pypownet.game.Action(topological_subaction, lines_status_subaction)
+
+    def verify_action_shape(self, action):
+        # Action of None is equivalent to no action
+        if action is None:
+            raise ValueError('Expected binary array of length %d, got None' % self.action_length)
+
+        # If the input action is not of class Action, try to format it into Action (action must be array-like)
+        if not isinstance(action, pypownet.game.Action):
+            try:
+                formatted_action = self.array_to_action(action)
+            except ValueError as e:
+                raise e
+        else:
+            formatted_action = action
+
+        topological_subaction_length, lines_status_subaction_length = formatted_action.__len__(do_sum=False)
+
+        if topological_subaction_length and topological_subaction_length != self.topological_subaction_length:
+            raise ValueError('Expected topological subaction of size %d, got %d' % (
+                self.topological_subaction_length, topological_subaction_length))
+
+        if lines_status_subaction_length and lines_status_subaction_length != self.lines_status_subaction_length:
+            raise ValueError('Expected lines status subaction of size %d, got %d' % (
+                self.lines_status_subaction_length, lines_status_subaction_length))
+
+        return formatted_action
+
+
+class ObservationSpace(object):
+    def __init__(self, number_generators, number_consumers, number_power_lines):
+        self.number_productions = number_generators
+        self.number_loads = number_consumers
+        self.number_power_lines = number_power_lines
+
+        self.grid_number_of_elements = self.number_productions + self.number_loads + 2 * self.number_power_lines
 
 
 class RunEnv(object):
@@ -30,7 +101,7 @@ class RunEnv(object):
         def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                      voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                      active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector, are_isolated_loads, are_isolated_prods,
+                     thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
                      loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
                      timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance):
             # Loads related state values
@@ -64,6 +135,7 @@ class RunEnv(object):
 
             # Topology vector
             self.topology = topology_vector
+            self.lines_status = lines_status
 
             # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
             # random hazards, or shut down for maintenance (e.g. painting)
@@ -124,7 +196,7 @@ class RunEnv(object):
                                  self.voltage_flows_extremity,
                                  self.ampere_flows,
                                  self.thermal_limits,
-                                 [0] * len(self.active_flows_origin))).T
+                                 self.lines_status)).T
             lines_str = self._tabular_prettifier(content, headers,
                                                  formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
                                                           '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
@@ -132,50 +204,6 @@ class RunEnv(object):
             lines_str += 'TODO: Load id and is cut + Prod id and is cut + line id or and ext and is on'
 
             return '\n\n'.join([prods_str, loads_str, lines_str])
-
-    class ObservationSpace(object):
-        def __init__(self, grid_case):
-            assert isinstance(grid_case, int), 'The argument grid_case should be an integer of the case number'
-            if grid_case == 14:
-                self.n_prods = 5
-                self.n_loads = 11
-                self.n_lines = 20
-            elif grid_case == 30:
-                self.n_prods = 6
-                self.n_loads = 20
-                self.n_lines = 41
-            elif grid_case == 118:
-                self.n_prods = 56
-                self.n_loads = 99
-                self.n_lines = 186
-            self.n = self.n_prods + self.n_loads + 3 * self.n_lines
-
-    class ActionSpace(object):
-        def __init__(self, grid_case):
-            assert isinstance(grid_case, int), 'The argument grid_case should be an integer of the case number'
-            if grid_case == 14:
-                self.n_prods = 5
-                self.n_loads = 11
-                self.n_lines = 20
-            elif grid_case == 30:
-                self.n_prods = 6
-                self.n_loads = 20
-                self.n_lines = 41
-            elif grid_case == 118:
-                self.n_prods = 56
-                self.n_loads = 99
-                self.n_lines = 186
-            self.n = self.n_prods + self.n_loads + 3 * self.n_lines
-
-        def verify_action_shape(self, action):
-            # None action is no action so valid
-            if action is None:
-                return
-
-            if len(action) != self.n:
-                raise IllegalActionException('Expected action of size %d, got %d' % (self.n, len(action)))
-            if not set(action).issubset([0, 1]):
-                raise IllegalActionException('Some values of the action are not 0 nor 1')
 
     def __init__(self, grid_case=118, start_id=0):
         """ Instante the game Environment as well as the Action Space.
@@ -185,17 +213,17 @@ class RunEnv(object):
         """
         # Instantiate game & action space
         self.game = pypownet.game.Game(grid_case=grid_case, start_id=start_id)
-        self.action_space = self.ActionSpace(grid_case)
-        self.observation_space = self.ObservationSpace(grid_case)
+        self.action_space = ActionSpace(*self.game.get_number_elements())
+        self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
         self.additive_factor_distance_initial_grid = -.02  # Additive factor for each differed node in the grid
         self.additive_factor_load_cut = -grid_case / 10.  # Additive factor for each isolated load
         self.additive_factor_prod_cut = .5 * self.additive_factor_load_cut
-        self.connexity_exception_reward = -self.observation_space.n  # Reward when the grid is not connexe
+        self.connexity_exception_reward = -self.observation_space.grid_number_of_elements  # Reward when the grid is not connexe
         # (at least two islands)
-        self.loadflow_exception_reward = -self.observation_space.n  # Reward in case of loadflow software error
+        self.loadflow_exception_reward = -self.observation_space.grid_number_of_elements  # Reward in case of loadflow software error
 
         self.illegal_action_exception_reward = -grid_case / 100.  # Reward in case of bad action shape/form
 
@@ -205,23 +233,6 @@ class RunEnv(object):
 
         self.last_rewards = []
         self.last_action = None
-
-        # Loggger part
-        # self.logger = logging.getLogger(__file__)
-        #
-        # # Always create a log file for runners
-        # fh = logging.FileHandler(filename=log_filepath, mode='w+')
-        # fh.setLevel(logging.DEBUG)
-        # fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        # self.logger.addHandler(fh)
-        #
-        # # create console handler, set level to debug, create formatter
-        # ch = logging.StreamHandler()
-        # ch.setLevel(logging.WARNING)
-        # ch.setFormatter(logging.Formatter('%(levelname)s    %(message)s'))
-        # # add ch to logger
-        # self.logger.addHandler(ch)
-        # self.logger.setLevel(logging.ERROR)
 
     def _get_obs(self):
         return self.game.export_observation()
@@ -237,13 +248,10 @@ class RunEnv(object):
 
         :return: the number of different nodes between the current topology and the initial one
         """
-        #initial_topology = np.ones(len(self.game.get_initial_topology(as_array=True)))
         initial_topology = np.asarray(self.game.get_initial_topology())
         current_topology = observation.topology
 
-        n_lines = self.observation_space.n_lines
-        n_differed_nodes = np.sum((initial_topology[:-n_lines] != current_topology[:-n_lines]))
-        return n_differed_nodes
+        return np.sum((initial_topology != current_topology))  # Sum of nodes that are different
 
     def _get_action_cost(self, action):
         # Action cost reward: compute the number of line switches, node switches, and return the associated reward
@@ -258,9 +266,10 @@ class RunEnv(object):
         if action is None:
             return 0.
 
-        n_nodes_switches = np.sum(action[:-self.action_space.n_lines])
-        n_lines_switches = np.sum(action[-self.action_space.n_lines:])
-        action_cost = self.cost_node_switch * n_nodes_switches + self.cost_line_switch * n_lines_switches
+        # Computes the number of activated switches of the action
+        number_node_switches = np.sum(action.get_lines_status_subaction())
+        number_line_switches = np.sum(action.get_topological_subaction())
+        action_cost = self.cost_node_switch * number_node_switches + self.cost_line_switch * number_line_switches
         return action_cost
 
     def _get_lines_capacity_usage(self, observation):
@@ -317,12 +326,12 @@ class RunEnv(object):
         """
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
-            self.action_space.verify_action_shape(action)
+            submitted_action = self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
             raise e
         self.last_action = action  # Store action to plot indicators in renderer if used: hack
 
-        observation, reward_flag, done = self.game.step(action)
+        observation, reward_flag, done = self.game.step(submitted_action)
 
         reward_aslist = self.get_reward(observation=self._get_obs(), action=action, flag=reward_flag)
 

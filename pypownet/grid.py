@@ -60,12 +60,12 @@ class Grid(object):
 
         mapping_permutation, self.number_elements_per_substations = self.compute_topological_mapping_permutation()
         # Topology container: initially, all elements are on the node 0
-        self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)),
-                                 loads_nodes=np.zeros((self.n_loads,)),
-                                 lines_or_nodes=np.zeros((self.n_lines,)),
-                                 lines_ex_nodes=np.zeros((self.n_lines,)),
-                                 lines_service=self.mpc['branch'][:, 10],
+        self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)), loads_nodes=np.zeros((self.n_loads,)),
+                                 lines_or_nodes=np.zeros((self.n_lines,)), lines_ex_nodes=np.zeros((self.n_lines,)),
                                  mapping_array=mapping_permutation)
+
+    def get_number_elements(self):
+        return self.n_prods, self.n_loads, self.n_lines
 
     @staticmethod
     def _synchronize_bus_types(mpc, are_loads, new_slack_bus):
@@ -252,7 +252,6 @@ class Grid(object):
         if apply_cascading_output:
             # Save last cascading failure loadflow output as new self state
             self.mpc = cascading_output_mpc
-            self.topology.set_lines_services(self.mpc['branch'][:, 10])
 
         return cascading_success, forced_disconnected_lines
 
@@ -288,7 +287,6 @@ class Grid(object):
         # if not loadflow_success:
         #     self._snapshot('lolo.m')
         self.mpc = output
-        self.topology.set_lines_services(self.mpc['branch'][:, 10])
 
         # If matpower returned a diverging computation, raise proper exception
         if not loadflow_success:
@@ -333,11 +331,17 @@ class Grid(object):
         bus[self.are_loads, 2] = loads_p
         bus[self.are_loads, 3] = loads_q
 
-    def disconnect_line(self, id_line):
-        self.mpc['branch'][id_line, 10] = 0
+    def discard_flows(self):
+        self.mpc['branch'] = self.mpc['branch'][:, :13]
 
-    def reconnect_line(self, id_line):
-        self.mpc['branch'][id_line, 10] = 1
+    def set_new_voltage_magnitudes(self, new_voltage_magnitudes):
+        self.mpc['bus'][:, 7] = new_voltage_magnitudes
+
+    def set_new_voltage_angles(self, new_voltage_angles):
+        self.mpc['bus'][:, 8] = new_voltage_angles
+
+    def set_new_lines_status(self, new_lines_status):
+        self.mpc['branch'][:, 10] = new_lines_status
 
     def apply_topology(self, new_topology):
         # Verify new specified topology is of good number of elements and only 0 or 1
@@ -346,12 +350,12 @@ class Grid(object):
 
         :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
         """
-        cpy_new_topology = copy.deepcopy(new_topology)
-        assert cpy_new_topology.get_length() == self.get_topology().get_length()
-        assert set(cpy_new_topology.get_zipped()).issubset([0, 1])
+        cpy_new_topology = copy.deepcopy(new_topology)  # Deepcopy as this function sometimes uses to-be-fixed Topology
+        assert cpy_new_topology.get_length() == self.get_topology().get_length(), 'Should not happen'
+        assert set(cpy_new_topology.get_zipped()).issubset([0, 1]), 'Should not happen'
 
         # Split topology vector into the four chunks
-        new_prods_nodes, new_loads_nodes, new_lines_or_nodes, new_lines_ex_nodes, new_lines_service = \
+        new_prods_nodes, new_loads_nodes, new_lines_or_nodes, new_lines_ex_nodes = \
             cpy_new_topology.get_unzipped()
 
         # Function to find the true id of the substation associated with one node
@@ -402,13 +406,13 @@ class Grid(object):
                 self.are_loads[tmp_id] = False
                 self.are_loads[(tmp_id + self.n_nodes // 2) % self.n_nodes] = True
 
-        # Change line status (equivalent to reco/disco calls as a function of values of new_line_status)
-        branch[:, 10] = new_lines_service
-
         self.topology = cpy_new_topology
 
     def get_topology(self):
         return self.topology
+
+    def get_lines_status(self):
+        return self.mpc['branch'][:, 10]
 
     def compute_topological_mapping_permutation(self):
         """ Computes a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
@@ -430,7 +434,6 @@ class Grid(object):
         loads_offset = self.n_prods
         lines_or_offset = self.n_prods + self.n_loads
         lines_ex_offset = self.n_prods + self.n_loads + self.n_lines
-        lines_service_status_offset = self.n_prods + self.n_loads + 2 * self.n_lines
 
         # Get the substations ids (discard the artificially created ones, i.e. half end)
         substations_ids = self.mpc['bus'][:self.n_nodes // 2, 0]
@@ -470,13 +473,10 @@ class Grid(object):
             mapping.append(node_mapping)
         assert len(mapping) == self.n_nodes // 2, 'Mapping does not have one configuration per substation'
 
-        # Add the line service status identity mapping
-        mapping.append(range(lines_service_status_offset, lines_service_status_offset + self.n_lines))
-
         # Verify that the mapping array has unique values and of expected size (i.e. same as concatenated-style one)
         assert len(np.concatenate(mapping)) == len(
             np.unique(np.concatenate(mapping))), 'Mapping does not have unique values, should not happen'
-        assert sum([len(m) for m in mapping]) == self.n_prods + self.n_loads + 2 * self.n_lines + self.n_lines, \
+        assert sum([len(m) for m in mapping]) == self.n_prods + self.n_loads + 2 * self.n_lines, \
             'Mapping does not have the same number of elements as there are in the grid'
 
         return mapping, substations_n_elements
@@ -527,12 +527,13 @@ class Grid(object):
 
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
+        lines_status = branch[:, 10].astype(int)
 
         return pypownet.environment.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
                                                        reactive_prods, voltage_prods, active_flows_origin,
                                                        reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                        reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                                       thermal_limits, topology,
+                                                       thermal_limits, topology, lines_status,
                                                        are_isolated_loads, are_isolated_prods,
                                                        substations_ids_loads, substations_ids_prods,
                                                        substations_ids_lines_or, substations_ids_lines_ex,
@@ -577,14 +578,11 @@ class Topology(object):
     be manipulated using this class, as it maintains the adopted convention consistently.
     """
 
-    def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, lines_service, mapping_array):
+    def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, mapping_array):
         self.prods_nodes = prods_nodes
         self.loads_nodes = loads_nodes
         self.lines_or_nodes = lines_or_nodes
         self.lines_ex_nodes = lines_ex_nodes
-        self.lines_service = lines_service
-
-        self.n_lines = len(lines_service)
 
         # Function that sorts the internal topological array into a more intuitive representation: the nodes of the
         # elements of a substation are consecutive (first prods, then loads, then lines origin, then line ext.)
@@ -598,41 +596,38 @@ class Topology(object):
 
     def get_zipped(self):
         return self.mapping_permutation(np.concatenate(
-            (self.prods_nodes, self.loads_nodes, self.lines_or_nodes, self.lines_ex_nodes, self.lines_service)))
+            (self.prods_nodes, self.loads_nodes, self.lines_or_nodes, self.lines_ex_nodes)))
 
     def get_unzipped(self):
-        return self.prods_nodes, self.loads_nodes, self.lines_or_nodes, self.lines_ex_nodes, self.lines_service
+        return self.prods_nodes, self.loads_nodes, self.lines_or_nodes, self.lines_ex_nodes
 
     @staticmethod
     def unzip(topology, n_prods, n_loads, n_lines, invert_mapping_function):
         # Shuffle topology parameter based on index positions; invert_mapping_function should be the same as the
         # one used by the environment to convert the sorted topology into its internal representation
         topology_shuffled = invert_mapping_function(topology)
+        assert len(topology_shuffled) == n_prods + n_loads + 2 * n_lines
 
         prods_nodes = topology_shuffled[:n_prods]
         loads_nodes = topology_shuffled[n_prods:n_prods + n_loads]
-        lines_or_nodes = topology_shuffled[-3 * n_lines:-2 * n_lines]
-        lines_ex_nodes = topology_shuffled[-2 * n_lines:-n_lines]
-        lines_service = topology_shuffled[-n_lines:]
-        return prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, lines_service
+        lines_or_nodes = topology_shuffled[-2 * n_lines:-n_lines]
+        lines_ex_nodes = topology_shuffled[-n_lines:]
+        return prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes
 
     def get_length(self):
-        return len(self.prods_nodes) + len(self.loads_nodes) + len(self.lines_ex_nodes) + len(
-            self.lines_or_nodes) + len(self.lines_service)
-
-    def set_lines_services(self, new_lines_services):
-        self.lines_service = new_lines_services
+        return len(self.prods_nodes) + len(self.loads_nodes) + len(self.lines_ex_nodes) + len(self.lines_or_nodes)
 
     def __deepcopy__(self, memo):
         cpy = object.__new__(type(self))
-        cpy.n_lines = self.n_lines
         cpy.prods_nodes = copy.deepcopy(self.prods_nodes)
         cpy.loads_nodes = copy.deepcopy(self.loads_nodes)
         cpy.lines_or_nodes = copy.deepcopy(self.lines_or_nodes)
         cpy.lines_ex_nodes = copy.deepcopy(self.lines_ex_nodes)
-        cpy.lines_service = copy.deepcopy(self.lines_service)
         cpy.mapping_array = self.mapping_array
         cpy.mapping_permutation = self.mapping_permutation
         cpy.invert_mapping_permutation = self.invert_mapping_permutation
         return cpy
+
+    def __str__(self):
+        return 'Grid topology: %s' % ('[%s]' % ', '.join(list(map(str, self.get_zipped()))))
 

@@ -24,8 +24,9 @@ class Agent(object):
         assert isinstance(observation, RunEnv.Observation)
 
         # Implement your policy here.
+        action = self.environment.action_space.get_do_nothing_action()
 
-        return None
+        return action
 
     def feed_reward(self, observation, action, reward):
         """ Here, the Agent upgrades his policy given the previous observation, its subsequently produced action, and

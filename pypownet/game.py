@@ -19,6 +19,52 @@ class NoMoreScenarios(Exception):
     pass
 
 
+class Action(object):
+    def __init__(self, topological_subaction, lines_status_subaction):
+        if topological_subaction is None or lines_status_subaction is None:
+            raise ValueError('Expected first argument of %s to be an array, got None' % self.__class__)
+        self.topological_subaction = np.asarray(topological_subaction).astype(int)
+        self.lines_status_subaction = np.asarray(lines_status_subaction).astype(int)
+
+        self._topo_length = len(self.topological_subaction)
+        self._linestat_length = len(self.lines_status_subaction)
+
+    def get_topological_subaction(self):
+        return self.topological_subaction
+
+    def get_lines_status_subaction(self):
+        return self.lines_status_subaction
+
+    def as_array(self):
+        return np.concatenate((self.topological_subaction, self.lines_status_subaction))
+
+    def __str__(self):
+        return 'topological subaction: %s; line status subaction: %s' % (
+            '[%s]' % ', '.join(list(map(str, self.topological_subaction))),
+            '[%s]' % ', '.join(list(map(str, self.lines_status_subaction))),)
+
+    def __len__(self, do_sum=True):
+        length_aslist = (len(self.topological_subaction), len(self.lines_status_subaction))
+        return sum(length_aslist) if do_sum else length_aslist
+
+    # def __getitem__(self, item):
+    #     item %= len(self)
+    #     print('lalalalala')
+    #     if item < self._topo_length:
+    #         return self.topological_subaction[item]
+    #     else:
+    #         return self.lines_status_subaction[item % self._topo_length]
+
+    def __setitem__(self, item, value):
+        item %= len(self)
+        if item < self._topo_length:
+            self.topological_subaction.__setitem__(item, value)
+            #self.topological_subaction[item] = value
+        else:
+            self.lines_status_subaction.__setitem__(item % self._topo_length, value)
+            #self.lines_status_subaction[item % self._topo_length] = value
+
+
 class Game(object):
     def __init__(self, grid_case, start_id=0, seed=None):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
@@ -70,25 +116,29 @@ class Game(object):
                                        dc_loadflow=dc_loadflow,
                                        new_slack_bus=new_slack_bus,
                                        new_imaps=self.__chronic.get_imaps())
-        # Save the initial topology (explicitely create another copy)
+        # Save the initial topology (explicitely create another copy) + voltage angles and magnitudes of buses
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
-        self.initial_angles_magnitudes = copy.deepcopy(self.grid.mpc['bus'][:, 7])
-        self.initial_angles = copy.deepcopy(self.grid.mpc['bus'][:, 8])
+        self.initial_lines_service = copy.deepcopy(self.grid.get_lines_status())
+        self.initial_voltage_magnitudes = copy.deepcopy(self.grid.mpc['bus'][:, 7])
+        self.initial_voltage_angles = copy.deepcopy(self.grid.mpc['bus'][:, 8])
 
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
-        self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
-        self.timesteps_before_planned_maintenance = np.zeros((self.initial_topology.n_lines,))
+        self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
+        self.timesteps_before_planned_maintenance = np.zeros((self.grid.n_lines,))
 
         self.gui = None
         self.last_action = None
         self.epoch = 1
         self.timestep = 1
 
-        self.logger = logging.getLogger('pypownet.'+__name__)
+        self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Loads first scenario
         self.load_next_timestep_injections(do_trigger_lf_computation=True, cascading_failure=False,
                                            apply_cascading_output=False, starting_timestep_id=start_id)
+
+    def get_number_elements(self):
+        return self.grid.get_number_elements()
 
     def get_current_timestep_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -257,26 +307,41 @@ class Game(object):
         self.timestep += 1
         # If there is no action, then no need to apply anything on the grid
         if action is None:
-            return
+            raise ValueError('Cannot play None action')
 
+        # Retrieve current grid nodes + mapping arrays for unshuffling the topological subaction of action
         grid_topology = self.grid.get_topology()
         grid_topology_mapping_array = grid_topology.mapping_array
         grid_topology_invert_mapping_function = grid_topology.invert_mapping_permutation
+        prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = grid_topology.get_unzipped()
+        # Retrieve lines status service of current grid
+        lines_service = self.grid.get_lines_status()
 
-        # Convert the action into the corresponding topology vector
-        prods_nodes, loads_nodes, lines_or_nodes, line_ex_nodes, lines_service = grid_topology.get_unzipped()
-        a_prods_nodes, a_loads_nodes, a_lines_or_nodes, a_line_ex_nodes, a_lines_service = \
-            pypownet.grid.Topology.unzip(action, len(prods_nodes), len(loads_nodes), len(lines_service),
-                                         grid_topology_invert_mapping_function)
+        action_lines_service = action.get_lines_status_subaction()
+        action_topology = action.get_topological_subaction()
+        # Split the action into 5 parts: prods nodes, loads nodes, lines or/ex nodes and lines status
+        unzipped_action = pypownet.grid.Topology.unzip(action_topology,
+                                                       len(prods_nodes), len(loads_nodes), len(lines_service),
+                                                       grid_topology_invert_mapping_function)
+        action_prods_nodes = unzipped_action[0]
+        action_loads_nodes = unzipped_action[1]
+        action_lines_or_nodes = unzipped_action[2]
+        action_lines_ex_nodes = unzipped_action[3]
 
-        # Verify that the player is not intended to reconnect not reconnectable lines (broken or being maintained)
-        to_reconnect_lines = np.equal(a_lines_service, 1)
-        non_reconnectable_lines = self.timesteps_before_lines_reconnectable > 0
-        illegal_lines_reconnections = np.logical_and(to_reconnect_lines, non_reconnectable_lines)
+        # Verify that the player is not intended to reconnect not reconnectable lines (broken or being maintained);
+        # here, we check for lines switches, because if a line is broken, then its status is already to 0, such that a
+        # switch will switch on the power line
+        to_be_switched_lines = np.equal(action_lines_service, 1)
+        broken_lines = self.timesteps_before_lines_reconnectable > 0  # Mask of broken lines
+        illegal_lines_reconnections = np.logical_and(to_be_switched_lines, broken_lines)
+
+        # Raises an exception if there is some attempt to reconnect broken lines; Game.step should manage what to do in
+        # such a case
         if np.any(illegal_lines_reconnections):
             timesteps_to_wait = self.timesteps_before_lines_reconnectable[illegal_lines_reconnections]
-            assert not np.any(timesteps_to_wait <= 0)
+            assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
 
+            # Creates strings for log printing
             non_reconnectable_lines_as_str = ', '.join(
                 list(map(str, np.arange(self.grid.n_lines)[illegal_lines_reconnections])))
             timesteps_to_wait_as_str = ', '.join(list(map(lambda x: str(int(x)), timesteps_to_wait)))
@@ -290,32 +355,35 @@ class Game(object):
                     's' if number_invalid_reconnections > 1 else '',
                     non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
 
-        # Compute the destination nodes of all elements + the lines service finale values
-        prods_nodes = np.where(a_prods_nodes, 1 - prods_nodes, prods_nodes)
-        loads_nodes = np.where(a_loads_nodes, 1 - loads_nodes, loads_nodes)
-        lines_or_nodes = np.where(a_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
-        lines_ex_nodes = np.where(a_line_ex_nodes, 1 - line_ex_nodes, line_ex_nodes)
-        new_lines_service = np.where(a_lines_service, 1 - lines_service, lines_service)
+        # Compute the destination nodes of all elements + the lines service finale values: actions are switches
+        prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
+        loads_nodes = np.where(action_loads_nodes, 1 - loads_nodes, loads_nodes)
+        lines_or_nodes = np.where(action_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
+        lines_ex_nodes = np.where(action_lines_ex_nodes, 1 - lines_ex_nodes, lines_ex_nodes)
         new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
                                               lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
-                                              lines_service=new_lines_service,
                                               mapping_array=grid_topology_mapping_array)
 
+        new_lines_service = np.where(action_lines_service, 1 - lines_service, lines_service)
+
+        # Apply the newly computed destination topology to the grid
         self.grid.apply_topology(new_topology)
+        # Apply the newly computed destination topology to the grid
+        self.grid.set_new_lines_status(new_lines_service)
 
     def reset_grid(self):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).
         """
-        self.timesteps_before_lines_reconnectable = np.zeros((self.initial_topology.n_lines,))
+        self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
 
         self.grid.apply_topology(self.initial_topology)
         self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1 (ON)
-        self.grid.mpc['branch'] = self.grid.mpc['branch'][:, :13]  # Discard flows: not mandatory
-        self.grid.mpc['branch'][:, 10] = 1  # Ensure lines are all switched on
+        self.grid.set_new_lines_status(self.initial_lines_service)  # Reset lines status
+        self.grid.discard_flows()  # Discard flows: not mandatory
 
         # Reset voltage magnitude and angles: they change when using AC mode
-        self.grid.mpc['bus'][:, 7] = self.initial_angles_magnitudes
-        self.grid.mpc['bus'][:, 8] = self.initial_angles
+        self.grid.set_new_voltage_angles(self.initial_voltage_angles)
+        self.grid.set_new_voltage_magnitudes(self.initial_voltage_magnitudes)
 
     def reset(self, restart):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
@@ -345,8 +413,8 @@ class Game(object):
             e.text += ' Ignoring action switches of broken lines.'
             # If broken lines are attempted to be switched on, put the switches to 0
             illegal_lines_reconnections = e.illegal_lines_reconnections
-            action[-self.grid.n_lines:][illegal_lines_reconnections] = 0
-            assert np.sum(action[-self.grid.n_lines:][illegal_lines_reconnections]) == 0
+            action.lines_status_subaction[illegal_lines_reconnections] = 0
+            assert np.sum(action.get_lines_status_subaction()[illegal_lines_reconnections]) == 0
 
             # Resubmit step with modified valid action and return either exception of new step, or this exception
             obs, correct_step, done = self.step(action, decrement_reconnectable_timesteps)
@@ -453,10 +521,12 @@ class Game(object):
             n_elements_substations = self.grid.number_elements_per_substations
             offset = 0
             for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
-                has_been_changed[i] = np.any([l != 0 for l in last_action[offset:offset + n_elements]])
+                has_been_changed[i] = np.any(
+                    [l != 0 for l in last_action.get_topological_subaction()[offset:offset + n_elements]])
                 offset += n_elements
 
         self.gui.render(lines_capacity_usage, lines_por_values, lines_service_status,
                         self.epoch, self.timestep, self.current_timestep_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                         date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
+

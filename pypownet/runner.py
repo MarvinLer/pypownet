@@ -57,7 +57,7 @@ class Runner(object):
         # Policy inference
         action = self.agent.act(self.last_observation)
         self.logger.debug(
-            'action: \n%s' % ' '.join(list(map(lambda x: str(int(x)), action))) if action is not None else 'no action')
+            'action: \n%s' % ' '.join(list(map(lambda x: str(int(x)), action.as_array()))))
 
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
