@@ -795,9 +795,15 @@ class Renderer(object):
                     while again:
                         # stay in the loop until a key is being pressed
                         for e in pygame.event.get():
+                            if event.key == pygame.K_ESCAPE:
+                                pygame.quit()
+                                exit()
                             if e.type == pygame.KEYDOWN:  # and event.key == pygame.K_ESCAPE:
-                                if event.key == pygame.K_SPACE:
+                                if e.key == pygame.K_SPACE:
                                     again = False
+                            if e.key == pygame.K_ESCAPE:
+                                pygame.quit()
+                                exit()
 
         # The game is not paused anymore (or never has been), I can render the next surface
         self.screen.fill(self.background_color)
