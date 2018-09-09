@@ -155,7 +155,7 @@ class Game(object):
     def export_observation(self):
         """ Retrieves an observation of the current state of the grid.
 
-        :return: an instance of class pypownet.env.RunEnv.Observation
+        :return: an instance of class pypownet.env.Observation
         """
         observation = self.grid.export_to_observation()
         # Fill additional parameters: starts with substations ids of all elements

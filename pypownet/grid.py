@@ -494,8 +494,6 @@ class Grid(object):
             map(lambda x: int(float(x)),
                 list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
 
-        substations_ids = to_array(bus[:self.n_nodes//2, 0])
-
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
@@ -531,16 +529,16 @@ class Grid(object):
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
         lines_status = branch[:, 10].astype(int)
 
-        return pypownet.environment.RunEnv.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
-                                                       reactive_prods, voltage_prods, active_flows_origin,
-                                                       reactive_flows_origin, voltage_origin, active_flows_extremity,
-                                                       reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                                       thermal_limits, topology, lines_status,
-                                                       are_isolated_loads, are_isolated_prods,
-                                                       substations_ids_loads, substations_ids_prods,
-                                                       substations_ids_lines_or, substations_ids_lines_ex,
-                                                       timesteps_before_lines_reconnectable=None,
-                                                       timesteps_before_planned_maintenance=None)  # kwargs set by game
+        return pypownet.environment.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
+                                                reactive_prods, voltage_prods, active_flows_origin,
+                                                reactive_flows_origin, voltage_origin, active_flows_extremity,
+                                                reactive_flows_extremity, voltage_extremity, ampere_flows,
+                                                thermal_limits, topology, lines_status,
+                                                are_isolated_loads, are_isolated_prods,
+                                                substations_ids_loads, substations_ids_prods,
+                                                substations_ids_lines_or, substations_ids_lines_ex,
+                                                timesteps_before_lines_reconnectable=None,
+                                                timesteps_before_planned_maintenance=None)  # kwargs set by game
 
     def export_lines_capacity_usage(self):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the

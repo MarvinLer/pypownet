@@ -2,7 +2,7 @@ __author__ = 'marvinler'
 # Copyright (C) 2017-2018 RTE and INRIA (France)
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
-from pypownet.environment import RunEnv
+import pypownet.environment
 
 
 class Agent(object):
@@ -12,7 +12,7 @@ class Agent(object):
 
     def __init__(self, environment):
         """Initialize a new agent."""
-        assert isinstance(environment, RunEnv)
+        assert isinstance(environment, pypownet.environment.RunEnv)
         self.environment = environment
         # Do not forget to call super() for the daughter classes
 
@@ -21,7 +21,7 @@ class Agent(object):
 
         Takes as argument an observation of the current state, and returns the chosen action."""
         # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, RunEnv.Observation)
+        assert isinstance(observation, pypownet.environment.Observation)
 
         # Implement your policy here.
         action = self.environment.action_space.get_do_nothing_action()
@@ -48,7 +48,7 @@ class RandomSwitch(Agent):
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, self.environment.Observation)
+        assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
         length_action = action_space.n
 
@@ -72,7 +72,7 @@ class RandomLineSwitch(Agent):
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, self.environment.Observation)
+        assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
         number_lines = action_space.n_lines
         length_action = action_space.n
@@ -97,7 +97,7 @@ class RandomNodeSplitting(Agent):
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, self.environment.Observation)
+        assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
         number_lines = action_space.n_lines
         length_action = action_space.n
@@ -172,7 +172,7 @@ class GreedySearch(Agent):
         import itertools
 
         # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, self.environment.Observation)
+        assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
         number_lines = action_space.n_lines
         length_action = action_space.n

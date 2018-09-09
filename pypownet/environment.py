@@ -87,140 +87,138 @@ class ObservationSpace(object):
         self.grid_number_of_elements = self.number_productions + self.number_loads + 2 * self.number_power_lines
 
 
+class Observation(object):
+    """ The class State is a container for all the values representing the state of a given grid at a given time. It
+    contains the following values:
+    * The active and reactive power values of the loads
+    * The active power values and the voltage setpoints of the productions
+    * The values of the power through the lines: the active and reactive values at the origin/extremity of the
+    lines as well as the lines capacity usage
+    * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
+    """
+
+    def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
+                 voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
+                 active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
+                 thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
+                 loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
+                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance):
+        # Loads related state values
+        self.active_loads = active_loads
+        self.reactive_loads = reactive_loads
+        self.voltage_loads = voltage_loads
+        self.are_loads_cut = are_isolated_loads
+        self.loads_substations_ids = loads_substations_ids
+
+        # Productions related state values
+        self.active_productions = active_productions
+        self.reactive_productions = reactive_productions
+        self.voltage_productions = voltage_productions
+        self.are_prods_cut = are_isolated_prods
+        self.prods_substations_ids = prods_substations_ids
+
+        # Origin flows related state values
+        self.active_flows_origin = active_flows_origin
+        self.reactive_flows_origin = reactive_flows_origin
+        self.voltage_flows_origin = voltage_flows_origin
+        self.lines_or_substations_ids = lines_or_substations_ids
+        # Extremity flows related state values
+        self.active_flows_extremity = active_flows_extremity
+        self.reactive_flows_extremity = reactive_flows_extremity
+        self.voltage_flows_extremity = voltage_flows_extremity
+        self.lines_ex_substations_ids = lines_ex_substations_ids
+
+        # Ampere flows and thermal limits
+        self.ampere_flows = ampere_flows
+        self.thermal_limits = thermal_limits
+
+        # Topology vector
+        self.topology = topology_vector
+        self.lines_status = lines_status
+
+        # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
+        # random hazards, or shut down for maintenance (e.g. painting)
+        self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
+        self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
+
+    def as_dict(self):
+        return self.__dict__
+
+    def __str__(self):
+        def _tabular_prettifier(matrix, headers, formats, column_widths):
+            """ Used for printing well shaped tables within terminal and log files
+            """
+            res = ''
+
+            matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
+            # Plot headers
+            headers_str = '|' + ' |'.join(
+                ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+            # Plot content
+            res += headers_str
+            for line in matrix_str:
+                line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
+                res += line_str
+
+            return res
+
+        # Prods
+        headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+        content = np.vstack((self.prods_substations_ids,
+                             self.active_productions,
+                             self.reactive_productions,
+                             self.voltage_productions,
+                             self.are_prods_cut)).T
+        n_symbols = 61
+        prods_header = '=' * n_symbols + '\n' + \
+                       '|' + ' ' * ((n_symbols - 7) // 2) + 'PRODS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                       '=' * n_symbols + '\n'
+        prods_str = prods_header + _tabular_prettifier(content, headers,
+                                                       formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                                '{:.0f}'],
+                                                       column_widths=[9, 14, 16, 9, 8])
+
+        # Loads
+        headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+        content = np.vstack((self.loads_substations_ids,
+                             self.active_loads,
+                             self.reactive_loads,
+                             self.voltage_loads,
+                             self.are_loads_cut)).T
+        n_symbols = 61
+        loads_header = '=' * n_symbols + '\n' + \
+                       '|' + ' ' * ((n_symbols - 7) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                       '=' * n_symbols + '\n'
+        loads_str = loads_header + _tabular_prettifier(content, headers,
+                                                       formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                                '{:.0f}'],
+                                                       column_widths=[9, 14, 16, 9, 8])
+
+        # Lines
+        headers = ['Origin', 'Extremity', 'P ori.', 'Q ori.', 'V ori.', 'P ext.', 'Q ext.', 'V ext.',
+                   'Flows A', 'Thermal limit', 'Is on']
+        content = np.vstack((self.lines_or_substations_ids,
+                             self.lines_ex_substations_ids,
+                             self.active_flows_origin,
+                             self.reactive_flows_origin,
+                             self.voltage_flows_origin,
+                             self.active_flows_extremity,
+                             self.reactive_flows_extremity,
+                             self.voltage_flows_extremity,
+                             self.ampere_flows,
+                             self.thermal_limits,
+                             self.lines_status)).T
+        lines_str = _tabular_prettifier(content, headers,
+                                        formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                 '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
+                                        column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
+
+        return '\n\n'.join([prods_str, loads_str, lines_str])
+
+
 class RunEnv(object):
-    class Observation(object):
-        """ The class State is a container for all the values representing the state of a given grid at a given time. It
-        contains the following values:
-        * The active and reactive power values of the loads
-        * The active power values and the voltage setpoints of the productions
-        * The values of the power through the lines: the active and reactive values at the origin/extremity of the
-        lines as well as the lines capacity usage
-        * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
-        """
-
-        def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
-                     voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
-                     active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                     thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
-                     loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
-                     timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance):
-            # Loads related state values
-            self.active_loads = active_loads
-            self.reactive_loads = reactive_loads
-            self.voltage_loads = voltage_loads
-            self.are_loads_cut = are_isolated_loads
-            self.loads_substations_ids = loads_substations_ids
-
-            # Productions related state values
-            self.active_productions = active_productions
-            self.reactive_productions = reactive_productions
-            self.voltage_productions = voltage_productions
-            self.are_prods_cut = are_isolated_prods
-            self.prods_substations_ids = prods_substations_ids
-
-            # Origin flows related state values
-            self.active_flows_origin = active_flows_origin
-            self.reactive_flows_origin = reactive_flows_origin
-            self.voltage_flows_origin = voltage_flows_origin
-            self.lines_or_substations_ids = lines_or_substations_ids
-            # Extremity flows related state values
-            self.active_flows_extremity = active_flows_extremity
-            self.reactive_flows_extremity = reactive_flows_extremity
-            self.voltage_flows_extremity = voltage_flows_extremity
-            self.lines_ex_substations_ids = lines_ex_substations_ids
-
-            # Ampere flows and thermal limits
-            self.ampere_flows = ampere_flows
-            self.thermal_limits = thermal_limits
-
-            # Topology vector
-            self.topology = topology_vector
-            self.lines_status = lines_status
-
-            # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
-            # random hazards, or shut down for maintenance (e.g. painting)
-            self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
-            self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
-
-        def as_dict(self):
-            return self.__dict__
-
-        def __str__(self):
-            def _tabular_prettifier(matrix, headers, formats, column_widths):
-                """ Used for printing well shaped tables within terminal and log files
-                """
-                res = ''
-
-                matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
-                # Plot headers
-                headers_str = '|' + ' |'.join(
-                    ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
-                # Plot content
-                res += headers_str
-                for line in matrix_str:
-                    line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
-                    res += line_str
-
-                return res
-
-            # Prods
-            headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-            content = np.vstack((self.prods_substations_ids,
-                                 self.active_productions,
-                                 self.reactive_productions,
-                                 self.voltage_productions,
-                                 self.are_prods_cut)).T
-            n_symbols = 61
-            prods_header = '=' * n_symbols + '\n' + \
-                           '|' + ' ' * ((n_symbols - 7) // 2) + 'PRODS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
-                           '=' * n_symbols + '\n'
-            prods_str = prods_header + _tabular_prettifier(content, headers,
-                                                           formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                                    '{:.0f}'],
-                                                           column_widths=[9, 14, 16, 9, 8])
-
-            # Loads
-            headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-            content = np.vstack((self.loads_substations_ids,
-                                 self.active_loads,
-                                 self.reactive_loads,
-                                 self.voltage_loads,
-                                 self.are_loads_cut)).T
-            n_symbols = 61
-            loads_header = '=' * n_symbols + '\n' + \
-                           '|' + ' ' * ((n_symbols - 7) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
-                           '=' * n_symbols + '\n'
-            loads_str = loads_header + _tabular_prettifier(content, headers,
-                                                           formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                                    '{:.0f}'],
-                                                           column_widths=[9, 14, 16, 9, 8])
-
-            # Lines
-            headers = ['Origin', 'Extremity', 'P ori.', 'Q ori.', 'V ori.', 'P ext.', 'Q ext.', 'V ext.',
-                       'Flows A', 'Thermal limit', 'Is on']
-            content = np.vstack((self.lines_or_substations_ids,
-                                 self.lines_ex_substations_ids,
-                                 self.active_flows_origin,
-                                 self.reactive_flows_origin,
-                                 self.voltage_flows_origin,
-                                 self.active_flows_extremity,
-                                 self.reactive_flows_extremity,
-                                 self.voltage_flows_extremity,
-                                 self.ampere_flows,
-                                 self.thermal_limits,
-                                 self.lines_status)).T
-            lines_str = _tabular_prettifier(content, headers,
-                                            formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                     '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
-                                            column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
-
-            print(OBSERVATION_MEANING)
-            print(self.as_dict())
-            exit()
-            return '\n\n'.join([prods_str, loads_str, lines_str])
-
     def __init__(self, grid_case=118, start_id=0):
-        """ Instante the game Environment as well as the Action Space.
+        """ Instantiate the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
         case14 and case118.
