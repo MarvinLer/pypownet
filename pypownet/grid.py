@@ -494,6 +494,8 @@ class Grid(object):
             map(lambda x: int(float(x)),
                 list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
 
+        substations_ids = to_array(bus[:self.n_nodes//2, 0])
+
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg

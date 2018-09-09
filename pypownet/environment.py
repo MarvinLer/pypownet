@@ -142,46 +142,58 @@ class RunEnv(object):
             self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
             self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
 
-        @staticmethod
-        def _tabular_prettifier(matrix, headers, formats, column_widths):
-            """ Used for printing well shaped tables within terminal and log files
-            """
-            res = ''
-
-            matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
-            # Plot headers
-            headers_str = '|' + ' |'.join(
-                ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
-            # Plot content
-            res += headers_str
-            for line in matrix_str:
-                line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
-                res += line_str
-
-            return res
+        def as_dict(self):
+            return self.__dict__
 
         def __str__(self):
-            # Loads
-            headers = ['Load id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-            content = np.vstack((self.loads_substations_ids,
-                                 self.active_loads,
-                                 self.reactive_loads,
-                                 self.voltage_loads,
-                                 self.are_loads_cut)).T
-            loads_str = self._tabular_prettifier(content, headers,
-                                                 formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
-                                                 column_widths=[9, 14, 16, 9, 8])
+            def _tabular_prettifier(matrix, headers, formats, column_widths):
+                """ Used for printing well shaped tables within terminal and log files
+                """
+                res = ''
+
+                matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
+                # Plot headers
+                headers_str = '|' + ' |'.join(
+                    ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+                # Plot content
+                res += headers_str
+                for line in matrix_str:
+                    line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
+                    res += line_str
+
+                return res
 
             # Prods
-            headers = ['Prod id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+            headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
             content = np.vstack((self.prods_substations_ids,
                                  self.active_productions,
                                  self.reactive_productions,
                                  self.voltage_productions,
                                  self.are_prods_cut)).T
-            prods_str = self._tabular_prettifier(content, headers,
-                                                 formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.0f}'],
-                                                 column_widths=[9, 14, 16, 9, 8])
+            n_symbols = 61
+            prods_header = '=' * n_symbols + '\n' + \
+                           '|' + ' ' * ((n_symbols - 7) // 2) + 'PRODS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                           '=' * n_symbols + '\n'
+            prods_str = prods_header + _tabular_prettifier(content, headers,
+                                                           formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                                    '{:.0f}'],
+                                                           column_widths=[9, 14, 16, 9, 8])
+
+            # Loads
+            headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+            content = np.vstack((self.loads_substations_ids,
+                                 self.active_loads,
+                                 self.reactive_loads,
+                                 self.voltage_loads,
+                                 self.are_loads_cut)).T
+            n_symbols = 61
+            loads_header = '=' * n_symbols + '\n' + \
+                           '|' + ' ' * ((n_symbols - 7) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                           '=' * n_symbols + '\n'
+            loads_str = loads_header + _tabular_prettifier(content, headers,
+                                                           formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                                    '{:.0f}'],
+                                                           column_widths=[9, 14, 16, 9, 8])
 
             # Lines
             headers = ['Origin', 'Extremity', 'P ori.', 'Q ori.', 'V ori.', 'P ext.', 'Q ext.', 'V ext.',
@@ -197,12 +209,14 @@ class RunEnv(object):
                                  self.ampere_flows,
                                  self.thermal_limits,
                                  self.lines_status)).T
-            lines_str = self._tabular_prettifier(content, headers,
-                                                 formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                          '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
-                                                 column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
-            lines_str += 'TODO: Load id and is cut + Prod id and is cut + line id or and ext and is on'
+            lines_str = _tabular_prettifier(content, headers,
+                                            formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
+                                                     '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
+                                            column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
 
+            print(OBSERVATION_MEANING)
+            print(self.as_dict())
+            exit()
             return '\n\n'.join([prods_str, loads_str, lines_str])
 
     def __init__(self, grid_case=118, start_id=0):
@@ -370,6 +384,41 @@ class RunEnv(object):
     def get_current_scenario_id(self):
         return self.game.get_current_timestep_id()
 
+
+OBSERVATION_MEANING = {
+    'active_productions': 'Real power produced by the generators of the grid (MW).',
+    'active_loads': 'Real power consumed by the demands of the grid (MW).',
+    'active_flows_origin': 'Real power flowing through the origin part of the lines (MW).',
+    'active_flows_extremity': 'Real power flowing through the extremity part of the lines (MW).',
+
+    'reactive_productions': 'Reactive power produced by the generators of the grid (Mvar).',
+    'reactive_loads': 'Reactive power consumed by the demands of the grid (Mvar).',
+    'reactive_flows_origin': 'Reactive power flowing through the origin part of the lines (Mvar).',
+    'reactive_flows_extremity': 'Reactive power flowing through the extremity part of the lines (Mvar).',
+
+    'voltage_productions': 'Voltage magnitude of the generators of the grid (per-unit V).',
+    'voltage_loads': 'Voltage magnitude of the demands of the grid (per-unit V).',
+    'voltage_flows_origin': 'Voltage magnitude of the origin part of the lines (per-unit V).',
+    'voltage_flows_extremity': 'Voltage magnitude of the extremity part of the lines (per-unit V).',
+
+    'ampere_flows': 'Current value of the flow within lines (A); fixed throughout a line.',
+    'thermal_limits': 'Nominal thermal limit of the power lines (actually A).',
+    'are_loads_cut': 'Mask whether the consumers are isolated (1) from the rest of the network.',
+    'are_prods_cut': 'Mask whether the productors are isolated (1) from the rest of the network.',
+
+    'prods_substations_ids': 'ID of the substation on which the productions (generators) are wired.',
+    'loads_substations_ids': 'ID of the substation on which the loads (consumers) are wired.',
+    'lines_or_substations_ids': 'ID of the substation on which the lines origin are wired.',
+    'lines_ex_substations_ids': 'ID of the substation on which the lines extremity are wired.',
+
+    'lines_status': 'Mask whether the lines are switched ON (1) or switched OFF (0).',
+    'timesteps_before_lines_reconnectable': 'Number of timesteps to wait before a line is switchable ON.',
+    'timesteps_before_planned_maintenance': 'Number of timesteps to wait before a line will be switched OFF for'
+                                            'maintenance',
+
+    'topology': 'The ID of the subnode, within a substation, on which the elements of the system are '
+                'directly wired (0 or 1).',
+}
 
 # TODO
 ACTION_MEANING = {

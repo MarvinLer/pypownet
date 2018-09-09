@@ -56,8 +56,6 @@ class Runner(object):
     def step(self):
         # Policy inference
         action = self.agent.act(self.last_observation)
-        self.logger.debug(
-            'action: \n%s' % ' '.join(list(map(lambda x: str(int(x)), action.as_array()))))
 
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
@@ -77,10 +75,11 @@ class Runner(object):
 
         self.last_observation = observation
 
-        self.logger.debug('observation: \n%s' % observation.__str__())
+        self.logger.debug('action: %s' % ('[%s]' % ' '.join(list(map(lambda x: str(int(x)), action.as_array())))))
         self.logger.debug('reward: {}'.format('[' + ','.join(list(map(str, reward_aslist))) + ']'))
         self.logger.debug('done: {}'.format(done))
         self.logger.debug('info: {}'.format(info if not info else info.text))
+        self.logger.debug('observation: \n%s' % observation.__str__())
 
         return observation, action, reward
 
