@@ -253,7 +253,7 @@ class Game(object):
 
         depth = 1  # Count cascading depth
         is_done = False
-        over_hard_thlim_lines = np.full(self.grid.n_lines, False)
+        over_thlim_lines = np.full(self.grid.n_lines, False)
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
         while not is_done:
             is_done = True  # Reset is_done: if a line is broken bc of cascading failure, then is_done=False
@@ -290,7 +290,7 @@ class Game(object):
                             soft_broken_lines] = self.n_timesteps_thermal_limit_soft_broken
                     is_done = False
                     # Do not consider those lines anymore
-                    over_hard_thlim_lines[soft_broken_lines] = False
+                    over_thlim_lines[soft_broken_lines] = False
 
             try:
                 self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
@@ -306,8 +306,8 @@ class Game(object):
             depth += 1
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
-        self.n_timesteps_overflowed_lines[over_hard_thlim_lines] += 1
-        self.n_timesteps_overflowed_lines[~over_hard_thlim_lines] = 0
+        self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
+        self.n_timesteps_overflowed_lines[~over_thlim_lines] = 0
 
         if not apply_cascading_output:
             self.grid.mpc = mpc_before
