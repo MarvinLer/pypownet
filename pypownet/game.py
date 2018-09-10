@@ -239,24 +239,30 @@ class Game(object):
 
     def compute_loadflow_cascading(self, fname_end=None):
         try:
-            self.grid.compute_loadflow(fname_end)
+            #self.grid.compute_loadflow(fname_end)
             ####### HACK GUI
-            if self.gui is not None:
-                self._render(None, self.last_action)
             ####### \HACK GUI
-            self._compute_cascading_failure(apply_cascading_output=self.apply_cascading_output)
+            self._compute_cascading_failure()
         except pypownet.grid.DivergingLoadflowException as e:
             raise e
 
-    def _compute_cascading_failure(self, apply_cascading_output):
-        mpc_before = self.grid.mpc if apply_cascading_output else copy.deepcopy(self.grid.mpc)
-
-        depth = 1  # Count cascading depth
+    def _compute_cascading_failure(self):
+        depth = 0  # Count cascading depth
         is_done = False
         over_thlim_lines = np.full(self.grid.n_lines, False)
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
         while not is_done:
             is_done = True  # Reset is_done: if a line is broken bc of cascading failure, then is_done=False
+            if self.gui is not None:
+                self._render(None, self.last_action)
+
+            # Compute loadflow of current grid
+            try:
+                self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
+            except pypownet.grid.DivergingLoadflowException as e:
+                e.text += ': casading failure of depth %d has diverged' % depth
+                raise e
+
             current_flows_a = self.grid.extract_flows_a()
             thermal_limits = self.grid.get_thermal_limits()
 
@@ -270,9 +276,8 @@ class Game(object):
             if np.any(over_hard_thlim_lines):
                 # Break lines over their hard thermal limits: set status to 0 and increment timesteps before reconn.
                 self.grid.get_lines_status()[over_hard_thlim_lines] = 0
-                if apply_cascading_output:
-                    self.timesteps_before_lines_reconnectable[
-                        over_hard_thlim_lines] = self.n_timesteps_thermal_limit_hard_broken
+                self.timesteps_before_lines_reconnectable[
+                    over_hard_thlim_lines] = self.n_timesteps_thermal_limit_hard_broken
                 is_done = False
             # Those lines have been treated so discard them for further depth process
             over_thlim_lines[over_hard_thlim_lines] = False
@@ -280,23 +285,17 @@ class Game(object):
             # Checks for soft-overflowed lines among remaining lines
             if np.any(over_thlim_lines):
                 time_limit = self.n_timesteps_overflowed_lines_break
-                number_timesteps_over_thlim_lines = self.n_timesteps_overflowed_lines[over_thlim_lines]
-                soft_broken_lines = number_timesteps_over_thlim_lines >= time_limit
+                number_timesteps_over_thlim_lines = self.n_timesteps_overflowed_lines
+                # Computes the soft-broken lines: they are overflowed and has been so for more than time_limit
+                soft_broken_lines = np.logical_and(over_thlim_lines, number_timesteps_over_thlim_lines >= time_limit)
                 if np.any(soft_broken_lines):
                     # Soft break lines overflowed for more timesteps than the limit
                     self.grid.get_lines_status()[soft_broken_lines] = 0
-                    if apply_cascading_output:
-                        self.timesteps_before_lines_reconnectable[
-                            soft_broken_lines] = self.n_timesteps_thermal_limit_soft_broken
+                    self.timesteps_before_lines_reconnectable[
+                        soft_broken_lines] = self.n_timesteps_thermal_limit_soft_broken
                     is_done = False
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
-
-            try:
-                self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
-            except pypownet.grid.DivergingLoadflowException as e:
-                e.text += ': casading failure of depth %d has diverged' % depth
-                raise e
 
             ####### HACK GUI
             if self.gui is not None:
@@ -308,9 +307,6 @@ class Game(object):
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
         self.n_timesteps_overflowed_lines[~over_thlim_lines] = 0
-
-        if not apply_cascading_output:
-            self.grid.mpc = mpc_before
 
     def apply_action(self, action):
         """ Applies an action on the current grid (topology). The action is first into lists of same objects (e.g. nodes

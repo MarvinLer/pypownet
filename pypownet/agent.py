@@ -38,34 +38,12 @@ class Agent(object):
 import numpy as np
 
 
-class RandomSwitch(Agent):
-    """
-    An example of a baseline controler that randomly switches one element (either node-splitting or line service status
-    switch).
-    """
-    def __init__(self, environment):
-        super().__init__(environment)
-
-    def act(self, observation):
-        # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, pypownet.environment.Observation)
-        action_space = self.environment.action_space
-        length_action = action_space.n
-
-        action = np.zeros((length_action,))
-        action[np.random.randint(length_action)] = 1
-
-        return action
-
-        # No learning (i.e. self.feed_reward does pass)
-
-
 class RandomLineSwitch(Agent):
     """
     An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
     random line is previously online, switch it off, otherwise switch it on).
     """
-    def __init__(self, environment, destination_path='saved_actions.csv'):
+    def __init__(self, environment, destination_path='saved_actions_RandomLineSwitch.csv'):
         super().__init__(environment)
 
         self.ioman = ActIOnManager(destination_path=destination_path)
@@ -87,21 +65,22 @@ class RandomLineSwitch(Agent):
 
 
 class RandomNodeSplitting(Agent):
-    def __init__(self, environment):
+    def __init__(self, environment, destination_path='saved_actions_RandomNodeSplitting.csv'):
         super().__init__(environment)
+
+        self.ioman = ActIOnManager(destination_path=destination_path)
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
-        number_lines = action_space.n_lines
-        length_action = action_space.n
 
-        line_switches_subaction = np.zeros((number_lines,))
-        topological_switches_subaction = np.zeros((length_action - number_lines,))
-        topological_switches_subaction[np.random.randint(length_action - number_lines)] = 1
+        action = action_space.get_do_nothing_action()
+        action.get_topological_subaction()[np.random.randint(action_space.topological_subaction_length)] = 1
 
-        action = np.concatenate((topological_switches_subaction, line_switches_subaction))
+        # Dump best action into stored actions file
+        self.ioman.dump(action)
+
         return action
 
         # No learning (i.e. self.feed_reward does pass)
@@ -111,16 +90,17 @@ class TreeSearchLineServiceStatus(Agent):
     """
     Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
     """
-    def __init__(self, environment, verbose=True):
+    def __init__(self, environment, destination_path='saved_actions_TreeSearchLineServiceStatus.csv', verbose=True):
         super().__init__(environment)
         self.verbose = verbose
 
+        self.ioman = ActIOnManager(destination_path=destination_path)
+
     def act(self, observation):
-        length_action = self.environment.action_space.n
-        n_lines = self.environment.action_space.n_lines
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
 
-        topoligical_subaction = np.zeros((length_action - n_lines,))
-
+        n_lines = self.environment.action_space.lines_status_subaction_length
         # Simulate the line status switch of every line, independently, and save rewards for each simulation (also store
         # the actions for best-picking strat)
         simulated_rewards = []
@@ -128,9 +108,8 @@ class TreeSearchLineServiceStatus(Agent):
         for l in range(n_lines):
             if self.verbose:
                 print('    Simulating switch activation line %d' % l, end='')
-            linestatus_subaction = np.zeros((n_lines,))
-            linestatus_subaction[l] = 1  # Activate switch of service status of line l
-            action = np.concatenate((topoligical_subaction, linestatus_subaction))  # Build an action
+            action = self.environment.action_space.get_do_nothing_action()
+            action.lines_status_subaction[l] = 1
             simulated_reward = self.environment.simulate(action=action)
 
             # Store ROI values
@@ -138,14 +117,18 @@ class TreeSearchLineServiceStatus(Agent):
             simulated_actions.append(action)
             if self.verbose:
                 print('; expected reward %.5f' % simulated_reward)
+
         # Also simulate the do nothing action
-        donothing_action = np.zeros(length_action)
+        donothing_action = self.environment.action_space.get_do_nothing_action()
         donothing_simulated_reward = self.environment.simulate(action=donothing_action)
         simulated_rewards.append(donothing_simulated_reward)
 
         # Seek for the action that maximizes the reward
         best_simulated_reward = np.max(simulated_rewards)
         best_action = simulated_actions[simulated_rewards.index(best_simulated_reward)]
+
+        # Dump best action into stored actions file
+        self.ioman.dump(best_action)
 
         if self.verbose:
             print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
@@ -179,7 +162,7 @@ class GreedySearch(Agent):
         # Test doing nothing
         if self.verbose:
             print(' Simulation with no action', end='')
-        action = np.zeros((length_action,))  # No action; equivalent to None
+        action = action_space.get_do_nothing_action()
         reward_aslist = self.environment.simulate(action, do_sum=False)
         reward = sum(reward_aslist)
         if self.verbose:
@@ -189,13 +172,11 @@ class GreedySearch(Agent):
         names.append('no action')
 
         # Test every line opening
-        topology_subaction = np.zeros((length_action - number_lines,))
         for l in range(number_lines):
             if self.verbose:
                 print(' Simulation with switching status of line %d' % l, end='')
-            line_service_subaction = np.zeros((number_lines,))
-            line_service_subaction[l] = 1
-            action = np.concatenate((topology_subaction, line_service_subaction))
+            action = action_space.get_do_nothing_action()
+            action.lines_status_subaction[l] = 1
             reward_aslist = self.environment.simulate(action, do_sum=False)
             reward = sum(reward_aslist)
             if self.verbose:
@@ -219,8 +200,8 @@ class GreedySearch(Agent):
                     if self.verbose:
                         print(' Simulation with change in topo of node %d with switches %s' % (node, repr(conf)), end='')
                     # Construct action
-                    action = np.zeros((length_action,))
-                    action[action_offset:action_offset + n_elements] = conf
+                    action = action_space.get_do_nothing_action()
+                    action_space.topological_subaction_length[action_offset:action_offset + n_elements] = conf
                     reward_aslist = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
