@@ -345,7 +345,7 @@ class RunEnv(object):
 
         observation, reward_flag, done = self.game.step(submitted_action)
 
-        reward_aslist = self.get_reward(observation=self._get_obs(), action=action, flag=reward_flag)
+        reward_aslist = self.get_reward(observation=observation, action=action, flag=reward_flag)
 
         return observation, sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
