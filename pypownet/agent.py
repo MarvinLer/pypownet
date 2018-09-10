@@ -74,14 +74,9 @@ class RandomLineSwitch(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
-        number_lines = action_space.n_lines
-        length_action = action_space.n
 
-        topological_switches_subaction = np.zeros((length_action - number_lines,))
-        line_switches_subaction = np.zeros((number_lines,))
-        line_switches_subaction[np.random.randint(number_lines)] = 1
-
-        action = np.concatenate((topological_switches_subaction, line_switches_subaction))
+        action = action_space.get_do_nothing_action()
+        action.get_lines_status_subaction()[np.random.randint(action_space.lines_status_subaction_length)] = 1
 
         # Dump best action into stored actions file
         self.ioman.dump(action)
@@ -286,7 +281,7 @@ class ActIOnManager(object):
 
     def dump(self, action):
         with open(self.destination_path, 'a') as f:
-            f.write(','.join([str(int(switch)) for switch in action])+'\n')
+            f.write(','.join([str(int(switch)) for switch in action.as_array()])+'\n')
 
     @staticmethod
     def load(filepath):
