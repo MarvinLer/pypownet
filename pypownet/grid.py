@@ -10,7 +10,7 @@ from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.chronic import TimestepEntries
 import pypownet.environment
-import warnings
+import math
 
 
 class DivergingLoadflowException(Exception):
@@ -26,9 +26,15 @@ class GridNotConnexeException(Exception):
         self.last_observation = last_observation
 
 
-def compute_flows_a(active, reactive, voltage):
+def compute_flows_a(active, reactive, voltage, are_lines_on):
     # TODO: verify that the formula is correct
-    return np.asarray(np.sqrt(active ** 2. + reactive ** 2.) / (3 ** .5 * voltage))
+    assert len(active) == len(reactive) == len(voltage) == len(are_lines_on)
+    flows_a = np.zeros(len(active))
+    for i, (p, q, v, is_on) in enumerate(zip(active, reactive, voltage, are_lines_on)):
+        if is_on:
+            flows_a[i] = math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)
+
+    return flows_a
 
 
 class Grid(object):
@@ -81,7 +87,7 @@ class Grid(object):
         has_prods_q_nan = np.isnan(prods_q).any() or np.any(prods_q > 1e10)
         return has_voltages_nan or has_flows_nan or has_prods_q_nan
 
-    def extract_flows_a(self):
+    def extract_flows_a(self, safe_mode=False):
         mpc = self.mpc
         bus = mpc['bus']
         branch = mpc['branch']
@@ -90,7 +96,16 @@ class Grid(object):
         active = branch[:, 13]  # P
         reactive = branch[:, 14]  # Q
         voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
-        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage)
+
+        if safe_mode:
+            active[active > 1e5] = 1e5
+            active[active < -1e5] = -1e5
+            reactive[reactive > 1e5] = 1e5
+            reactive[reactive < -1e5] = -1e5
+            voltage[voltage > 1e2] = 1e2
+            voltage[voltage < -1e2] = -1e2
+        are_lines_on = self.get_lines_status()
+        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage, are_lines_on=are_lines_on)
 
         return branches_flows_a
 
@@ -449,19 +464,18 @@ class Grid(object):
                                                 timesteps_before_lines_reconnectable=None,
                                                 timesteps_before_planned_maintenance=None)  # kwargs set by game
 
-    def export_lines_capacity_usage(self):
+    def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
             lines nominal thermal limit.
 
             :return: a list of size the number of lines of positive values
             """
         mpc = self.mpc
-        bus = mpc['bus']
         branch = mpc['branch']
         to_array = lambda array: np.asarray(array)
 
         # Compute flows in Ampere using formula compute_flows_a
-        flows_a = self.extract_flows_a()
+        flows_a = self.extract_flows_a(safe_mode)
         lines_capacity_usage = to_array(flows_a / branch[:, 5])  # elementwise division of flow a and rateA
 
         return lines_capacity_usage

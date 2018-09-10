@@ -308,7 +308,6 @@ class Game(object):
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_hard_thlim_lines] += 1
         self.n_timesteps_overflowed_lines[~over_hard_thlim_lines] = 0
-        print(self.n_timesteps_overflowed_lines)
 
         if not apply_cascading_output:
             self.grid.mpc = mpc_before
@@ -533,7 +532,8 @@ class Game(object):
             self.gui = initialize_renderer()
 
         # Retrieve lines capacity usage (for plotting power lines with appropriate colors and widths)
-        lines_capacity_usage = self.grid.export_lines_capacity_usage()
+        lines_capacity_usage = self.grid.export_lines_capacity_usage(safe_mode=True)
+
         prods_values = self.grid.mpc['gen'][:, 1]
         loads_values = self.grid.mpc['bus'][self.grid.are_loads, 2]
         lines_por_values = self.grid.mpc['branch'][:, 13]
