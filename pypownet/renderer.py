@@ -668,6 +668,8 @@ class Renderer(object):
         self.topology_layout.blit(arrow_surf, (0, 0))
 
         # Dirty
+        if not rewards:
+            rewards = [0]*5
         if self.last_rewards_surface is None or cascading_frame_id is None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface

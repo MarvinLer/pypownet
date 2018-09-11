@@ -134,6 +134,8 @@ class Game(object):
         self.load_entries_from_next_timestep(starting_timestep_id=start_id)
         self._compute_loadflow_cascading()
 
+        self.last_action = None
+
     def get_number_elements(self):
         return self.grid.get_number_elements()
 

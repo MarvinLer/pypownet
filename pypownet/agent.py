@@ -119,9 +119,12 @@ class TreeSearchLineServiceStatus(Agent):
                 print('; expected reward %.5f' % simulated_reward)
 
         # Also simulate the do nothing action
+        if self.verbose:
+            print('    Simulating switch activation line %d' % l, end='')
         donothing_action = self.environment.action_space.get_do_nothing_action()
         donothing_simulated_reward = self.environment.simulate(action=donothing_action)
         simulated_rewards.append(donothing_simulated_reward)
+        simulated_actions.append(donothing_action)
 
         # Seek for the action that maximizes the reward
         best_simulated_reward = np.max(simulated_rewards)
@@ -152,7 +155,7 @@ class GreedySearch(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
-        number_lines = action_space.n_lines
+        number_lines = action_space.lines_status_subaction_length
 
         # Will store reward, actions, and action name, then eventually pick the maximum reward and retrieve the
         # associated values
@@ -200,7 +203,7 @@ class GreedySearch(Agent):
                         print(' Simulation with change in topo of node %d with switches %s' % (node, repr(conf)), end='')
                     # Construct action
                     action = action_space.get_do_nothing_action()
-                    action_space.topological_subaction_length[action_offset:action_offset + n_elements] = conf
+                    action.get_topological_subaction()[action_offset:action_offset + n_elements] = conf
                     reward_aslist = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
@@ -222,8 +225,6 @@ class GreedySearch(Agent):
 
         if self.verbose:
             print('Action chosen: ', best_action_name, '; expected reward %.4f' % best_reward)
-        if self.verbose:
-            print(best_action)
 
         return best_action
 

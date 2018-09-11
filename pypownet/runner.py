@@ -48,6 +48,9 @@ class Runner(object):
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()
 
+        if self.render:
+            self.environment.render()
+
     def step(self):
         # Policy inference
         action = self.agent.act(self.last_observation)
