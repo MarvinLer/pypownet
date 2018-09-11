@@ -252,7 +252,7 @@ class Game(object):
             try:
                 self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
-                e.text += ': casading simulation of depth %d has diverged' % depth
+                e.text += ': cascading simulation of depth %d has diverged' % depth
                 if self.renderer is not None:
                     self._render(None, game_over=True, cascading_frame_id=depth,
                                  date=self.previous_date, timestep_id=self.previous_timestep)
@@ -446,6 +446,10 @@ class Game(object):
         before_n_timesteps_overflowed_lines = self.n_timesteps_overflowed_lines
         before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
 
+        # Save grid AC or DC normal mode, and force DC mode for simulate
+        before_dc = self.grid.dc_loadflow
+        self.grid.dc_loadflow = True
+
         def reload_minus_1_timestep():
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
             self.grid.apply_topology(before_topology)  # Change topo before loading entries (reflects what happened)
@@ -460,10 +464,15 @@ class Game(object):
         except pypownet.grid.DivergingLoadflowException as e:
             # Reset previous step
             reload_minus_1_timestep()
+            # Put back on previous mode (should be AC)
+            self.grid.dc_loadflow = before_dc
             raise e
 
         # Reset previous timestep conditions (cancel previous step)
         reload_minus_1_timestep()
+
+        # Put back on previous mode (should be AC)
+        self.grid.dc_loadflow = before_dc
 
         return simulated_obs, flag, done
 
