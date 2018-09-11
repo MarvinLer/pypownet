@@ -57,6 +57,7 @@ case_layouts = {
 }
 
 
+# noinspection PyArgumentList
 class Renderer(object):
     def __init__(self, grid_case, or_ids, ex_ids, are_prods, are_loads):
         self.grid_case = grid_case
@@ -126,6 +127,8 @@ class Renderer(object):
         self.black_bold_font.set_bold(True)
         self.black_bold_font_render = lambda s: self.black_bold_font.render(s, False, blackish)
 
+        self.last_rewards_surface = None
+
     def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed, cascading_result_frame):
         layout = self.grid_layout
 
@@ -139,12 +142,6 @@ class Renderer(object):
             layout[:, 0] -= 120
             layout[:, 1] -= 30
 
-        # Dirty
-        if self.loads:
-            if np.any([l != lo for l, lo in zip(loads, self.loads[-1])]):
-                self.loads.append(loads)
-        else:
-            self.loads.append(loads)
         surface = self.nodes_surface
         prods_iter = iter(prods)
         loads_iter = iter(loads)
@@ -183,14 +180,22 @@ class Renderer(object):
         height = 25
         x_offset = 25
         y_offset = 40
-        if cascading_result_frame is not None:
+        if cascading_result_frame == -1:
+            gfxdraw.filled_polygon(surface,
+                                   ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
+                                    (x_offset + width, y_offset + height)),
+                                   (250, 200, 150, 240))
+            surface.blit(
+                self.black_bold_font_render('result of applying action frame'),
+                (x_offset + 85, y_offset + 4))
+        elif cascading_result_frame is not None:
             gfxdraw.filled_polygon(surface,
                                    ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
                                     (x_offset + width, y_offset + height)),
                                    (250, 200, 200, 240))
             surface.blit(
                 self.black_bold_font_render('result of cascading simulation depth %d frame' % cascading_result_frame),
-                (x_offset + 20, y_offset + 4))
+                (x_offset + 40, y_offset + 4))
         else:
             gfxdraw.filled_polygon(surface,
                                    ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
@@ -312,128 +317,13 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_lines2(self, relative_thermal_limits, lines_por, lines_service_status):
+    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
         img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status)
         loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.background_color)
         loads_curve_surface.blit(img_loads_curve_week, (0, 30) if self.grid_case != 30 else (-100, 0))
 
         return loads_curve_surface
-
-    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
-        def draw_arrow_head(x, y, angle, color, thickness):
-            head_angle = math.pi / 6.
-            width = 8 + thickness
-            x -= width / 2. * math.cos(angle)
-            y -= width / 2. * math.sin(angle)
-            x1 = x + width * math.cos(angle + head_angle)
-            y1 = y + width * math.sin(angle + head_angle)
-            x2 = x + width * math.cos(angle - head_angle)
-            y2 = y + width * math.sin(angle - head_angle)
-            gfxdraw.aapolygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
-            gfxdraw.filled_polygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
-
-        def draw_dashed_line(ori, ext):
-            # TODO: refacto
-            length_x = ori[0] - ext[0]
-            length_y = ori[1] - ext[1]
-            total_length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
-            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
-            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
-
-            tick_length = 5
-            grey_color = (200, 200, 200)
-            thickness = 1
-            n_ticks = int(total_length / (2 * tick_length)) + 1
-            for i in range(n_ticks):
-                tick_center = (center[0] + (i - n_ticks / 2.) / n_ticks * length_x,
-                               center[1] + (i - n_ticks / 2.) / n_ticks * length_y)
-                UL = (
-                    x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(
-                        angle),
-                    y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(
-                        angle))
-                UR = (
-                    x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(
-                        angle),
-                    y_offset + tick_center[1] + (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(
-                        angle))
-                BL = (
-                    x_offset + tick_center[0] + (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(
-                        angle),
-                    y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) + (tick_length / 2.) * math.sin(
-                        angle))
-                BR = (
-                    x_offset + tick_center[0] - (tick_length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(
-                        angle),
-                    y_offset + tick_center[1] - (thickness / 2.) * math.cos(angle) - (tick_length / 2.) * math.sin(
-                        angle))
-                gfxdraw.aapolygon(surface, (UL, UR, BR, BL), grey_color)
-                gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), grey_color)
-
-        # Dirty
-        if self.relative_thermal_limits:
-            if np.any([l != lo for l, lo in zip(relative_thermal_limits, self.relative_thermal_limits[-1])]):
-                self.relative_thermal_limits.append(relative_thermal_limits)
-        else:
-            self.relative_thermal_limits.append(relative_thermal_limits)
-        surface = self.lines_surface
-        layout = self.grid_layout
-        x_offset = int(self.topology_layout_shape[0] / 2.)
-        y_offset = int(self.topology_layout_shape[1] / 2.)
-        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
-                                                      lines_por, lines_service_status):
-            # If line disconnected, call special drawing function
-            if not is_on:
-                draw_dashed_line(layout[or_id], layout[ex_id])
-                continue
-            # Otherwise, plot one straight line, with custom width, color, and arrow heads
-
-            # Compute line thickness + color based on its thermal usage
-            thickness = 1 if rtl < .3 else 2 if rtl < .7 else 4
-            color = (51, 204, 51) if rtl < .9 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
-
-            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
-            if line_por >= 0:
-                ori = layout[or_id]
-                ext = layout[ex_id]
-            else:
-                ori = layout[ex_id]
-                ext = layout[or_id]
-
-            # Compute the line characteristics: draxing is done by plotting two lines starting from the center
-            # with a specific angle and semi-length
-            length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
-            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
-            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
-
-            # Compute the four cardinal positions of the rectangle representing a power line (rectangle to have thicker
-            # lines)
-            UL = (x_offset + center[0] + (length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
-                  y_offset + center[1] + (thickness / 2.) * math.cos(angle) + (length / 2.) * math.sin(angle))
-            UR = (x_offset + center[0] - (length / 2.) * math.cos(angle) - (thickness / 2.) * math.sin(angle),
-                  y_offset + center[1] + (thickness / 2.) * math.cos(angle) - (length / 2.) * math.sin(angle))
-            BL = (x_offset + center[0] + (length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
-                  y_offset + center[1] - (thickness / 2.) * math.cos(angle) + (length / 2.) * math.sin(angle))
-            BR = (x_offset + center[0] - (length / 2.) * math.cos(angle) + (thickness / 2.) * math.sin(angle),
-                  y_offset + center[1] - (thickness / 2.) * math.cos(angle) - (length / 2.) * math.sin(angle))
-
-            # Anti-alisasing: draw the contour of lines, then the contour of polygon then the filled-one
-            pygame.draw.aalines(surface, color, 1, (UL, UR, BR, BL), 0)
-            gfxdraw.aapolygon(surface, (UL, UR, BR, BL), color)
-            gfxdraw.filled_polygon(surface, (UL, UR, BR, BL), color)
-
-            # First, draw the arrow heads; lines will be drawn on top
-            distance_arrow_heads = 30
-            n_arrow_heads = int(max(1, length // distance_arrow_heads))
-            for a in range(n_arrow_heads):
-                if n_arrow_heads != 1:
-                    x = x_offset + center[0] + ((a + .5) * distance_arrow_heads - length / 2.) * math.cos(angle)
-                    y = y_offset + center[1] + ((a + .5) * distance_arrow_heads - length / 2.) * math.sin(angle)
-                else:
-                    x = x_offset + center[0]
-                    y = y_offset + center[1]
-                draw_arrow_head(x, y, angle, color, thickness)
 
     def draw_surface_arrows(self, relative_thermal_limits, lines_por, lines_service_status):
         layout = self.grid_layout
@@ -727,8 +617,7 @@ class Renderer(object):
 
         return game_over_surface
 
-
-    def _update_left_menu(self, epoch, timestep, rewards):
+    def _update_left_menu(self, epoch, timestep):
         self.left_menu = pygame.Surface(self.left_menu_shape, pygame.SRCALPHA, 32).convert_alpha()
 
         # Top info about epoch and timestep
@@ -765,20 +654,31 @@ class Renderer(object):
         gfxdraw.vline(self.topology_layout, 0, 0, self.left_menu_shape[1], (20, 20, 20))
 
         # Lines
-        self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
-        lines_surf = self.draw_surface_lines2(relative_thermal_limits, lines_por, lines_service_status)
+        if self.relative_thermal_limits:
+            if cascading_frame_id is None:
+                self.relative_thermal_limits.append(relative_thermal_limits)
+        else:
+            self.relative_thermal_limits.append(relative_thermal_limits)
+
+        lines_surf = self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
         self.topology_layout.blit(lines_surf, (0, 0))
         arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
         self.topology_layout.blit(arrow_surf, (0, 0))
 
-        # Injections
-        if rewards is not None:
+        # Dirty
+        if self.last_rewards_surface is None or cascading_frame_id is None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface
 
         # Legend
         #legend_surface = self.draw_surface_legend()
 
+        # Dirty
+        if self.loads:
+            if cascading_frame_id is None:
+                self.loads.append(loads)
+        else:
+            self.loads.append(loads)
         # Nodes
         self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed,
                                 cascading_result_frame=cascading_frame_id)
@@ -832,7 +732,7 @@ class Renderer(object):
                               cascading_frame_id=cascading_frame_id)
 
         if last_timestep_rewards is not None:
-            self._update_left_menu(epoch, timestep, last_timestep_rewards)
+            self._update_left_menu(epoch, timestep)
 
         # Blit all macro surfaces on screen
         self.screen.blit(self.topology_layout, (self.left_menu_shape[0], 0))

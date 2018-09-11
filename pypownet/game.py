@@ -253,7 +253,7 @@ class Game(object):
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': casading simulation of depth %d has diverged' % depth
                 if self.gui is not None:
-                    self._render(None, self.last_action, game_over=True, cascading_frame_id=depth)
+                    self._render(None, game_over=True, cascading_frame_id=depth)
                 raise e
 
             current_flows_a = self.grid.extract_flows_a()
@@ -292,7 +292,7 @@ class Game(object):
 
             depth += 1
             if self.gui is not None:
-                self._render(None, self.last_action, cascading_frame_id=depth)
+                self._render(None, cascading_frame_id=depth)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
@@ -411,9 +411,10 @@ class Game(object):
     def step(self, action, decrement_reconnectable_timesteps=True):
         # Apply action, or raises eception if some broken lines are attempted to be switched on
         try:
-            if decrement_reconnectable_timesteps:
-                self.last_action = action  # tmp
+            self.last_action = action  # tmp
             self.apply_action(action)
+            if self.gui is not None:
+                self._render(None, cascading_frame_id=-1)
         except pypownet.environment.IllegalActionException as e:
             e.text += ' Ignoring action switches of broken lines.'
             # If broken lines are attempted to be switched on, put the switches to 0
@@ -476,7 +477,7 @@ class Game(object):
 
         return observation
 
-    def _render(self, rewards, last_action, close=False, game_over=False, cascading_frame_id=None):
+    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 
@@ -537,12 +538,12 @@ class Game(object):
         # Based on the action, determine if substations has been touched (i.e. there was a topological change involved
         # in the associated substation)
         has_been_changed = np.zeros((len(substations_ids),))
-        if last_action is not None:
+        if self.last_action is not None and cascading_frame_id is not None:
             n_elements_substations = self.grid.number_elements_per_substations
             offset = 0
             for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
                 has_been_changed[i] = np.any(
-                    [l != 0 for l in last_action.get_topological_subaction()[offset:offset + n_elements]])
+                    [l != 0 for l in self.last_action.get_topological_subaction()[offset:offset + n_elements]])
                 offset += n_elements
 
         self.gui.render(lines_capacity_usage, lines_por_values, lines_service_status,

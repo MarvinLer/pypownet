@@ -244,7 +244,6 @@ class RunEnv(object):
         self.cost_node_switch = 0.  # Changing the node on which an element is directly wired
 
         self.last_rewards = []
-        self.last_action = None
 
     def _get_obs(self):
         return self.game.export_observation()
@@ -341,7 +340,6 @@ class RunEnv(object):
             submitted_action = self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
             raise e
-        self.last_action = action  # Store action to plot indicators in renderer if used: hack
 
         observation, reward_flag, done = self.game.step(submitted_action)
 
@@ -370,7 +368,7 @@ class RunEnv(object):
 
     def render(self, mode='human', close=False, game_over=False):
         if mode == 'human':
-            self.game._render(self.last_rewards, self.last_action, close, game_over=game_over)
+            self.game._render(self.last_rewards, close, game_over=game_over)
         else:
             raise ValueError("Unsupported render mode: " + mode)
 
