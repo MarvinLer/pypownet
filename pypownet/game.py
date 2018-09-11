@@ -115,7 +115,6 @@ class Game(object):
 
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
-        self.timesteps_before_planned_maintenance = np.zeros((self.grid.n_lines,))
 
         self.gui = None
         self.epoch = 1
@@ -131,7 +130,7 @@ class Game(object):
 
         # Loads first scenario
         self.load_entries_from_next_timestep(starting_timestep_id=start_id)
-        self.compute_loadflow_cascading(fname_end='_init.m')
+        self._compute_loadflow_cascading()
 
     def get_number_elements(self):
         return self.grid.get_number_elements()
@@ -237,16 +236,7 @@ class Game(object):
 
         self.load_entries_from_timestep_id(next_timestep_id)
 
-    def compute_loadflow_cascading(self, fname_end=None):
-        try:
-            #self.grid.compute_loadflow(fname_end)
-            ####### HACK GUI
-            ####### \HACK GUI
-            self._compute_cascading_failure()
-        except pypownet.grid.DivergingLoadflowException as e:
-            raise e
-
-    def _compute_cascading_failure(self):
+    def _compute_loadflow_cascading(self):
         depth = 0  # Count cascading depth
         is_done = False
         over_thlim_lines = np.full(self.grid.n_lines, False)
@@ -398,7 +388,7 @@ class Game(object):
 
         try:
             self.load_entries_from_next_timestep()
-            self.compute_loadflow_cascading(fname_end='_resetted.m')
+            self._compute_loadflow_cascading()
         # If after reset there is a diverging loadflow, then recall reset w/o penalty (not the player's fault)
         except pypownet.grid.DivergingLoadflowException as e:
             self.logger.error(e)
@@ -412,7 +402,7 @@ class Game(object):
         self.grid.apply_topology(self.initial_topology)
         self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1 (ON)
         self.grid.set_lines_status(self.initial_lines_service)  # Reset lines status
-        self.grid.discard_flows()  # Discard flows: not mandatory
+        #self.grid.discard_flows()  # Discard flows: not mandatory
 
         # Reset voltage magnitude and angles: they change when using AC mode
         self.grid.set_voltage_angles(self.initial_voltage_angles)
@@ -438,33 +428,40 @@ class Game(object):
         try:
             # Load next timestep entries, compute one loadflow, then potentially cascading failure
             self.load_entries_from_next_timestep(decrement_reconnectable_timesteps=decrement_reconnectable_timesteps)
-            self.compute_loadflow_cascading(fname_end='_after_entries.m')
+            self._compute_loadflow_cascading()
         except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
             return None, e, True
 
         return self.export_observation(), None, False
 
-    def simulate(self, action, cascading_failure, apply_cascading_output):
-        before_topology = copy.deepcopy(self.grid.get_topology())
+    def simulate(self, action):
+        # Copy variables of a step: timestep id, mpc (~grid), topology (stand-alone in self), and lists of overflows
         before_timestep_id = self.current_timestep_id
+        before_mpc = copy.deepcopy(self.grid.mpc)
+        before_topology = copy.deepcopy(self.grid.get_topology())
+        before_n_timesteps_overflowed_lines = self.n_timesteps_overflowed_lines
+        before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
+
+        def reload_minus_1_timestep():
+            self.grid.mpc = before_mpc  # Change grid mpc before apply topo
+            self.grid.apply_topology(before_topology)  # Change topo before loading entries (reflects what happened)
+            self.load_entries_from_timestep_id(before_timestep_id)
+            self.n_timesteps_overflowed_lines = before_n_timesteps_overflowed_lines
+            self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
+            return
 
         # Step the action
         try:
-            self.step(action, decrement_reconnectable_timesteps=False)
+            simulated_obs, flag, done = self.step(action, decrement_reconnectable_timesteps=False)
         except pypownet.grid.DivergingLoadflowException as e:
-            # Put past values back for topo and injection
-            self.grid.apply_topology(before_topology)
-            self.load_entries_from_timestep_id(before_timestep_id)
+            # Reset previous step
+            reload_minus_1_timestep()
             raise e
 
-        # If no error raised, return the simulated output observation, such that reward can be computed, then
-        # put topological and injections values back
-        simulated_state = self.export_observation()
-        # Put past values back for topo and injection
-        self.grid.apply_topology(before_topology)
-        self.load_entries_from_timestep_id(before_timestep_id)
+        # Reset previous timestep conditions (cancel previous step)
+        reload_minus_1_timestep()
 
-        return simulated_state
+        return simulated_obs, flag, done
 
     def export_observation(self):
         """ Retrieves an observation of the current state of the grid.
@@ -474,8 +471,7 @@ class Game(object):
         observation = self.grid.export_to_observation()
         # Fill additional parameters: starts with substations ids of all elements
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
-        self.timesteps_before_planned_maintenance = self._get_planned_maintenance()
-        observation.timesteps_before_planned_maintenance = self.timesteps_before_planned_maintenance
+        observation.timesteps_before_planned_maintenance = self._get_planned_maintenance()
 
         return observation
 
