@@ -129,6 +129,8 @@ class Renderer(object):
 
         self.last_rewards_surface = None
 
+        self.game_over_surface = self.draw_plot_game_over()
+
     def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed, cascading_result_frame):
         layout = self.grid_layout
 
@@ -690,8 +692,7 @@ class Renderer(object):
 
         # Print a game over message if game has been lost
         if game_over:
-            game_over_surface = self.draw_plot_game_over()
-            self.topology_layout.blit(game_over_surface, (300, 200))
+            self.topology_layout.blit(self.game_over_surface, (300, 200))
 
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, game_over=False, cascading_frame_id=None):

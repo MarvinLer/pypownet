@@ -66,7 +66,7 @@ class Runner(object):
             self.logger.warn(info.text)
 
         if self.render:
-            self.environment.render(game_over=done)  # Propagate game over signal to plot 'Game over' on screen
+            self.environment.render()
 
         self.last_observation = observation
 

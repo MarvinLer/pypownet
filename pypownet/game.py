@@ -212,8 +212,9 @@ class Game(object):
                  's' if n_maintained > 1 or np.any(timestep_hazards[mask_affected_lines] > 1) else '')
             )
 
+        self.previous_timestep = self.current_timestep_id
         self.current_timestep_id = timestep_id  # Update id of current timestep after whole entries are in place
-        self.previous_date = self.current_date
+        self.previous_date = copy.deepcopy(self.current_date)
         self.current_date = timestep_entries.get_datetime()
 
     def load_entries_from_next_timestep(self, starting_timestep_id=None, decrement_reconnectable_timesteps=False):
@@ -251,7 +252,8 @@ class Game(object):
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': casading simulation of depth %d has diverged' % depth
                 if self.renderer is not None:
-                    self._render(None, game_over=True, cascading_frame_id=depth, date=self.previous_date)
+                    self._render(None, game_over=True, cascading_frame_id=depth,
+                                 date=self.previous_date, timestep_id=self.previous_timestep)
                 raise e
 
             current_flows_a = self.grid.extract_flows_a()
@@ -290,7 +292,7 @@ class Game(object):
 
             depth += 1
             if self.renderer is not None:
-                self._render(None, cascading_frame_id=depth, date=self.previous_date)
+                self._render(None, cascading_frame_id=depth, date=self.previous_date, timestep_id=self.previous_timestep)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
@@ -475,7 +477,7 @@ class Game(object):
 
         return observation
 
-    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None, date=None):
+    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None, date=None, timestep_id=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 
@@ -545,7 +547,7 @@ class Game(object):
                 offset += n_elements
 
         self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
-                             self.epoch, self.timestep, self.current_timestep_id,
+                             self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
                              prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                              date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
                              game_over=game_over, cascading_frame_id=cascading_frame_id)
