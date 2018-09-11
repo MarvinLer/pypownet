@@ -84,9 +84,8 @@ class Game(object):
         self.apply_cascading_output = True
 
         # Date variables
-        self.initial_date = datetime.datetime(2017, month=1, day=2, hour=0, minute=0, second=0)
-        self.timestep_date = datetime.timedelta(hours=1)
-        self.current_date = self.initial_date
+        self.current_date = None
+        self.previous_date = None  # Hack for renderer
 
         # Checks that input reference grid/chronic folder do exist
         if not os.path.exists(reference_grid):
@@ -117,7 +116,7 @@ class Game(object):
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
 
-        self.gui = None
+        self.renderer = None
         self.epoch = 1
         self.timestep = 1
         # Time to sleep after each render call
@@ -214,6 +213,8 @@ class Game(object):
             )
 
         self.current_timestep_id = timestep_id  # Update id of current timestep after whole entries are in place
+        self.previous_date = self.current_date
+        self.current_date = timestep_entries.get_datetime()
 
     def load_entries_from_next_timestep(self, starting_timestep_id=None, decrement_reconnectable_timesteps=False):
         """ Loads the next timestep injections (set of injections, maintenance, hazard etc for the next timestep id).
@@ -229,9 +230,6 @@ class Game(object):
             next_timestep_id = self.timesteps_ids[0] if starting_timestep_id is None else starting_timestep_id
         else:  # Otherwise loads the next one in the list of timesteps injections
             next_timestep_id = self.timesteps_ids[self.timesteps_ids.index(self.current_timestep_id) + 1]
-
-        # Update date
-        self.current_date += self.timestep_date
 
         # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
         if decrement_reconnectable_timesteps:
@@ -252,8 +250,8 @@ class Game(object):
                 self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': casading simulation of depth %d has diverged' % depth
-                if self.gui is not None:
-                    self._render(None, game_over=True, cascading_frame_id=depth)
+                if self.renderer is not None:
+                    self._render(None, game_over=True, cascading_frame_id=depth, date=self.previous_date)
                 raise e
 
             current_flows_a = self.grid.extract_flows_a()
@@ -291,8 +289,8 @@ class Game(object):
                     over_thlim_lines[soft_broken_lines] = False
 
             depth += 1
-            if self.gui is not None:
-                self._render(None, cascading_frame_id=depth)
+            if self.renderer is not None:
+                self._render(None, cascading_frame_id=depth, date=self.previous_date)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
@@ -413,7 +411,7 @@ class Game(object):
         try:
             self.last_action = action  # tmp
             self.apply_action(action)
-            if self.gui is not None:
+            if self.renderer is not None:
                 self._render(None, cascading_frame_id=-1)
         except pypownet.environment.IllegalActionException as e:
             e.text += ' Ignoring action switches of broken lines.'
@@ -477,7 +475,7 @@ class Game(object):
 
         return observation
 
-    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None):
+    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None, date=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 
@@ -523,8 +521,8 @@ class Game(object):
         # if close:
         #     pygame.quit()
 
-        if self.gui is None:
-            self.gui = initialize_renderer()
+        if self.renderer is None:
+            self.renderer = initialize_renderer()
 
         # Retrieve lines capacity usage (for plotting power lines with appropriate colors and widths)
         lines_capacity_usage = self.grid.export_lines_capacity_usage(safe_mode=True)
@@ -546,11 +544,11 @@ class Game(object):
                     [l != 0 for l in self.last_action.get_topological_subaction()[offset:offset + n_elements]])
                 offset += n_elements
 
-        self.gui.render(lines_capacity_usage, lines_por_values, lines_service_status,
-                        self.epoch, self.timestep, self.current_timestep_id,
-                        prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                        date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over,
-                        cascading_frame_id=cascading_frame_id)
+        self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
+                             self.epoch, self.timestep, self.current_timestep_id,
+                             prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
+                             date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
+                             game_over=game_over, cascading_frame_id=cascading_frame_id)
 
         if self.latency:
             sleep(self.latency)

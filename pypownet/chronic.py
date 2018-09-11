@@ -5,10 +5,11 @@ __author__ = 'marvinler'
 import os
 import numpy as np
 import inspect
+from datetime import datetime
 
 
 class TimestepEntries(object):
-    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards):
+    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, dt):
         self.id = timestep_id
 
         # Prods container
@@ -20,6 +21,8 @@ class TimestepEntries(object):
 
         self.maintenance = maintenance
         self.hazards = hazards
+
+        self.datetime = datetime.strptime(dt.lower(), '%Y-%b-%d;%H:%M')
 
     def get_prods_p(self):
         return self.prods_p
@@ -42,6 +45,9 @@ class TimestepEntries(object):
     def get_hazards(self):
         return self.hazards
 
+    def get_datetime(self):
+        return self.datetime
+
 
 class Chronic(object):
     def __init__(self, source_folder):
@@ -59,6 +65,8 @@ class Chronic(object):
         self.fpath_maintenance = None
         self.fpath_hazards = None
 
+        self.datetimes_path = None
+
         # Containers for the productions and loads data
         self.prods_p = None
         self.prods_v = None
@@ -70,6 +78,7 @@ class Chronic(object):
         self.hazards = None
 
         self.timestep_ids = None
+        self.datetimes = None
 
         # Overall ordered container for the Scenarios
         self.timesteps_entries = []
@@ -95,13 +104,14 @@ class Chronic(object):
         fname_prods_v = '_N_prod_v.csv'
         # Expected ID file name
         fname_ids = '_N_simu_ids.csv'
+        fname_datetimes = '_N_datetimes.csv'
         fname_imaps = '_N_imaps.csv'
         # Maintenance and hazards
         fname_maintenance = 'maintenance.csv'
         fname_hazards = 'hazards.csv'
 
         mandatory_files = [fname_loads_p, fname_loads_q, fname_prods_p, fname_prods_v, fname_ids, fname_imaps,
-                           fname_maintenance, fname_hazards]
+                           fname_maintenance, fname_hazards, fname_datetimes]
         # Check whether all mandatory files are present within the source directory
         for mandatory_file in mandatory_files:
             if mandatory_file not in csv_files:
@@ -116,6 +126,7 @@ class Chronic(object):
         self.fpath_imaps = os.path.join(self.source_folder, fname_imaps)
         self.fpath_maintenance = os.path.join(self.source_folder, fname_maintenance)
         self.fpath_hazards = os.path.join(self.source_folder, fname_hazards)
+        self.datetimes_path = os.path.join(self.source_folder, fname_datetimes)
 
     @staticmethod
     def get_csv_content(csv_absolute_fpath):
@@ -146,6 +157,7 @@ class Chronic(object):
 
         # Scenarios ids
         self.timestep_ids = data['fpath_ids'].astype(np.int32).tolist()
+        self.datetimes = open(self.datetimes_path, 'r').read().splitlines()[1:]
         # Verify that all the ids are unique
         assert len(np.unique(self.timestep_ids)) == len(self.timestep_ids), 'There are timesteps with the same id'
 
@@ -154,11 +166,16 @@ class Chronic(object):
         Loop over all the pertinent data row by row creating scenarios that are stored within the self.scenarios
         container.
         """
-        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards in zip(self.timestep_ids, self.loads_p,
-                                                                                     self.loads_q, self.prods_p,
-                                                                                     self.prods_v,
-                                                                                     self.maintenance, self.hazards):
-            timestep_entries = TimestepEntries(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards)
+        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, datetime in zip(self.timestep_ids,
+                                                                                               self.loads_p,
+                                                                                               self.loads_q,
+                                                                                               self.prods_p,
+                                                                                               self.prods_v,
+                                                                                               self.maintenance,
+                                                                                               self.hazards,
+                                                                                               self.datetimes):
+            timestep_entries = TimestepEntries(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards,
+                                               datetime)
             self.timesteps_entries.append(timestep_entries)
 
     def get_timestep_entries(self, timestep_id):

@@ -731,7 +731,7 @@ class Renderer(object):
                               prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over,
                               cascading_frame_id=cascading_frame_id)
 
-        if last_timestep_rewards is not None:
+        if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)
 
         # Blit all macro surfaces on screen
