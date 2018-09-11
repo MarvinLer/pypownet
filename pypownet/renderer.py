@@ -19,8 +19,11 @@ case_layouts = {
     14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
          (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216)],
 
-    30: [(-320, -217), (-188, -306), (-191, -221), (-64, -220), (156, -307), (223, -232), (217, -274), (401, -236), (200, -145), (238, -125), (87, -143), (-60, -113), (-185, -114), (-159, -60), (-62, 12), (-13, -73), (102, -54), (89, 26), (281, 37), (240, 9), (278, -27), (322, -44), (99, 74), (328, 74), (219, 144), (97, 147), (101, 215), (400, 195), (-179, 211), (-181, 136)]
-,
+    30: [(-320, -217), (-188, -306), (-191, -221), (-64, -220), (156, -307), (223, -232), (217, -274), (401, -236),
+         (200, -145), (238, -125), (87, -143), (-60, -113), (-185, -114), (-159, -60), (-62, 12), (-13, -73),
+         (102, -54), (89, 26), (281, 37), (240, 9), (278, -27), (322, -44), (99, 74), (328, 74), (219, 144), (97, 147),
+         (101, 215), (400, 195), (-179, 211), (-181, 136)]
+    ,
 
     96: [(49.0, -243.0), (95.5, -242.5), (24.5, -195.5), (41.5, -216.0), (87.5, -220.5), (154.0, -205.0),
          (132.0, -243.0), (154.5, -228.0), (80.0, -196.5), (121.5, -197.0), (77.0, -163.5), (121.0, -163.0),
@@ -176,18 +179,33 @@ class Renderer(object):
         surface.blit(self.text_render('Timestep id'), (330, 15))
         surface.blit(self.big_value_render(str(scenario_id)), (425, 12))
 
-        width = 300
-        x_offset = 500
-        if cascading_result_frame:
-            gfxdraw.filled_polygon(surface, ((x_offset, 35), (x_offset, 10), (x_offset + width, 10),
-                                             (x_offset + width, 35)),
+        width = 400
+        height = 25
+        x_offset = 25
+        y_offset = 40
+        if cascading_result_frame is not None:
+            gfxdraw.filled_polygon(surface,
+                                   ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
+                                    (x_offset + width, y_offset + height)),
                                    (250, 200, 200, 240))
-            surface.blit(self.black_bold_font_render('result of cascading failure frame'), (x_offset + 30, 14))
+            surface.blit(
+                self.black_bold_font_render('result of cascading simulation depth %d frame' % cascading_result_frame),
+                (x_offset + 20, y_offset + 4))
         else:
-            gfxdraw.filled_polygon(surface, ((x_offset, 35), (x_offset, 10), (x_offset + width, 10),
-                                             (x_offset + width, 35)),
+            gfxdraw.filled_polygon(surface,
+                                   ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
+                                    (x_offset + width, y_offset + height)),
                                    (200, 250, 200, 240))
-            surface.blit(self.black_bold_font_render('result of action frame'), (x_offset + 65, 14))
+            surface.blit(
+                self.black_bold_font_render('new observation frame'),
+                (x_offset + 120, y_offset + 4))
+        # else:
+        #     width = 400
+        #     gfxdraw.filled_polygon(surface,
+        #                            ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
+        #                             (x_offset + width, y_offset + height)),
+        #                            (250, 200, 200, 240))
+        #     surface.blit(self.black_bold_font_render('result of action frame'), (x_offset + 65, y_offset + 4))
 
     def plot_lines_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status):
         layout = self.grid_layout
@@ -511,7 +529,7 @@ class Renderer(object):
         ax.set_xticklabels(['now', left_xlabel])
         ax.set_ylim([0, np.max(data) * 1.05])
         ax.set_yticks([0, np.max(data)])
-        ax.set_yticklabels(['', '%.0fGW' % (np.max(data) / 1000.)])
+        ax.set_yticklabels(['', '%.0fMW' % (np.max(data))])
         label_color_hexa = '#a6a6a6'
         ax.tick_params(axis='y', labelsize=6, pad=-27, labelcolor=label_color_hexa)
         ax.tick_params(axis='x', labelsize=6, bottom=False, labelcolor=label_color_hexa)
@@ -550,7 +568,7 @@ class Renderer(object):
         ax.set_xlim([n_hours, 1])
         ax.set_xticks([1, n_hours])
         ax.set_xticklabels(['now', left_xlabel])
-        ax.set_ylim([0, max(1.05, np.max([medians, percentiles_90, percentiles_10]) * 1.05)])
+        ax.set_ylim([0, max(1.05, min(2., np.max([medians, percentiles_90, percentiles_10]) * 1.05))])
         ax.set_yticks([0, 1])
         ax.set_yticklabels(['', '1'])
         label_color_hexa = '#a6a6a6'
@@ -739,7 +757,7 @@ class Renderer(object):
 
     # noinspection PyArgumentList
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
-                         prods, loads, rewards, are_substations_changed, game_over):
+                         prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -763,7 +781,7 @@ class Renderer(object):
 
         # Nodes
         self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed,
-                                cascading_result_frame=rewards is not None)
+                                cascading_result_frame=cascading_frame_id)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case == 118 else (690, 50))
@@ -776,7 +794,7 @@ class Renderer(object):
             self.topology_layout.blit(game_over_surface, (300, 200))
 
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
-               loads, last_timestep_rewards, date, are_substations_changed, game_over=False):
+               loads, last_timestep_rewards, date, are_substations_changed, game_over=False, cascading_frame_id=None):
         plt.close('all')
 
         for event in pygame.event.get():
@@ -810,7 +828,8 @@ class Renderer(object):
 
         # Execute full plotting mechanism: order is important
         self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
-                              prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over)
+                              prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over,
+                              cascading_frame_id=cascading_frame_id)
 
         if last_timestep_rewards is not None:
             self._update_left_menu(epoch, timestep, last_timestep_rewards)
@@ -820,7 +839,7 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
         pygame.display.flip()
         # Bugfix for mac
-        #pygame.event.get()
+        pygame.event.get()
 
 
 def scale(u, z, t):

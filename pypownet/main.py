@@ -26,6 +26,9 @@ parser.add_argument('-r', '--render', action='store_true',
                     help='render the power network observation at each timestep (not available if --batch is not 1)')
 parser.add_argument('--start', type=int, default=None,
                     help='id of the timestep to start the game at (>= 0)')
+parser.add_argument('-l', '--latency', type=float, default=None,
+                    help='time to sleep after each render call of the renderer (in seconds); note: there are multiple'
+                         'renderer call per timestep (not fixed)')
 
 
 def main():
@@ -38,7 +41,7 @@ def main():
     if not args.batch:
         print("Running a single instance simulation on case", args.case, "for", args.niter, "iterations...")
         # Instantiate environment and agent
-        env = env_class(grid_case=args.case, start_id=start_id)
+        env = env_class(grid_case=args.case, start_id=start_id, latency=args.latency)
         agent = agent_class(env)
         # Instantiate game runner and loop
         runner = Runner(env, agent, args.render, args.verbose, args.vverbose)

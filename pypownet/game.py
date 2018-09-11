@@ -6,6 +6,7 @@ import datetime
 import logging
 
 import os
+from time import sleep
 import copy
 import numpy as np
 import pypownet.grid
@@ -58,7 +59,7 @@ class Action(object):
 
 
 class Game(object):
-    def __init__(self, grid_case, start_id=0, seed=None):
+    def __init__(self, grid_case, start_id=0, seed=None, latency=None):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
         dc_loadflow = True  # True if DC approximation for loadflow computation; False for AC
@@ -119,6 +120,8 @@ class Game(object):
         self.gui = None
         self.epoch = 1
         self.timestep = 1
+        # Time to sleep after each render call
+        self.latency = latency
 
         self.coefficient_hard_thermal_limit = 1.5
         self.n_timesteps_thermal_limit_hard_broken = 10
@@ -243,14 +246,14 @@ class Game(object):
         # Will loop undefinitely until an exception is raised (~outage) or the grid has no overflowed line
         while not is_done:
             is_done = True  # Reset is_done: if a line is broken bc of cascading failure, then is_done=False
-            if self.gui is not None:
-                self._render(None, self.last_action)
 
             # Compute loadflow of current grid
             try:
                 self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
-                e.text += ': casading failure of depth %d has diverged' % depth
+                e.text += ': casading simulation of depth %d has diverged' % depth
+                if self.gui is not None:
+                    self._render(None, self.last_action, game_over=True, cascading_frame_id=depth)
                 raise e
 
             current_flows_a = self.grid.extract_flows_a()
@@ -287,12 +290,9 @@ class Game(object):
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
 
-            ####### HACK GUI
-            if self.gui is not None:
-                self._render(None, self.last_action)
-            ####### \HACK GUI
-
             depth += 1
+            if self.gui is not None:
+                self._render(None, self.last_action, cascading_frame_id=depth)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
@@ -411,7 +411,8 @@ class Game(object):
     def step(self, action, decrement_reconnectable_timesteps=True):
         # Apply action, or raises eception if some broken lines are attempted to be switched on
         try:
-            self.last_action = action  # tmp
+            if decrement_reconnectable_timesteps:
+                self.last_action = action  # tmp
             self.apply_action(action)
         except pypownet.environment.IllegalActionException as e:
             e.text += ' Ignoring action switches of broken lines.'
@@ -475,7 +476,7 @@ class Game(object):
 
         return observation
 
-    def _render(self, rewards, last_action, close=False, game_over=False):
+    def _render(self, rewards, last_action, close=False, game_over=False, cascading_frame_id=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 
@@ -515,10 +516,11 @@ class Game(object):
         try:
             import pygame
         except ImportError as e:
-            raise ImportError("{}. (HINT: install pygame using `pip install pygame`)".format(e))
+            raise ImportError(
+                "{}. (HINT: install pygame using `pip install pygame` or refer to this package README)".format(e))
 
-        if close:
-            pygame.quit()
+        # if close:
+        #     pygame.quit()
 
         if self.gui is None:
             self.gui = initialize_renderer()
@@ -546,4 +548,8 @@ class Game(object):
         self.gui.render(lines_capacity_usage, lines_por_values, lines_service_status,
                         self.epoch, self.timestep, self.current_timestep_id,
                         prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                        date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over)
+                        date=self.current_date, are_substations_changed=has_been_changed, game_over=game_over,
+                        cascading_frame_id=cascading_frame_id)
+
+        if self.latency:
+            sleep(self.latency)

@@ -217,14 +217,14 @@ class Observation(object):
 
 
 class RunEnv(object):
-    def __init__(self, grid_case=118, start_id=0):
+    def __init__(self, grid_case=118, start_id=0, latency=None):
         """ Instantiate the game Environment as well as the Action Space.
 
         :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
         case14 and case118.
         """
         # Instantiate game & action space
-        self.game = pypownet.game.Game(grid_case=grid_case, start_id=start_id)
+        self.game = pypownet.game.Game(grid_case=grid_case, start_id=start_id, latency=latency)
         self.action_space = ActionSpace(*self.game.get_number_elements())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
@@ -351,20 +351,15 @@ class RunEnv(object):
 
     def simulate(self, action=None, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
-        # First verify that the action is in expected condition (if it is not None); if not, end the game
+        # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
-            self.action_space.verify_action_shape(action)
+            to_simulate_action = self.action_space.verify_action_shape(action)
         except IllegalActionException as e:
             raise e
 
-        try:
-            # Get the output simulated state (after action and loadflow computation) or errors if loadflow diverged
-            simulated_observation = self.game.simulate(action)
-            reward_aslist = self.get_reward(simulated_observation, action)
-        except pypownet.game.NoMoreScenarios:
-            reward_aslist = [0., 0., 0., 0., 0.]
-        except (pypownet.grid.GridNotConnexeException, pypownet.grid.DivergingLoadflowException):
-            reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
+        observation, reward_flag, done = self.game.simulate(to_simulate_action)
+
+        reward_aslist = self.get_reward(observation=observation, action=action, flag=reward_flag)
 
         return sum(reward_aslist) if do_sum else reward_aslist
 

@@ -153,7 +153,6 @@ class GreedySearch(Agent):
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
         number_lines = action_space.n_lines
-        length_action = action_space.n
 
         # Will store reward, actions, and action name, then eventually pick the maximum reward and retrieve the
         # associated values

@@ -45,11 +45,6 @@ class Runner(object):
         self.verbose = verbose
         self.render = render
 
-        # if verbose or vverbose:
-        #     self.environment.logger.setLevel(logging.WARNING)
-        # if verbose and vverbose:
-        #     self.environment.logger.setLevel(logging.DEBUG)
-
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()
 
@@ -61,9 +56,6 @@ class Runner(object):
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
         reward = sum(reward_aslist)
 
-        if self.render:
-            self.environment.render(game_over=done)  # Propagate game over signal to plot 'Game over' on screen
-
         # Feed the reward signal to the Agent along with last observation and its resulting action
         self.agent.feed_reward(self.last_observation, action, reward)
 
@@ -72,6 +64,9 @@ class Runner(object):
             observation = self.environment.reset(restart=False)
         elif info:
             self.logger.warn(info.text)
+
+        if self.render:
+            self.environment.render(game_over=done)  # Propagate game over signal to plot 'Game over' on screen
 
         self.last_observation = observation
 
