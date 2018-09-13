@@ -9,20 +9,25 @@ from datetime import datetime
 
 
 class TimestepEntries(object):
-    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, dt):
+    def __init__(self, timestep_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, date,
+                 planned_loads_p=None, planned_loads_q=None, planned_prods_p=None, planned_prods_v=None):
         self.id = timestep_id
 
-        # Prods container
+        # Prods and loads containers
         self.prods_p = prods_p
         self.prods_v = prods_v
-        # Loads container
         self.loads_p = loads_p
         self.loads_q = loads_q
+        # Planned injections containers
+        self.planned_prods_p = planned_prods_p
+        self.planned_prods_v = planned_prods_v
+        self.planned_loads_p = planned_loads_p
+        self.planned_loads_q = planned_loads_q
 
         self.maintenance = maintenance
         self.hazards = hazards
 
-        self.datetime = datetime.strptime(dt.lower(), '%Y-%b-%d;%H:%M')
+        self.datetime = datetime.strptime(date.lower(), '%Y-%b-%d;%H:%M')
 
     def get_prods_p(self):
         return self.prods_p
@@ -35,6 +40,18 @@ class TimestepEntries(object):
 
     def get_loads_p(self):
         return self.loads_p
+
+    def get_planned_prods_p(self):
+        return self.planned_prods_p
+
+    def get_planned_prods_v(self):
+        return self.planned_prods_v
+
+    def get_planned_loads_q(self):
+        return self.planned_loads_q
+
+    def get_planned_loads_p(self):
+        return self.planned_loads_p
 
     def get_id(self):
         return self.id
@@ -50,10 +67,11 @@ class TimestepEntries(object):
 
 
 class Chronic(object):
-    def __init__(self, source_folder):
+    def __init__(self, source_folder, with_previsions=True):
         if not os.path.exists(source_folder):
             raise ValueError('Source folder %s does not exist' % source_folder)
         self.source_folder = source_folder
+        self.with_previsions = with_previsions  # True will seek and load planned injections (in Obs and simulate)
 
         # Containers for the ROI files paths
         self.fpath_loads_p = None
@@ -64,6 +82,11 @@ class Chronic(object):
         self.fpath_imaps = None
         self.fpath_maintenance = None
         self.fpath_hazards = None
+        # ROI planned injections files
+        self.fpath_loads_p_planned = None
+        self.fpath_loads_q_planned = None
+        self.fpath_prods_p_planned = None
+        self.fpath_prods_v_planned = None
 
         self.datetimes_path = None
 
@@ -72,6 +95,10 @@ class Chronic(object):
         self.prods_v = None
         self.loads_p = None
         self.loads_q = None
+        self.prods_p_planned = None
+        self.prods_v_planned = None
+        self.loads_p_planned = None
+        self.loads_q_planned = None
 
         self.imaps = None
         self.maintenance = None
@@ -97,11 +124,16 @@ class Chronic(object):
         csv_files = [f for f in os.listdir(self.source_folder) if
                      os.path.isfile(os.path.join(self.source_folder, f)) and f.endswith('.csv')]
 
-        # Expected loads and prods files name
+        # Realized loads and prods files name
         fname_loads_p = '_N_loads_p.csv'
         fname_loads_q = '_N_loads_q.csv'
         fname_prods_p = '_N_prods_p.csv'
         fname_prods_v = '_N_prods_v.csv'
+        # Planned loads and prods files name
+        fname_loads_p_planned = '_N_loads_p_planned.csv'
+        fname_loads_q_planned = '_N_loads_q_planned.csv'
+        fname_prods_p_planned = '_N_prods_p_planned.csv'
+        fname_prods_v_planned = '_N_prods_v_planned.csv'
         # Expected ID file name
         fname_ids = '_N_simu_ids.csv'
         fname_datetimes = '_N_datetimes.csv'
@@ -112,6 +144,10 @@ class Chronic(object):
 
         mandatory_files = [fname_loads_p, fname_loads_q, fname_prods_p, fname_prods_v, fname_ids, fname_imaps,
                            fname_maintenance, fname_hazards, fname_datetimes]
+
+        if self.with_previsions:
+            mandatory_files.extend([fname_loads_p_planned, fname_loads_q_planned,
+                                    fname_prods_p_planned, fname_prods_v_planned])
         # Check whether all mandatory files are present within the source directory
         for mandatory_file in mandatory_files:
             if mandatory_file not in csv_files:
@@ -122,6 +158,10 @@ class Chronic(object):
         self.fpath_loads_q = os.path.join(self.source_folder, fname_loads_q)
         self.fpath_prods_p = os.path.join(self.source_folder, fname_prods_p)
         self.fpath_prods_v = os.path.join(self.source_folder, fname_prods_v)
+        self.fpath_loads_p_planned = os.path.join(self.source_folder, fname_loads_p)
+        self.fpath_loads_q_planned = os.path.join(self.source_folder, fname_loads_q)
+        self.fpath_prods_p_planned = os.path.join(self.source_folder, fname_prods_p)
+        self.fpath_prods_v_planned = os.path.join(self.source_folder, fname_prods_v)
         self.fpath_ids = os.path.join(self.source_folder, fname_ids)
         self.fpath_imaps = os.path.join(self.source_folder, fname_imaps)
         self.fpath_maintenance = os.path.join(self.source_folder, fname_maintenance)
@@ -150,6 +190,10 @@ class Chronic(object):
         self.prods_v = data['fpath_prods_v']
         self.loads_p = data['fpath_loads_p']
         self.loads_q = data['fpath_loads_q']
+        self.prods_p_planned = data['fpath_prods_p_planned']
+        self.prods_v_planned = data['fpath_prods_v_planned']
+        self.loads_p_planned = data['fpath_loads_p_planned']
+        self.loads_q_planned = data['fpath_loads_q_planned']
         self.imaps = data['fpath_imaps'].tolist()
 
         self.maintenance = data['fpath_maintenance']
@@ -166,16 +210,13 @@ class Chronic(object):
         Loop over all the pertinent data row by row creating scenarios that are stored within the self.scenarios
         container.
         """
-        for scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, datetime in zip(self.timestep_ids,
-                                                                                               self.loads_p,
-                                                                                               self.loads_q,
-                                                                                               self.prods_p,
-                                                                                               self.prods_v,
-                                                                                               self.maintenance,
-                                                                                               self.hazards,
-                                                                                               self.datetimes):
-            timestep_entries = TimestepEntries(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards,
-                                               datetime)
+        for scen_id, loads_p, loads_q, prods_p, prods_v, \
+            planned_loads_p, planned_loads_q, planned_prods_p, planned_prods_v, \
+            maintenance, hazards, date in zip(self.timestep_ids, self.loads_p, self.loads_q, self.prods_p, self.prods_v,
+                                              self.loads_p_planned, self.loads_q_planned, self.prods_p_planned,
+                                              self.prods_v_planned, self.maintenance, self.hazards, self.datetimes):
+            timestep_entries = TimestepEntries(scen_id, loads_p, loads_q, prods_p, prods_v, maintenance, hazards, date,
+                                               planned_loads_p, planned_loads_q, planned_prods_p, planned_prods_v)
             self.timesteps_entries.append(timestep_entries)
 
     def get_timestep_entries(self, timestep_id):

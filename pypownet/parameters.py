@@ -17,7 +17,7 @@ class Parameters(object):
 
         mandatory_files = ['configuration.json',  # Simulator parameters config file
                            'reference_grid.m']  # Reference (and initial starting) grid
-        mandatory_folders = ['planned_chronics/', 'realized_chronics/']
+        mandatory_folders = ['chronics/']
         for f in mandatory_files + mandatory_folders:
             if not os.path.exists(os.path.join(self.__parameters_path, f)):
                 raise FileNotFoundError('Mandatory file/folder %s not found within %s' % (f, self.__parameters_path))
@@ -25,8 +25,7 @@ class Parameters(object):
         format_path = lambda f: os.path.join(self.__parameters_path, f)
         self.reference_grid_path = format_path('reference_grid.m')
         self.configuration_path = format_path('configuration.json')
-        self.planned_chronics_path = format_path('planned_chronics/')
-        self.realized_chronics_path = format_path('realized_chronics/')
+        self.chronics_path = format_path('chronics/')
 
         with open(self.configuration_path, 'r') as f:
             self.simulator_configuration = json.load(f)
@@ -34,11 +33,8 @@ class Parameters(object):
     def get_reference_grid_path(self):
         return self.reference_grid_path
 
-    def get_planned_chronics_path(self):
-        return self.planned_chronics_path
-
-    def get_realized_chronics_path(self):
-        return self.realized_chronics_path
+    def get_chronics_path(self):
+        return self.chronics_path
 
     def _get_mode(self):
         mode = self.simulator_configuration['mode'].lower()

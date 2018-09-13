@@ -39,7 +39,7 @@ def main():
     start_id = args.start
 
     # Instantiate environment and agent
-    env = env_class(parameters_folder=args.params, start_id=start_id, latency=args.latency)
+    env = env_class(parameters_folder=args.parameters, start_id=start_id, latency=args.latency)
     agent = agent_class(env)
     # Instantiate game runner and loop
     runner = Runner(env, agent, args.render, args.verbose, args.vverbose)

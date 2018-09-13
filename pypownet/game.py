@@ -76,18 +76,19 @@ class Game(object):
         self.grid_case = self.__parameters.get_grid_case()
 
         # Seek and load chronic
-        self.__realized_chronic = Chronic(self.__parameters.get_realized_chronics_path())
+        self.__chronic = Chronic(self.__parameters.get_chronics_path())
         # Seek and load starting reference grid
         self.grid = pypownet.grid.Grid(src_filename=self.__parameters.get_reference_grid_path(),
                                        dc_loadflow=self.is_mode_dc,
-                                       new_imaps=self.__realized_chronic.get_imaps())
+                                       new_imaps=self.__chronic.get_imaps())
         # Container that counts the consecutive timesteps lines are soft-overflows
         self.n_timesteps_soft_overflowed_lines = np.zeros((self.grid.n_lines,))
 
         # Retrieve all the pertinent values of the chronic
-        self.timesteps_ids = self.__realized_chronic.get_timestep_ids()
+        self.timesteps_ids = self.__chronic.get_timestep_ids()
         self.current_timestep_id = None
         self.current_date = None
+        self.previous_timestep = None  # Hack for renderer
         self.previous_date = None  # Hack for renderer
 
         # Save the initial topology (explicitely create another copy) + voltage angles and magnitudes of buses
@@ -125,7 +126,7 @@ class Game(object):
 
     def _get_planned_maintenance(self):
         timestep_id = self.current_timestep_id
-        return self.__realized_chronic.get_planned_maintenance(timestep_id, self.n_timesteps_horizon_maintenance)
+        return self.__chronic.get_planned_maintenance(timestep_id, self.n_timesteps_horizon_maintenance)
 
     def get_initial_topology(self):
         """ Retrieves the initial topology of the grid (when it was initially loaded). This is notably used to
@@ -137,7 +138,7 @@ class Game(object):
 
     def load_entries_from_timestep_id(self, timestep_id):
         # Retrieve the Scenario object associated to the desired id
-        timestep_entries = self.__realized_chronic.get_timestep_entries(timestep_id)
+        timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
 
         # Loads the next timestep injections: PQ and PV and gen status
         self.grid.load_timestep_injections(timestep_entries)
