@@ -100,8 +100,8 @@ class Chronic(object):
         # Expected loads and prods files name
         fname_loads_p = '_N_loads_p.csv'
         fname_loads_q = '_N_loads_q.csv'
-        fname_prods_p = '_N_prod_p.csv'
-        fname_prods_v = '_N_prod_v.csv'
+        fname_prods_p = '_N_prods_p.csv'
+        fname_prods_v = '_N_prods_v.csv'
         # Expected ID file name
         fname_ids = '_N_simu_ids.csv'
         fname_datetimes = '_N_datetimes.csv'
