@@ -35,7 +35,7 @@ sudo apt-get install python3.6
 ```
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
-#### (Step 3 if not already done: Get these sources)
+#### (Step 3 if not already done: Get pypownet)
 In a parent folder, clone the current sources:
 ```
 mkdir parent_folder && cd parent_folder
@@ -62,16 +62,12 @@ After this, this simulator is available under the name pypownet (e.g. ```import 
 # Basic usage
 ## Without using Docker
 Experiments can be conducted using the CLI.
-### Simple usage for launching experiments
-You can use the command line to make an agent play a game. The simplest usage will launch the agent within the __Agent__ class of the file pypownet/agent.py on 100 timesteps for the grid with 118 substations, and with only one simultaneous game:
-```
-python -m pypownet.main
-```
 ### Using CLI arguments
 Some experiements parameters are available via the CLI; you can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 4 simultaneous experiments for 100 iterations each with verbose:
 ```
-python -m pypownet.main --batch 4 --niter 100 --verbose
+python -m pypownet.main --parameters parameters/default14 --niter 1000 --verbose --render
 ```
+With the parameters of default14, 1000 timesteps takes approximately 100 seconds (depending on your machine).
 ## Using Docker
 You can use the command line of the image with shared display (for running the renderer):
 ```
