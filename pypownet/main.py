@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser(description='CLI tool to run experiments using 
 parser.add_argument('--agent', metavar='AGENT_CLASS', default='Agent', type=str,
                     help='class to use for the agent (must be within the \'pypownet/agent.py\' file); '
                          'default class Agent')
-parser.add_argument('--params', '-p', metavar='params', default='./parameters/default14/', type=str,
+parser.add_argument('--parameters', '-p', metavar='params', default='./parameters/default14/', type=str,
                     help='parent folder containing the parameters of the simulator to be used (folder should contain '
                          'configuration.json and reference_grid.m)')
 parser.add_argument('--niter', type=int, metavar='n', default='100',
