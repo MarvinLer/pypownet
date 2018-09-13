@@ -33,16 +33,16 @@ octave.addpath(os.path.abspath(os.path.join(matpower_path, 'lib/')))
 try:
     from gym.envs.registration import register
 
-    register(
-        id='PowNet118-v1',
-        entry_point='pypownet.env:RunEnv',
-        kwargs={'grid_case': 118}
-    )
-
-    register(
-        id='PowNet14-v1',
-        entry_point='pypownet.env:RunEnv',
-        kwargs={'grid_case': 14}
-    )
+    # Seek for parameters folders
+    parameters_folders = [os.path.abspath(os.path.join('parameters/', f)) for f in os.listdir('parameters/')
+                          if not os.path.isfile(f)]
+    for parameters_folder in parameters_folders:
+        register(
+            id='pypownet_%s-v1' % os.path.basename(parameters_folder),
+            entry_point='pypownet.environment:RunEnv',
+            kwargs={'parameters_folder': parameters_folder}
+        )
 except ImportError:
     pass
+except:
+    raise

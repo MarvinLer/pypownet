@@ -1,0 +1,12 @@
+{
+    "grid_case"                                       : 30,
+    "mode"                                            : "AC",
+
+    "hard_overflow_coefficient"                       : 1.5,
+    "n_timesteps_hard_overflow_is_broken"             : 10,
+
+    "n_timesteps_consecutive_soft_overflow_breaks"    : 3,
+    "n_timesteps_soft_overflow_is_broken"             : 5,
+
+    "n_timesteps_horizon_maintenance"                 : 20
+}

@@ -2,17 +2,16 @@ __author__ = 'marvinler'
 # Copyright (C) 2017-2018 RTE and INRIA (France)
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
-import datetime
 import logging
 
-import os
 from time import sleep
 import copy
 import numpy as np
 import pypownet.grid
 import pypownet.environment
 from pypownet.chronic import Chronic
-from pypownet import root_path, ARTIFICIAL_NODE_STARTING_STRING
+from pypownet import ARTIFICIAL_NODE_STARTING_STRING
+from pypownet.parameters import Parameters
 
 
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
@@ -59,54 +58,38 @@ class Action(object):
 
 
 class Game(object):
-    def __init__(self, grid_case, start_id=0, seed=None, latency=None):
+    def __init__(self, parameters_folder, seed=None, start_id=0, latency=None):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
-        dc_loadflow = True  # True if DC approximation for loadflow computation; False for AC
         if seed:
             np.random.seed(seed)
 
-        # Check that the grid case is one of the expected
-        if not isinstance(grid_case, int):
-            raise ValueError('grid_case parameter should be an integer instead of', type(grid_case))
+        # Read parameters
+        self.__parameters = Parameters(parameters_folder)
+        self.is_mode_dc = self.__parameters.is_dc_mode()
+        self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
+        self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()
+        self.n_timesteps_consecutive_soft_overflow_breaks = \
+            self.__parameters.get_n_timesteps_consecutive_soft_overflow_breaks()
+        self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
+        self.n_timesteps_horizon_maintenance = self.__parameters.get_n_timesteps_horizon_maintenance()
+        self.grid_case = self.__parameters.get_grid_case()
 
-        reference_grid = os.path.join(root_path, 'input/reference_grid%d.m' % grid_case)
-        chronic_folder = os.path.join(root_path, 'input/chronics/%d/' % grid_case)
-        if not os.path.exists(reference_grid) or not os.path.exists(chronic_folder):
-            raise FileNotFoundError('Grid case %d not currently handled by the software' % grid_case)
+        # Seek and load chronic
+        self.__realized_chronic = Chronic(self.__parameters.get_realized_chronics_path())
+        # Seek and load starting reference grid
+        self.grid = pypownet.grid.Grid(src_filename=self.__parameters.get_reference_grid_path(),
+                                       dc_loadflow=self.is_mode_dc,
+                                       new_imaps=self.__realized_chronic.get_imaps())
+        # Container that counts the consecutive timesteps lines are soft-overflows
+        self.n_timesteps_soft_overflowed_lines = np.zeros((self.grid.n_lines,))
 
-        # Todo: refacto, should not change new slack bus as should be mandatory in reference grid
-        new_slack_bus = 69 if grid_case == 118 else 1
-
-        self.grid_case = grid_case
-
-        # Configuration parameters
-        self.apply_cascading_output = True
-
-        # Date variables
+        # Retrieve all the pertinent values of the chronic
+        self.timesteps_ids = self.__realized_chronic.get_timestep_ids()
+        self.current_timestep_id = None
         self.current_date = None
         self.previous_date = None  # Hack for renderer
 
-        # Checks that input reference grid/chronic folder do exist
-        if not os.path.exists(reference_grid):
-            raise FileExistsError('The reference grid %s does not exist' % reference_grid)
-        if not os.path.exists(chronic_folder):
-            raise FileExistsError('The chronic folder %s does not exist' % chronic_folder)
-
-        # Loads the scenarios chronic and retrieve reference grid file
-        self.__chronic_folder = os.path.abspath(chronic_folder)
-        self.__chronic = Chronic(source_folder=self.__chronic_folder)
-        self.reference_grid_file = os.path.abspath(reference_grid)
-
-        # Retrieve all the pertinent values of the chronic
-        self.timesteps_ids = self.__chronic.get_timestep_ids()
-        self.current_timestep_id = None
-
-        # Loads the grid in a container for the EmulGrid object given the current scenario + current RL state container
-        self.grid = pypownet.grid.Grid(src_filename=self.reference_grid_file,
-                                       dc_loadflow=dc_loadflow,
-                                       new_slack_bus=new_slack_bus,
-                                       new_imaps=self.__chronic.get_imaps())
         # Save the initial topology (explicitely create another copy) + voltage angles and magnitudes of buses
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
         self.initial_lines_service = copy.deepcopy(self.grid.get_lines_status())
@@ -116,25 +99,18 @@ class Game(object):
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
 
+        # Renderer params
         self.renderer = None
+        self.latency = latency  # Sleep time after each frame plot (multiple frame plots per timestep)
+        self.last_action = None
         self.epoch = 1
         self.timestep = 1
-        # Time to sleep after each render call
-        self.latency = latency
-
-        self.coefficient_hard_thermal_limit = 1.5
-        self.n_timesteps_thermal_limit_hard_broken = 10
-        self.n_timesteps_thermal_limit_soft_broken = 5
-        self.n_timesteps_overflowed_lines = np.zeros((self.grid.n_lines,))
-        self.n_timesteps_overflowed_lines_break = 3
 
         self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Loads first scenario
         self.load_entries_from_next_timestep(starting_timestep_id=start_id)
         self._compute_loadflow_cascading()
-
-        self.last_action = None
 
     def get_number_elements(self):
         return self.grid.get_number_elements()
@@ -147,9 +123,9 @@ class Game(object):
         """
         return self.current_timestep_id
 
-    def _get_planned_maintenance(self, horizon=10):
+    def _get_planned_maintenance(self):
         timestep_id = self.current_timestep_id
-        return self.__chronic.get_planned_maintenance(timestep_id, horizon)
+        return self.__realized_chronic.get_planned_maintenance(timestep_id, self.n_timesteps_horizon_maintenance)
 
     def get_initial_topology(self):
         """ Retrieves the initial topology of the grid (when it was initially loaded). This is notably used to
@@ -161,7 +137,7 @@ class Game(object):
 
     def load_entries_from_timestep_id(self, timestep_id):
         # Retrieve the Scenario object associated to the desired id
-        timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
+        timestep_entries = self.__realized_chronic.get_timestep_entries(timestep_id)
 
         # Loads the next timestep injections: PQ and PV and gen status
         self.grid.load_timestep_injections(timestep_entries)
@@ -267,38 +243,39 @@ class Game(object):
                 break
 
             # Checks for lines over hard nominal thermal limit
-            over_hard_thlim_lines = current_flows_a > self.coefficient_hard_thermal_limit * thermal_limits
+            over_hard_thlim_lines = current_flows_a > self.hard_overflow_coefficient * thermal_limits
             if np.any(over_hard_thlim_lines):
                 # Break lines over their hard thermal limits: set status to 0 and increment timesteps before reconn.
                 self.grid.get_lines_status()[over_hard_thlim_lines] = 0
                 self.timesteps_before_lines_reconnectable[
-                    over_hard_thlim_lines] = self.n_timesteps_thermal_limit_hard_broken
+                    over_hard_thlim_lines] = self.n_timesteps_hard_overflow_is_broken
                 is_done = False
             # Those lines have been treated so discard them for further depth process
             over_thlim_lines[over_hard_thlim_lines] = False
 
             # Checks for soft-overflowed lines among remaining lines
             if np.any(over_thlim_lines):
-                time_limit = self.n_timesteps_overflowed_lines_break
-                number_timesteps_over_thlim_lines = self.n_timesteps_overflowed_lines
+                time_limit = self.n_timesteps_consecutive_soft_overflow_breaks
+                number_timesteps_over_thlim_lines = self.n_timesteps_soft_overflowed_lines
                 # Computes the soft-broken lines: they are overflowed and has been so for more than time_limit
                 soft_broken_lines = np.logical_and(over_thlim_lines, number_timesteps_over_thlim_lines >= time_limit)
                 if np.any(soft_broken_lines):
                     # Soft break lines overflowed for more timesteps than the limit
                     self.grid.get_lines_status()[soft_broken_lines] = 0
                     self.timesteps_before_lines_reconnectable[
-                        soft_broken_lines] = self.n_timesteps_thermal_limit_soft_broken
+                        soft_broken_lines] = self.n_timesteps_soft_overflow_is_broken
                     is_done = False
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
 
             depth += 1
             if self.renderer is not None:
-                self._render(None, cascading_frame_id=depth, date=self.previous_date, timestep_id=self.previous_timestep)
+                self._render(None, cascading_frame_id=depth, date=self.previous_date,
+                             timestep_id=self.previous_timestep)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
-        self.n_timesteps_overflowed_lines[over_thlim_lines] += 1
-        self.n_timesteps_overflowed_lines[~over_thlim_lines] = 0
+        self.n_timesteps_soft_overflowed_lines[over_thlim_lines] += 1
+        self.n_timesteps_soft_overflowed_lines[~over_thlim_lines] = 0
 
     def apply_action(self, action):
         """ Applies an action on the current grid (topology). The action is first into lists of same objects (e.g. nodes
@@ -443,7 +420,7 @@ class Game(object):
         before_timestep_id = self.current_timestep_id
         before_mpc = copy.deepcopy(self.grid.mpc)
         before_topology = copy.deepcopy(self.grid.get_topology())
-        before_n_timesteps_overflowed_lines = self.n_timesteps_overflowed_lines
+        before_n_timesteps_overflowed_lines = self.n_timesteps_soft_overflowed_lines
         before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
@@ -454,7 +431,7 @@ class Game(object):
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
             self.grid.apply_topology(before_topology)  # Change topo before loading entries (reflects what happened)
             self.load_entries_from_timestep_id(before_timestep_id)
-            self.n_timesteps_overflowed_lines = before_n_timesteps_overflowed_lines
+            self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             return
 

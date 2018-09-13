@@ -38,9 +38,9 @@ def compute_flows_a(active, reactive, voltage, are_lines_on):
 
 
 class Grid(object):
-    def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
+    def __init__(self, src_filename, dc_loadflow, new_imaps, verbose=False):
         self.filename = src_filename
-        self.dc_loadflow = True  # true to compute loadflow with Direct Current model, False for Alternative Cur.
+        self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
         self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
@@ -52,7 +52,8 @@ class Grid(object):
         self.mpc['branch'][:, 6] = np.asarray(new_imaps)
         self.mpc['branch'][:, 7] = np.asarray(new_imaps)
 
-        self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
+        self.new_slack_bus = self.mpc['bus'][:, 0][np.where(self.mpc['bus'][:, 1] == 3)[0][0]]
+        #self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
         # Containers that keep in mind the PQ nodes (consumers)
         self.are_loads = np.logical_or(self.mpc['bus'][:, 2] != 0, self.mpc['bus'][:, 3] != 0)
 

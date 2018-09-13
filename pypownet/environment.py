@@ -235,27 +235,23 @@ class Observation(object):
 
 
 class RunEnv(object):
-    def __init__(self, grid_case=118, start_id=0, latency=None):
-        """ Instantiate the game Environment as well as the Action Space.
-
-        :param grid_case: an integer indicating which grid to play with; currently available: 14, 118 for respectively
-        case14 and case118.
-        """
+    def __init__(self, parameters_folder, start_id=0, latency=None):
+        """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
-        self.game = pypownet.game.Game(grid_case=grid_case, start_id=start_id, latency=latency)
+        self.game = pypownet.game.Game(parameters_folder=parameters_folder, start_id=start_id, latency=latency)
         self.action_space = ActionSpace(*self.game.get_number_elements())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
         # Reward hyperparameters
         self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
         self.additive_factor_distance_initial_grid = -.02  # Additive factor for each differed node in the grid
-        self.additive_factor_load_cut = -grid_case / 10.  # Additive factor for each isolated load
+        self.additive_factor_load_cut = -self.observation_space.grid_number_of_elements / 10.  # Additive factor for each isolated load
         self.additive_factor_prod_cut = .5 * self.additive_factor_load_cut
         self.connexity_exception_reward = -self.observation_space.grid_number_of_elements  # Reward when the grid is not connexe
         # (at least two islands)
         self.loadflow_exception_reward = -self.observation_space.grid_number_of_elements  # Reward in case of loadflow software error
 
-        self.illegal_action_exception_reward = -grid_case / 100.  # Reward in case of bad action shape/form
+        self.illegal_action_exception_reward = -self.observation_space.grid_number_of_elements / 100.  # Reward in case of bad action shape/form
 
         # Action cost reward hyperparameters
         self.cost_line_switch = .1  # 1 line switch off or switch on
