@@ -40,8 +40,8 @@ def compute_flows_a(active, reactive, voltage, are_lines_on):
 class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_slack_bus, new_imaps, verbose=False):
         self.filename = src_filename
-        self.dc_loadflow = False  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.dc_loadflow = True  # true to compute loadflow with Direct Current model, False for Alternative Cur.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
@@ -174,16 +174,14 @@ class Grid(object):
         from matpower). This function uses default octave mpoption (they control in certain ways how matpower behaves
         for the loadflow computation.
 
-        :param mpc: mpc format from octave, typically a dictionary with various items including 'bus', 'gen' etc
         :param fname_end: path to the output prettyprint file (produced by matpower) or None to not save this file
-        :param fname: path to the output grid IEEE file (produced by matpower) or None to not save this file
         :param verbose: this verbose refers to the matpower verbose: if enabled, will plot the output grid in terminal
         :return: the ouput of matpower (typically mpc structure), and a boolean success of loadflow indicator
         """
         # Fonction of matpower to compute loadflow
         matpower_function = octave.rundcpf if self.dc_loadflow else octave.runpf
 
-        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 50)
+        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25)
 
         if self.save_io:
             fname_end = '.m' if fname_end is None else fname_end

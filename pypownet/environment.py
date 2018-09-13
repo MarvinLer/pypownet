@@ -114,8 +114,8 @@ class Observation(object):
         self.active_productions = active_productions
         self.reactive_productions = reactive_productions
         self.voltage_productions = voltage_productions
-        self.are_prods_cut = are_isolated_prods
-        self.prods_substations_ids = prods_substations_ids
+        self.are_productions_cut = are_isolated_prods
+        self.productions_substations_ids = prods_substations_ids
 
         # Origin flows related state values
         self.active_flows_origin = active_flows_origin
@@ -144,6 +144,24 @@ class Observation(object):
     def as_dict(self):
         return self.__dict__
 
+    def as_array(self):
+        return np.concatenate((
+            self.loads_substations_ids, self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
+
+            self.productions_substations_ids, self.active_productions, self.reactive_productions,
+            self.voltage_productions, self.are_productions_cut,
+
+            self.lines_or_substations_ids, self.active_flows_origin, self.reactive_flows_origin,
+            self.voltage_flows_origin,
+
+            self.lines_ex_substations_ids, self.active_flows_extremity, self.reactive_flows_extremity,
+            self.voltage_flows_extremity,
+
+            self.ampere_flows, self.thermal_limits, self.lines_status, self.timesteps_before_lines_reconnectable,
+            self.timesteps_before_planned_maintenance,
+
+            self.topology,))
+
     def __str__(self):
         def _tabular_prettifier(matrix, headers, formats, column_widths):
             """ Used for printing well shaped tables within terminal and log files
@@ -164,11 +182,11 @@ class Observation(object):
 
         # Prods
         headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
-        content = np.vstack((self.prods_substations_ids,
+        content = np.vstack((self.productions_substations_ids,
                              self.active_productions,
                              self.reactive_productions,
                              self.voltage_productions,
-                             self.are_prods_cut)).T
+                             self.are_productions_cut)).T
         n_symbols = 61
         prods_header = '=' * n_symbols + '\n' + \
                        '|' + ' ' * ((n_symbols - 7) // 2) + 'PRODS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
@@ -309,7 +327,7 @@ class RunEnv(object):
             load_cut_reward = self.additive_factor_load_cut * number_cut_loads
 
             # Prod cut reward
-            number_cut_prods = sum(observation.are_prods_cut)
+            number_cut_prods = sum(observation.are_productions_cut)
             prod_cut_reward = self.additive_factor_prod_cut * number_cut_prods
 
             # Reference grid distance reward
