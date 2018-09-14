@@ -102,7 +102,8 @@ class Observation(object):
                  active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
                  thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
                  loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
-                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance):
+                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                 planned_active_loads, planned_reactive_loads, planned_active_productions, planned_voltage_productions):
         # Loads related state values
         self.active_loads = active_loads
         self.reactive_loads = reactive_loads
@@ -141,6 +142,12 @@ class Observation(object):
         self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
         self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
 
+        # Planned injections for the next timestep
+        self.planned_active_loads = planned_active_loads
+        self.planned_reactive_loads = planned_reactive_loads
+        self.planned_active_productions = planned_active_productions
+        self.planned_voltage_productions = planned_voltage_productions
+
     def as_dict(self):
         return self.__dict__
 
@@ -163,58 +170,75 @@ class Observation(object):
             self.topology,))
 
     def __str__(self):
-        def _tabular_prettifier(matrix, headers, formats, column_widths):
+        def _tabular_prettifier(matrix, formats, column_widths):
             """ Used for printing well shaped tables within terminal and log files
             """
             res = ''
 
             matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
-            # Plot headers
-            headers_str = '|' + ' |'.join(
-                ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
-            # Plot content
-            res += headers_str
             for line in matrix_str:
-                line_str = '|' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
+                line_str = ' |' + ' |'.join(' ' * (w - 1 - len(v)) + v for v, w in zip(line, column_widths)) + ' |\n'
                 res += line_str
 
             return res
 
         # Prods
-        headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+        headers = ['Sub. #', 'is OFF', 'P', 'Q', 'V', 'P', 'V']
+        print(self.are_loads_cut.shape, self.planned_active_productions.shape, self.planned_voltage_productions.shape)
         content = np.vstack((self.productions_substations_ids,
+                             self.are_productions_cut,
                              self.active_productions,
                              self.reactive_productions,
                              self.voltage_productions,
-                             self.are_productions_cut)).T
+                             self.planned_active_productions,
+                             self.planned_voltage_productions)).T
+        # Format header then add matrix as string
         n_symbols = 61
-        prods_header = '=' * n_symbols + '\n' + \
-                       '|' + ' ' * ((n_symbols - 7) // 2) + 'PRODS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
-                       '=' * n_symbols + '\n'
-        prods_str = prods_header + _tabular_prettifier(content, headers,
-                                                       formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                                '{:.0f}'],
-                                                       column_widths=[9, 14, 16, 9, 8])
+        column_widths = [8, 8, 8, 7, 7, 8, 7]
+        prods_header = ' ' + '=' * n_symbols + '\n' + \
+                       ' |' + ' ' * ((n_symbols - 13) // 2) + 'PRODUCTIONS' + ' ' * (
+                           (n_symbols - 13) // 2) + '|' + '\n' + \
+                       ' ' + '=' * n_symbols + '\n'
+        prods_header += ' |                 |         Current        | Previsions t+1 |\n'
+        prods_header += ' |' + ' |'.join(
+            ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+        prods_str = prods_header + _tabular_prettifier(content,
+                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
+                                                                '{:.2f}', '{:.2f}', '{:.2f}'],
+                                                       column_widths=column_widths)
 
         # Loads
-        headers = ['Sub. id', 'Active power', 'Reactive power', 'Voltage', 'Is cut']
+        n_symbols = 62
+        column_widths = [8, 8, 8, 7, 7, 8, 8]
+        headers = ['Sub. #', 'is OFF', 'P', 'Q', 'V', 'P', 'Q']
         content = np.vstack((self.loads_substations_ids,
+                             self.are_loads_cut,
                              self.active_loads,
                              self.reactive_loads,
                              self.voltage_loads,
-                             self.are_loads_cut)).T
-        n_symbols = 61
-        loads_header = '=' * n_symbols + '\n' + \
-                       '|' + ' ' * ((n_symbols - 7) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
-                       '=' * n_symbols + '\n'
-        loads_str = loads_header + _tabular_prettifier(content, headers,
-                                                       formats=['{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                                '{:.0f}'],
-                                                       column_widths=[9, 14, 16, 9, 8])
+                             self.planned_active_loads,
+                             self.planned_reactive_loads)).T
+        loads_header = ' ' + '=' * n_symbols + '\n' + \
+                       ' |' + ' ' * ((n_symbols - 6) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                       ' ' + '=' * n_symbols + '\n'
+        loads_header += ' |                 |         Current        | Previsions t+1  |\n'
+        loads_header += ' |' + ' |'.join(
+            ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+        loads_str = loads_header + _tabular_prettifier(content,
+                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
+                                                                '{:.2f}', '{:.1f}', '{:.2f}'],
+                                                       column_widths=column_widths)
+        # Concatenate both strings horizontally
+        prods_lines = prods_str.splitlines()
+        loads_lines = loads_str.splitlines()
+        injections_str = ''
+        for prod_line, load_line in zip(prods_lines, loads_lines[:len(prods_lines)]):
+            injections_str += load_line + '          ' + prod_line + '\n'
+        injections_str += '\n'.join(loads_lines[len(prods_lines):]) + '\n'
 
         # Lines
-        headers = ['Origin', 'Extremity', 'P ori.', 'Q ori.', 'V ori.', 'P ext.', 'Q ext.', 'V ext.',
-                   'Flows A', 'Thermal limit', 'Is on']
+        headers = ['sub. #', 'sub. #', 'P', 'Q', 'V', 'P', 'Q', 'V', 'ON', 'Ampere', 'limits ']
+        column_widths = [8, 8, 8, 7, 6, 8, 7, 6, 4, 8, 9]
         content = np.vstack((self.lines_or_substations_ids,
                              self.lines_ex_substations_ids,
                              self.active_flows_origin,
@@ -223,15 +247,24 @@ class Observation(object):
                              self.active_flows_extremity,
                              self.reactive_flows_extremity,
                              self.voltage_flows_extremity,
+                             self.lines_status,
                              self.ampere_flows,
-                             self.thermal_limits,
-                             self.lines_status)).T
-        lines_str = _tabular_prettifier(content, headers,
-                                        formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}',
-                                                 '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.0f}', '{:.0f}'],
-                                        column_widths=[8, 11, 10, 8, 8, 10, 8, 8, 13, 15, 8])
+                             self.thermal_limits)).T
+        n_symbols = 91
+        lines_header = ' ' + '=' * n_symbols + '\n' + \
+                       ' |' + ' ' * ((n_symbols - 7) // 2) + 'LINES' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
+                       ' ' + '=' * n_symbols + '\n'
+        lines_header += ' | From   | To     |    From injections    |     To injections     | is | Flows  | Thermal |\n'
 
-        return '\n\n'.join([prods_str, loads_str, lines_str])
+        lines_header += ' |' + ' |'.join(
+            ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
+        lines_str = lines_header + _tabular_prettifier(content,
+                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.2f}',
+                                                                '{:.1f}', '{:.1f}', '{:.2f}', '{:.0f}', '{:.1f}',
+                                                                '{:.0f}'],
+                                                       column_widths=column_widths)
+
+        return '\n\n'.join([injections_str, lines_str])
 
 
 class RunEnv(object):

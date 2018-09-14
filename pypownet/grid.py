@@ -218,6 +218,13 @@ class Grid(object):
         if not loadflow_success or self._contains_nan():
             raise DivergingLoadflowException(None, 'Power grid outage')
 
+    def normalize_prods_voltages(self, voltages):
+        bus = self.mpc['bus']
+        gen = self.mpc['gen']
+        voltages[voltages <= 0] = 0.
+        return np.asarray(
+            voltages / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
+
     def load_timestep_injections(self, timestep_injections):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads. Other
         timestep entries are loaded using other modules (including pypownet.game).
@@ -241,8 +248,7 @@ class Grid(object):
         assert len(prods_v) == len(prods_p), 'Not the same number of active prods values than reactives prods'
         gen[:, 1] = prods_p
         # Change prods v (divide by bus baseKV); put all to online then negative voltage to offline
-        gen[:, 5] = np.asarray(
-            prods_v / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
+        gen[:, 5] = self.normalize_prods_voltages(prods_v)
         gen[:, 7] = 1
         gen[prods_v <= 0, 7] = 0
 
@@ -427,12 +433,12 @@ class Grid(object):
         active_flows_origin = to_array(branch[:, 13])  # Pf
         reactive_flows_origin = to_array(branch[:, 14])  # Qf
         voltage_origin = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()
-        substations_ids_lines_or = to_array(nodes_to_substations(branch[:, 0]))
+        substations_ids_lines_or = to_array(nodes_to_substations(branch[:, 0])).astype(int)
         # Branch data extremity
         active_flows_extremity = to_array(branch[:, 15])  # Pt
         reactive_flows_extremity = to_array(branch[:, 16])  # Qt
         voltage_extremity = to_array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 1]]).flatten()
-        substations_ids_lines_ex = to_array(nodes_to_substations(branch[:, 1]))
+        substations_ids_lines_ex = to_array(nodes_to_substations(branch[:, 1])).astype(int)
 
         thermal_limits = branch[:, 5]
         ampere_flows = self.extract_flows_a()
@@ -442,7 +448,7 @@ class Grid(object):
         active_loads = to_array(loads_buses[:, 2])
         reactive_loads = to_array(loads_buses[:, 3])
         voltage_loads = to_array(loads_buses[:, 7])
-        substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads]))
+        substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads])).astype(int)
 
         # Retrieve isolated buses
         are_isolated_loads, are_isolated_prods, are_isolated_buses = self._count_isolated_loads(mpc,
@@ -450,7 +456,7 @@ class Grid(object):
 
         # Topology vector
         topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
-        lines_status = branch[:, 10].astype(int)
+        lines_status = to_array(branch[:, 10]).astype(int)
 
         return pypownet.environment.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
                                                 reactive_prods, voltage_prods, active_flows_origin,
@@ -460,8 +466,10 @@ class Grid(object):
                                                 are_isolated_loads, are_isolated_prods,
                                                 substations_ids_loads, substations_ids_prods,
                                                 substations_ids_lines_or, substations_ids_lines_ex,
-                                                timesteps_before_lines_reconnectable=None,
-                                                timesteps_before_planned_maintenance=None)  # kwargs set by game
+                                                timesteps_before_lines_reconnectable=None,  # kwargs set by game
+                                                timesteps_before_planned_maintenance=None,
+                                                planned_active_loads=None, planned_reactive_loads=None,
+                                                planned_active_productions=None, planned_voltage_productions=None)
 
     def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the

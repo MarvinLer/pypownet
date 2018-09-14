@@ -88,6 +88,7 @@ class Game(object):
         self.timesteps_ids = self.__chronic.get_timestep_ids()
         self.current_timestep_id = None
         self.current_date = None
+        self.current_timestep_entries = None
         self.previous_timestep = None  # Hack for renderer
         self.previous_date = None  # Hack for renderer
 
@@ -139,6 +140,7 @@ class Game(object):
     def load_entries_from_timestep_id(self, timestep_id):
         # Retrieve the Scenario object associated to the desired id
         timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
+        self.current_timestep_entries = timestep_entries
 
         # Loads the next timestep injections: PQ and PV and gen status
         self.grid.load_timestep_injections(timestep_entries)
@@ -463,6 +465,13 @@ class Game(object):
         # Fill additional parameters: starts with substations ids of all elements
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
         observation.timesteps_before_planned_maintenance = self._get_planned_maintenance()
+
+        current_timestep_entries = self.current_timestep_entries
+        observation.planned_active_loads = current_timestep_entries.get_planned_loads_p()
+        observation.planned_reactive_loads = current_timestep_entries.get_planned_loads_q()
+        observation.planned_active_productions = current_timestep_entries.get_planned_prods_p()
+        observation.planned_voltage_productions = self.grid.normalize_prods_voltages(
+            current_timestep_entries.get_planned_prods_v())
 
         return observation
 

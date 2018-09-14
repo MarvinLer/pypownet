@@ -158,10 +158,10 @@ class Chronic(object):
         self.fpath_loads_q = os.path.join(self.source_folder, fname_loads_q)
         self.fpath_prods_p = os.path.join(self.source_folder, fname_prods_p)
         self.fpath_prods_v = os.path.join(self.source_folder, fname_prods_v)
-        self.fpath_loads_p_planned = os.path.join(self.source_folder, fname_loads_p)
-        self.fpath_loads_q_planned = os.path.join(self.source_folder, fname_loads_q)
-        self.fpath_prods_p_planned = os.path.join(self.source_folder, fname_prods_p)
-        self.fpath_prods_v_planned = os.path.join(self.source_folder, fname_prods_v)
+        self.fpath_loads_p_planned = os.path.join(self.source_folder, fname_loads_p_planned)
+        self.fpath_loads_q_planned = os.path.join(self.source_folder, fname_loads_q_planned)
+        self.fpath_prods_p_planned = os.path.join(self.source_folder, fname_prods_p_planned)
+        self.fpath_prods_v_planned = os.path.join(self.source_folder, fname_prods_v_planned)
         self.fpath_ids = os.path.join(self.source_folder, fname_ids)
         self.fpath_imaps = os.path.join(self.source_folder, fname_imaps)
         self.fpath_maintenance = os.path.join(self.source_folder, fname_maintenance)
@@ -195,6 +195,16 @@ class Chronic(object):
         self.loads_p_planned = data['fpath_loads_p_planned']
         self.loads_q_planned = data['fpath_loads_q_planned']
         self.imaps = data['fpath_imaps'].tolist()
+
+        # Slip data from planned by 1
+        self.prods_p_planned[:-1] = self.prods_p_planned[1:]
+        self.prods_v_planned[:-1] = self.prods_v_planned[1:]
+        self.loads_p_planned[:-1] = self.loads_p_planned[1:]
+        self.loads_q_planned[:-1] = self.loads_q_planned[1:]
+        # self.prods_p_planned = np.concatenate((self.prods_p_planned[1:], [0] * len(self.prods_p_planned[0])))
+        # self.prods_v_planned = np.concatenate((self.prods_v_planned[1:], [0] * len(self.prods_v_planned[0])))
+        # self.loads_p_planned = np.concatenate((self.loads_p_planned[1:], [0] * len(self.loads_p_planned[0])))
+        # self.loads_q_planned = np.concatenate((self.loads_q_planned[1:], [0] * len(self.loads_q_planned[0])))
 
         self.maintenance = data['fpath_maintenance']
         self.hazards = data['fpath_hazards']
