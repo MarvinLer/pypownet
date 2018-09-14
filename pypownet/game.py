@@ -473,6 +473,8 @@ class Game(object):
         observation.planned_voltage_productions = self.grid.normalize_prods_voltages(
             current_timestep_entries.get_planned_prods_v())
 
+        observation.datetime = self.current_date
+
         return observation
 
     def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None, date=None, timestep_id=None):

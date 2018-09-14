@@ -103,7 +103,8 @@ class Observation(object):
                  thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
                  loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
                  timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
-                 planned_active_loads, planned_reactive_loads, planned_active_productions, planned_voltage_productions):
+                 planned_active_loads, planned_reactive_loads, planned_active_productions, planned_voltage_productions,
+                 date):
         # Loads related state values
         self.active_loads = active_loads
         self.reactive_loads = reactive_loads
@@ -148,6 +149,8 @@ class Observation(object):
         self.planned_active_productions = planned_active_productions
         self.planned_voltage_productions = planned_voltage_productions
 
+        self.datetime = date
+
     def as_dict(self):
         return self.__dict__
 
@@ -170,6 +173,8 @@ class Observation(object):
             self.topology,))
 
     def __str__(self):
+        date_str = 'date:' + self.datetime.strftime("%Y-%m-%d %H:%M")
+
         def _tabular_prettifier(matrix, formats, column_widths):
             """ Used for printing well shaped tables within terminal and log files
             """
@@ -264,7 +269,7 @@ class Observation(object):
                                                                 '{:.0f}'],
                                                        column_widths=column_widths)
 
-        return '\n\n'.join([injections_str, lines_str])
+        return '\n\n'.join([date_str, injections_str, lines_str])
 
 
 class RunEnv(object):

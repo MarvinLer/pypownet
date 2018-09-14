@@ -469,7 +469,8 @@ class Grid(object):
                                                 timesteps_before_lines_reconnectable=None,  # kwargs set by game
                                                 timesteps_before_planned_maintenance=None,
                                                 planned_active_loads=None, planned_reactive_loads=None,
-                                                planned_active_productions=None, planned_voltage_productions=None)
+                                                planned_active_productions=None, planned_voltage_productions=None,
+                                                date=None)
 
     def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
