@@ -189,7 +189,6 @@ class Observation(object):
 
         # Prods
         headers = ['Sub. #', 'is OFF', 'P', 'Q', 'V', 'P', 'V']
-        print(self.are_loads_cut.shape, self.planned_active_productions.shape, self.planned_voltage_productions.shape)
         content = np.vstack((self.productions_substations_ids,
                              self.are_productions_cut,
                              self.active_productions,

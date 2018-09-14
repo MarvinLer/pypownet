@@ -225,9 +225,11 @@ class Grid(object):
         return np.asarray(
             voltages / np.asarray([basekv for i, basekv in zip(bus[:, 0], bus[:, 9]) if i in gen[:, 0]]))
 
-    def load_timestep_injections(self, timestep_injections):
+    def load_timestep_injections(self, timestep_injections, prods_p=None, prods_v=None, loads_p=None, loads_q=None):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads. Other
         timestep entries are loaded using other modules (including pypownet.game).
+        If one of input except TimestepInjections are not None, they are all used for next injections (used in simulate
+        with planned injections).
 
         :param timestep_injections: an instance of class Scenario
         :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
@@ -242,8 +244,8 @@ class Grid(object):
         bus = mpc['bus']
 
         # Import new productions values
-        prods_p = timestep_injections.get_prods_p()
-        prods_v = timestep_injections.get_prods_v()
+        prods_p = timestep_injections.get_prods_p() if prods_p is None else prods_p
+        prods_v = timestep_injections.get_prods_v() if prods_v is None else prods_v
         # Check that there are the same number of productions names and values
         assert len(prods_v) == len(prods_p), 'Not the same number of active prods values than reactives prods'
         gen[:, 1] = prods_p
@@ -253,8 +255,8 @@ class Grid(object):
         gen[prods_v <= 0, 7] = 0
 
         # Import new loads values
-        loads_p = timestep_injections.get_loads_p()
-        loads_q = timestep_injections.get_loads_q()
+        loads_p = timestep_injections.get_loads_p() if loads_p is None else loads_p
+        loads_q = timestep_injections.get_loads_q() if loads_q is None else loads_q
         # Check that there are the same number of productions names and values
         assert len(loads_q) == len(loads_p), 'Not the same number of active loads values than reactives loads'
         bus[self.are_loads, 2] = loads_p
