@@ -457,22 +457,21 @@ class Grid(object):
                                                                                                 are_loads=self.are_loads)
 
         # Topology vector
-        topology = self.get_topology().get_zipped()  # Retrieve concatenated version of topology
+        prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = self.get_topology().get_unzipped()
         lines_status = to_array(branch[:, 10]).astype(int)
 
         return pypownet.environment.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
                                                 reactive_prods, voltage_prods, active_flows_origin,
                                                 reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                 reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                                thermal_limits, topology, lines_status,
-                                                are_isolated_loads, are_isolated_prods,
-                                                substations_ids_loads, substations_ids_prods,
-                                                substations_ids_lines_or, substations_ids_lines_ex,
-                                                timesteps_before_lines_reconnectable=None,  # kwargs set by game
-                                                timesteps_before_planned_maintenance=None,
-                                                planned_active_loads=None, planned_reactive_loads=None,
-                                                planned_active_productions=None, planned_voltage_productions=None,
-                                                date=None)
+                                                thermal_limits, lines_status, are_isolated_loads, are_isolated_prods,
+                                                substations_ids_loads, substations_ids_prods, substations_ids_lines_or,
+                                                substations_ids_lines_ex, timesteps_before_lines_reconnectable=None,
+                                                timesteps_before_planned_maintenance=None, planned_active_loads=None,
+                                                planned_reactive_loads=None, planned_active_productions=None,
+                                                planned_voltage_productions=None, date=None,
+                                                prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                                lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes)
 
     def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the

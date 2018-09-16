@@ -100,17 +100,18 @@ class Observation(object):
     def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                  voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                  active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                 thermal_limits, topology_vector, lines_status, are_isolated_loads, are_isolated_prods,
-                 loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
-                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
-                 planned_active_loads, planned_reactive_loads, planned_active_productions, planned_voltage_productions,
-                 date):
+                 thermal_limits, lines_status, are_isolated_loads, are_isolated_prods, loads_substations_ids,
+                 prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
+                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
+                 planned_reactive_loads, planned_active_productions, planned_voltage_productions, date,
+                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
         # Loads related state values
         self.active_loads = active_loads
         self.reactive_loads = reactive_loads
         self.voltage_loads = voltage_loads
         self.are_loads_cut = are_isolated_loads
         self.loads_substations_ids = loads_substations_ids
+        self.loads_nodes = loads_nodes
 
         # Productions related state values
         self.active_productions = active_productions
@@ -118,24 +119,24 @@ class Observation(object):
         self.voltage_productions = voltage_productions
         self.are_productions_cut = are_isolated_prods
         self.productions_substations_ids = prods_substations_ids
+        self.productions_nodes = prods_nodes
 
         # Origin flows related state values
         self.active_flows_origin = active_flows_origin
         self.reactive_flows_origin = reactive_flows_origin
         self.voltage_flows_origin = voltage_flows_origin
         self.lines_or_substations_ids = lines_or_substations_ids
+        self.lines_or_nodes = lines_or_nodes
         # Extremity flows related state values
         self.active_flows_extremity = active_flows_extremity
         self.reactive_flows_extremity = reactive_flows_extremity
         self.voltage_flows_extremity = voltage_flows_extremity
         self.lines_ex_substations_ids = lines_ex_substations_ids
+        self.lines_ex_nodes = lines_ex_nodes
 
         # Ampere flows and thermal limits
         self.ampere_flows = ampere_flows
         self.thermal_limits = thermal_limits
-
-        # Topology vector
-        self.topology = topology_vector
         self.lines_status = lines_status
 
         # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
@@ -157,22 +158,20 @@ class Observation(object):
     def as_array(self):
         return np.concatenate((
             self.loads_substations_ids, self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
-            self.planned_active_loads, self.planned_reactive_loads,
+            self.planned_active_loads, self.planned_reactive_loads, self.loads_nodes,
 
             self.productions_substations_ids, self.active_productions, self.reactive_productions,
             self.voltage_productions, self.are_productions_cut,
-            self.planned_active_productions, self.planned_voltage_productions,
+            self.planned_active_productions, self.planned_voltage_productions, self.productions_nodes,
 
             self.lines_or_substations_ids, self.active_flows_origin, self.reactive_flows_origin,
-            self.voltage_flows_origin,
+            self.voltage_flows_origin, self.lines_or_nodes,
 
             self.lines_ex_substations_ids, self.active_flows_extremity, self.reactive_flows_extremity,
-            self.voltage_flows_extremity,
+            self.voltage_flows_extremity, self.lines_ex_nodes,
 
             self.ampere_flows, self.thermal_limits, self.lines_status, self.timesteps_before_lines_reconnectable,
-            self.timesteps_before_planned_maintenance,
-
-            self.topology,))
+            self.timesteps_before_planned_maintenance))
 
     def __str__(self):
         date_str = 'date:' + self.datetime.strftime("%Y-%m-%d %H:%M")
@@ -190,8 +189,9 @@ class Observation(object):
             return res
 
         # Prods
-        headers = ['Sub. #', 'is OFF', 'P', 'Q', 'V', 'P', 'V']
+        headers = ['Sub. #', 'Node #', 'OFF', 'P', 'Q', 'V', 'P', 'V']
         content = np.vstack((self.productions_substations_ids,
+                             self.productions_nodes,
                              self.are_productions_cut,
                              self.active_productions,
                              self.reactive_productions,
@@ -199,25 +199,26 @@ class Observation(object):
                              self.planned_active_productions,
                              self.planned_voltage_productions)).T
         # Format header then add matrix as string
-        n_symbols = 61
-        column_widths = [8, 8, 8, 7, 7, 8, 7]
+        n_symbols = 67
+        column_widths = [8, 8, 5, 8, 7, 7, 8, 7]
         prods_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 13) // 2) + 'PRODUCTIONS' + ' ' * (
-                           (n_symbols - 13) // 2) + '|' + '\n' + \
+                           (n_symbols - 12) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
-        prods_header += ' |                 |         Current        | Previsions t+1 |\n'
+        prods_header += ' |                 | is  |         Current        | Previsions t+1 |\n'
         prods_header += ' |' + ' |'.join(
             ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
         prods_str = prods_header + _tabular_prettifier(content,
-                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
+                                                       formats=['{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
                                                                 '{:.2f}', '{:.2f}', '{:.2f}'],
                                                        column_widths=column_widths)
 
         # Loads
-        n_symbols = 62
-        column_widths = [8, 8, 8, 7, 7, 8, 8]
-        headers = ['Sub. #', 'is OFF', 'P', 'Q', 'V', 'P', 'Q']
+        n_symbols = 68
+        column_widths = [8, 8, 5, 8, 7, 7, 8, 8]
+        headers = ['Sub. #', 'Node #', 'OFF', 'P', 'Q', 'V', 'P', 'Q']
         content = np.vstack((self.loads_substations_ids,
+                             self.loads_nodes,
                              self.are_loads_cut,
                              self.active_loads,
                              self.reactive_loads,
@@ -227,11 +228,11 @@ class Observation(object):
         loads_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 6) // 2) + 'LOADS' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
-        loads_header += ' |                 |         Current        | Previsions t+1  |\n'
+        loads_header += ' |                 | is  |         Current        | Previsions t+1  |\n'
         loads_header += ' |' + ' |'.join(
             ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
         loads_str = loads_header + _tabular_prettifier(content,
-                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
+                                                       formats=['{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.2f}',
                                                                 '{:.2f}', '{:.1f}', '{:.2f}'],
                                                        column_widths=column_widths)
         # Concatenate both strings horizontally
@@ -243,11 +244,14 @@ class Observation(object):
         injections_str += '\n'.join(loads_lines[len(prods_lines):]) + '\n'
 
         # Lines
-        headers = ['sub. #', 'sub. #', 'ON', 'P', 'Q', 'V', 'P', 'Q', 'V', 'Ampere', 'limits ', 'maintenance',
+        headers = ['sub. #', 'node #', 'sub. #', 'node #', 'ON', 'P', 'Q', 'V', 'P', 'Q', 'V', 'Ampere', 'limits ',
+                   'maintenance',
                    'reconnectable']
-        column_widths = [8, 8, 4, 8, 7, 6, 8, 7, 6, 8, 9, 13, 15]
+        column_widths = [8, 8, 8, 8, 4, 8, 7, 6, 8, 7, 6, 8, 9, 13, 15]
         content = np.vstack((self.lines_or_substations_ids,
+                             self.lines_or_nodes,
                              self.lines_ex_substations_ids,
+                             self.lines_ex_nodes,
                              self.lines_status,
                              self.active_flows_origin,
                              self.reactive_flows_origin,
@@ -259,19 +263,19 @@ class Observation(object):
                              self.thermal_limits,
                              self.timesteps_before_planned_maintenance,
                              self.timesteps_before_lines_reconnectable)).T
-        n_symbols = 121
+        n_symbols = 139
         lines_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 7) // 2) + 'LINES' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
-        lines_header += ' | From   | To     | is |    From injections    |     To injections     | Flows  | Thermal |' \
-                        '      Timesteps before       |\n'
+        lines_header += ' |       From      |       To        | is |    From injections    |     To injections     | ' \
+                        'Flows  | Thermal |      Timesteps before       |\n'
 
         lines_header += ' |' + ' |'.join(
             ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
         lines_str = lines_header + _tabular_prettifier(content,
-                                                       formats=['{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
-                                                                '{:.2f}', '{:.1f}', '{:.1f}', '{:.2f}', '{:.1f}',
-                                                                '{:.0f}', '{:.0f}', '{:.0f}'],
+                                                       formats=['{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}',
+                                                                '{:.1f}', '{:.1f}', '{:.2f}', '{:.1f}', '{:.1f}',
+                                                                '{:.2f}', '{:.1f}', '{:.0f}', '{:.0f}', '{:.0f}'],
                                                        column_widths=column_widths)
 
         return '\n\n'.join([date_str, injections_str, lines_str])
@@ -317,7 +321,8 @@ class RunEnv(object):
         :return: the number of different nodes between the current topology and the initial one
         """
         initial_topology = np.asarray(self.game.get_initial_topology())
-        current_topology = observation.topology
+        current_topology = np.concatenate((observation.productions_nodes, observation.loads_nodes,
+                                           observation.lines_or_nodes, observation.lines_ex_nodes))
 
         return np.sum((initial_topology != current_topology))  # Sum of nodes that are different
 
