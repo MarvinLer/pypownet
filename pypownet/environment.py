@@ -179,7 +179,7 @@ class Observation(object):
         def _tabular_prettifier(matrix, formats, column_widths):
             """ Used for printing well shaped tables within terminal and log files
             """
-            res = ''
+            res = ' |' + ' |'.join('-' * (w - 1) for w in column_widths) + ' |\n'
 
             matrix_str = [[fmt.format(v) for v, fmt in zip(line, formats)] for line in matrix]
             for line in matrix_str:
