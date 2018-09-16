@@ -157,9 +157,11 @@ class Observation(object):
     def as_array(self):
         return np.concatenate((
             self.loads_substations_ids, self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
+            self.planned_active_loads, self.planned_reactive_loads,
 
             self.productions_substations_ids, self.active_productions, self.reactive_productions,
             self.voltage_productions, self.are_productions_cut,
+            self.planned_active_productions, self.planned_voltage_productions,
 
             self.lines_or_substations_ids, self.active_flows_origin, self.reactive_flows_origin,
             self.voltage_flows_origin,
@@ -241,31 +243,35 @@ class Observation(object):
         injections_str += '\n'.join(loads_lines[len(prods_lines):]) + '\n'
 
         # Lines
-        headers = ['sub. #', 'sub. #', 'P', 'Q', 'V', 'P', 'Q', 'V', 'ON', 'Ampere', 'limits ']
-        column_widths = [8, 8, 8, 7, 6, 8, 7, 6, 4, 8, 9]
+        headers = ['sub. #', 'sub. #', 'ON', 'P', 'Q', 'V', 'P', 'Q', 'V', 'Ampere', 'limits ', 'maintenance',
+                   'reconnectable']
+        column_widths = [8, 8, 4, 8, 7, 6, 8, 7, 6, 8, 9, 13, 15]
         content = np.vstack((self.lines_or_substations_ids,
                              self.lines_ex_substations_ids,
+                             self.lines_status,
                              self.active_flows_origin,
                              self.reactive_flows_origin,
                              self.voltage_flows_origin,
                              self.active_flows_extremity,
                              self.reactive_flows_extremity,
                              self.voltage_flows_extremity,
-                             self.lines_status,
                              self.ampere_flows,
-                             self.thermal_limits)).T
-        n_symbols = 91
+                             self.thermal_limits,
+                             self.timesteps_before_planned_maintenance,
+                             self.timesteps_before_lines_reconnectable)).T
+        n_symbols = 121
         lines_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 7) // 2) + 'LINES' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
-        lines_header += ' | From   | To     |    From injections    |     To injections     | is | Flows  | Thermal |\n'
+        lines_header += ' | From   | To     | is |    From injections    |     To injections     | Flows  | Thermal |' \
+                        '      Timesteps before       |\n'
 
         lines_header += ' |' + ' |'.join(
             ' ' * (w - 1 - len(v)) + v for v, w in zip(headers, column_widths)) + ' |\n'
         lines_str = lines_header + _tabular_prettifier(content,
-                                                       formats=['{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.2f}',
-                                                                '{:.1f}', '{:.1f}', '{:.2f}', '{:.0f}', '{:.1f}',
-                                                                '{:.0f}'],
+                                                       formats=['{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}',
+                                                                '{:.2f}', '{:.1f}', '{:.1f}', '{:.2f}', '{:.1f}',
+                                                                '{:.0f}', '{:.0f}', '{:.0f}'],
                                                        column_widths=column_widths)
 
         return '\n\n'.join([date_str, injections_str, lines_str])
