@@ -267,7 +267,7 @@ class Observation(object):
         lines_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 7) // 2) + 'LINES' + ' ' * ((n_symbols - 7) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
-        lines_header += ' |       From      |       To        | is |    From injections    |     To injections     | ' \
+        lines_header += ' |      Origin     |    Extremity    | is |   Origin injections   |  Extremity injections | ' \
                         'Flows  | Thermal |      Timesteps before       |\n'
 
         lines_header += ' |' + ' |'.join(
