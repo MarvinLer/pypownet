@@ -20,41 +20,96 @@ class NoMoreScenarios(Exception):
 
 
 class Action(object):
-    def __init__(self, topological_subaction, lines_status_subaction):
-        if topological_subaction is None or lines_status_subaction is None:
-            raise ValueError('Expected first argument of %s to be an array, got None' % self.__class__)
-        self.topological_subaction = np.asarray(topological_subaction).astype(int)
+    def __init__(self, prods_switches_subaction, loads_switches_subaction,
+                 lines_or_switches_subaction, lines_ex_switches_subaction, lines_status_subaction):
+        if prods_switches_subaction is None:
+            raise ValueError('Expected prods_switches_subaction to be array, got None')
+        if loads_switches_subaction is None:
+            raise ValueError('Expected loads_switches_subaction to be array, got None')
+        if lines_or_switches_subaction is None:
+            raise ValueError('Expected lines_or_switches_subaction to be array, got None')
+        if lines_ex_switches_subaction is None:
+            raise ValueError('Expected lines_ex_switches_subaction to be array, got None')
+        if lines_status_subaction is None:
+            raise ValueError('Expected lines_status_subaction to be array, got None')
+
+        self.prods_switches_subaction = np.asarray(prods_switches_subaction).astype(int)
+        self.loads_switches_subaction = np.asarray(loads_switches_subaction).astype(int)
+        self.lines_or_switches_subaction = np.asarray(lines_or_switches_subaction).astype(int)
+        self.lines_ex_switches_subaction = np.asarray(lines_ex_switches_subaction).astype(int)
         self.lines_status_subaction = np.asarray(lines_status_subaction).astype(int)
 
-        self._topo_length = len(self.topological_subaction)
-        self._linestat_length = len(self.lines_status_subaction)
+        self._prods_switches_length = len(self.prods_switches_subaction)
+        self._loads_switches_length = len(self.loads_switches_subaction)
+        self._lines_or_switches_length = len(self.lines_or_switches_subaction)
+        self._lines_ex_switches_length = len(self.lines_ex_switches_subaction)
+        self._lines_status_length = len(self.lines_status_subaction)
 
-    def get_topological_subaction(self):
-        return self.topological_subaction
+    def get_prods_switches_subaction(self):
+        return self.prods_switches_subaction
+
+    def get_loads_switches_subaction(self):
+        return self.loads_switches_subaction
+
+    def get_lines_or_switches_subaction(self):
+        return self.lines_or_switches_subaction
+
+    def get_lines_ex_switches_subaction(self):
+        return self.lines_ex_switches_subaction
 
     def get_lines_status_subaction(self):
         return self.lines_status_subaction
 
     def as_array(self):
-        return np.concatenate((self.topological_subaction, self.lines_status_subaction))
+        return np.concatenate((self.get_prods_switches_subaction(), self.get_loads_switches_subaction(),
+                               self.get_lines_or_switches_subaction(), self.get_lines_ex_switches_subaction(),
+                               self.get_lines_status_subaction()))
 
     def __str__(self):
-        return 'topological subaction: %s; line status subaction: %s' % (
-            '[%s]' % ', '.join(list(map(str, self.topological_subaction))),
-            '[%s]' % ', '.join(list(map(str, self.lines_status_subaction))),)
+        return ', '.join(list(map(str, self.as_array())))
 
     def __len__(self, do_sum=True):
-        length_aslist = (len(self.topological_subaction), len(self.lines_status_subaction))
+        length_aslist = (self._prods_switches_length, self._loads_switches_length, self._lines_or_switches_length,
+                         self._lines_ex_switches_length, self._lines_status_length)
         return sum(length_aslist) if do_sum else length_aslist
 
     def __setitem__(self, item, value):
         item %= len(self)
-        if item < self._topo_length:
-            self.topological_subaction.__setitem__(item, value)
-            #self.topological_subaction[item] = value
+        if item < self._prods_switches_length:
+            self.prods_switches_subaction.__setitem__(item, value)
+        elif item < self._prods_switches_length + self._loads_switches_length:
+            self.loads_switches_subaction.__setitem__(item % self._prods_switches_length, value)
+        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length:
+            self.lines_or_switches_subaction.__setitem__(
+                item % (self._prods_switches_length + self._loads_switches_length), value)
+        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length + \
+                self._lines_ex_switches_length:
+            self.lines_ex_switches_subaction.__setitem__(item % (self._prods_switches_length +
+                                                                 self._loads_switches_length +
+                                                                 self._lines_or_switches_length),
+                                                         value)
         else:
-            self.lines_status_subaction.__setitem__(item % self._topo_length, value)
-            #self.lines_status_subaction[item % self._topo_length] = value
+            self.lines_status_subaction.__setitem__(
+                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length +
+                        self._lines_ex_switches_length), value)
+
+    def __getitem__(self, item):
+        item %= len(self)
+        if item < self._prods_switches_length:
+            self.prods_switches_subaction.__getitem__(item)
+        elif item < self._prods_switches_length + self._loads_switches_length:
+            self.loads_switches_subaction.__getitem__(item % self._prods_switches_length)
+        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length:
+            self.lines_or_switches_subaction.__getitem__(
+                item % (self._prods_switches_length + self._loads_switches_length))
+        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length + \
+                self._lines_ex_switches_length:
+            self.lines_ex_switches_subaction.__getitem__(
+                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length))
+        else:
+            self.lines_status_subaction.__getitem__(
+                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length +
+                        self._lines_ex_switches_length))
 
 
 class Game(object):
@@ -98,6 +153,8 @@ class Game(object):
         self.initial_voltage_magnitudes = copy.deepcopy(self.grid.mpc['bus'][:, 7])
         self.initial_voltage_angles = copy.deepcopy(self.grid.mpc['bus'][:, 8])
 
+        self.substations_ids = self.grid.mpc['bus'][:self.grid.n_nodes // 2, 0]
+
         # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
 
@@ -116,6 +173,26 @@ class Game(object):
 
     def get_number_elements(self):
         return self.grid.get_number_elements()
+
+    def get_substations_ids_prods(self):
+        return np.asarray(list(map(lambda x: int(float(x)),
+                                   list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''),
+                                            self.grid.mpc['gen'][:, 0]))))).astype(int)
+
+    def get_substations_ids_loads(self):
+        return np.asarray(list(map(lambda x: int(float(x)),
+                                   list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''),
+                                            self.grid.mpc['bus'][self.grid.are_loads, 0]))))).astype(int)
+
+    def get_substations_ids_lines_or(self):
+        return np.asarray(list(map(lambda x: int(float(x)),
+                                   list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''),
+                                            self.grid.mpc['branch'][:, 0]))))).astype(int)
+
+    def get_substations_ids_lines_ex(self):
+        return np.asarray(list(map(lambda x: int(float(x)),
+                                   list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''),
+                                            self.grid.mpc['branch'][:, 1]))))).astype(int)
 
     def get_current_timestep_id(self):
         """ Retrieves the current index of scenario; this index might differs from a natural counter (some id may be
@@ -137,6 +214,9 @@ class Game(object):
         """
         return self.initial_topology.get_zipped()
 
+    def get_substations_ids(self):
+        return self.substations_ids
+
     def load_entries_from_timestep_id(self, timestep_id, is_simulation=False, silence=False):
         # Retrieve the Scenario object associated to the desired id
         timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
@@ -150,7 +230,7 @@ class Game(object):
                                                prods_p=self.current_timestep_entries.get_planned_prods_p(),
                                                prods_v=self.current_timestep_entries.get_planned_prods_v(),
                                                loads_p=self.current_timestep_entries.get_planned_loads_p(),
-                                               loads_q=self.current_timestep_entries.get_planned_loads_q(),)
+                                               loads_q=self.current_timestep_entries.get_planned_loads_q(), )
 
         # Integration of timestep maintenance: disco lines for which current maintenance not 0 (equal to time to wait)
         timestep_maintenance = timestep_entries.get_maintenance()
@@ -240,7 +320,7 @@ class Game(object):
             try:
                 self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
-                e.text += ': cascading simulation of depth %d has diverged' % depth
+                e.text += ': cascading emulation of depth %d has diverged' % depth
                 if self.renderer is not None:
                     self._render(None, game_over=True, cascading_frame_id=depth,
                                  date=self.previous_date, timestep_id=self.previous_timestep)
@@ -312,15 +392,19 @@ class Game(object):
         lines_service = self.grid.get_lines_status()
 
         action_lines_service = action.get_lines_status_subaction()
-        action_topology = action.get_topological_subaction()
+        # action_topology = action.get_topological_subaction()
         # Split the action into 5 parts: prods nodes, loads nodes, lines or/ex nodes and lines status
-        unzipped_action = pypownet.grid.Topology.unzip(action_topology,
-                                                       len(prods_nodes), len(loads_nodes), len(lines_service),
-                                                       grid_topology_invert_mapping_function)
-        action_prods_nodes = unzipped_action[0]
-        action_loads_nodes = unzipped_action[1]
-        action_lines_or_nodes = unzipped_action[2]
-        action_lines_ex_nodes = unzipped_action[3]
+        # unzipped_action = pypownet.grid.Topology.unzip(action_topology,
+        #                                                len(prods_nodes), len(loads_nodes), len(lines_service),
+        #                                                grid_topology_invert_mapping_function)
+        # action_prods_nodes = unzipped_action[0]
+        # action_loads_nodes = unzipped_action[1]
+        # action_lines_or_nodes = unzipped_action[2]
+        # action_lines_ex_nodes = unzipped_action[3]
+        action_prods_nodes = action.get_prods_switches_subaction()
+        action_loads_nodes = action.get_loads_switches_subaction()
+        action_lines_or_nodes = action.get_lines_or_switches_subaction()
+        action_lines_ex_nodes = action.get_lines_ex_switches_subaction()
 
         # Verify that the player is not intended to reconnect not reconnectable lines (broken or being maintained);
         # here, we check for lines switches, because if a line is broken, then its status is already to 0, such that a
@@ -551,11 +635,12 @@ class Game(object):
         # in the associated substation)
         has_been_changed = np.zeros((len(substations_ids),))
         if self.last_action is not None and cascading_frame_id is not None:
+            last_action = self.grid.get_topology().mapping_permutation(
+                self.last_action.as_array()[:-self.last_action.__len__(False)[-1]])
             n_elements_substations = self.grid.number_elements_per_substations
             offset = 0
             for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
-                has_been_changed[i] = np.any(
-                    [l != 0 for l in self.last_action.get_topological_subaction()[offset:offset + n_elements]])
+                has_been_changed[i] = np.any([l != 0 for l in last_action[offset:offset + n_elements]])
                 offset += n_elements
 
         self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,

@@ -41,7 +41,9 @@ class Grid(object):
     def __init__(self, src_filename, dc_loadflow, new_imaps, verbose=False):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        if not os.path.exists('tmp'):
+            os.makedirs('tmp')
         self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
         # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
@@ -425,11 +427,13 @@ class Grid(object):
             map(lambda x: int(float(x)),
                 list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
 
+        substations_ids = to_array(bus[:, 0][:len(bus) // 2]).astype(int)
+
         # Generators data
         active_prods = to_array(gen[:, 1])  # Pg
         reactive_prods = to_array(gen[:, 2])  # Qg
         voltage_prods = to_array(gen[:, 5])  # Vg
-        substations_ids_prods = to_array(nodes_to_substations(gen[:, 0]))
+        substations_ids_prods = to_array(nodes_to_substations(gen[:, 0])).astype(int)
 
         # Branch data origin
         active_flows_origin = to_array(branch[:, 13])  # Pf
@@ -460,8 +464,8 @@ class Grid(object):
         prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = self.get_topology().get_unzipped()
         lines_status = to_array(branch[:, 10]).astype(int)
 
-        return pypownet.environment.Observation(active_loads, reactive_loads, voltage_loads, active_prods,
-                                                reactive_prods, voltage_prods, active_flows_origin,
+        return pypownet.environment.Observation(substations_ids, active_loads, reactive_loads, voltage_loads,
+                                                active_prods, reactive_prods, voltage_prods, active_flows_origin,
                                                 reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                 reactive_flows_extremity, voltage_extremity, ampere_flows,
                                                 thermal_limits, lines_status, are_isolated_loads, are_isolated_prods,

@@ -43,6 +43,7 @@ class RandomLineSwitch(Agent):
     An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
     random line is previously online, switch it off, otherwise switch it on).
     """
+
     def __init__(self, environment, destination_path='saved_actions_RandomLineSwitch.csv'):
         super().__init__(environment)
 
@@ -53,7 +54,9 @@ class RandomLineSwitch(Agent):
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
 
+        # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action()
+
         action.get_lines_status_subaction()[np.random.randint(action_space.lines_status_subaction_length)] = 1
 
         # Dump best action into stored actions file
@@ -65,6 +68,11 @@ class RandomLineSwitch(Agent):
 
 
 class RandomNodeSplitting(Agent):
+    """ Implements a "random node-splitting" agent: at each timestep, this controler will select a random substation
+    (id), then select a random switch configuration such that switched elements of the selected substations change the
+    node within the substation on which they are directly wired.
+    """
+
     def __init__(self, environment, destination_path='saved_actions_RandomNodeSplitting.csv'):
         super().__init__(environment)
 
@@ -75,21 +83,32 @@ class RandomNodeSplitting(Agent):
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
 
+        # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action()
-        action.get_topological_subaction()[np.random.randint(action_space.topological_subaction_length)] = 1
+
+        # Select a random substation ID on which to perform node-splitting
+        target_substation_id = np.random.choice(action_space.substations_ids)
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(target_substation_id)
+        target_configuration = np.random.choice([0, 1], size=(expected_target_configuration_size,))
+
+        action_space.set_switches_configuration_of_substation(action=action,
+                                                              substation_id=target_substation_id,
+                                                              new_configuration=target_configuration)
+
+        # Ensure changes have been done on action
+        current_configuration, _ = action_space.get_topological_switches_of_substation(action, target_substation_id)
+        assert np.all(current_configuration == target_configuration)
 
         # Dump best action into stored actions file
         self.ioman.dump(action)
 
         return action
 
-        # No learning (i.e. self.feed_reward does pass)
-
 
 class TreeSearchLineServiceStatus(Agent):
+    """ Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
     """
-    Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
-    """
+
     def __init__(self, environment, destination_path='saved_actions_TreeSearchLineServiceStatus.csv', verbose=True):
         super().__init__(environment)
         self.verbose = verbose
@@ -99,17 +118,18 @@ class TreeSearchLineServiceStatus(Agent):
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
+        action_space = self.environment.action_space
 
-        n_lines = self.environment.action_space.lines_status_subaction_length
+        number_of_lines = self.environment.action_space.lines_status_subaction_length
         # Simulate the line status switch of every line, independently, and save rewards for each simulation (also store
         # the actions for best-picking strat)
         simulated_rewards = []
         simulated_actions = []
-        for l in range(n_lines):
+        for l in range(number_of_lines):
             if self.verbose:
                 print('    Simulating switch activation line %d' % l, end='')
-            action = self.environment.action_space.get_do_nothing_action()
-            action.lines_status_subaction[l] = 1
+            action = action_space.get_do_nothing_action()
+            action.get_lines_status_subaction()[l] = 1
             simulated_reward = self.environment.simulate(action=action)
 
             # Store ROI values
@@ -141,8 +161,17 @@ class TreeSearchLineServiceStatus(Agent):
 
 
 class GreedySearch(Agent):
-    """ Agent that tries every possible action and retrieves the one that gives the best reward.
+    """ This agent is a tree-search model of depth 1, that is constrained to modifiying at most 1 substation
+    configuration or at most 1 line status. This controler used the simulate method of the environment, by testing
+    every 1-line status switch action, every new configuration for substations with at least 4 elements, as well as
+    the do-nothing action. Then, it will seek for the best reward and return the associated action, expecting
+    the maximum reward for the action pool it can reach.
+    Note that the simulate method is only an approximation of the step method of the environment, and in three ways:
+    * simulate uses the DC mode, while step is in AC
+    * simulate uses only the predictions given to the player to simulate the next timestep injections
+    * simulate can not compute the hazards that are supposed to come at the next timestep
     """
+
     def __init__(self, environment, verbose=True, destination_path='saved_actions.csv'):
         super().__init__(environment)
         self.verbose = verbose
@@ -155,8 +184,8 @@ class GreedySearch(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
-        number_lines = action_space.lines_status_subaction_length
 
+        number_lines = action_space.lines_status_subaction_length
         # Will store reward, actions, and action name, then eventually pick the maximum reward and retrieve the
         # associated values
         rewards, actions, names = [], [], []
@@ -178,7 +207,7 @@ class GreedySearch(Agent):
             if self.verbose:
                 print(' Simulation with switching status of line %d' % l, end='')
             action = action_space.get_do_nothing_action()
-            action.lines_status_subaction[l] = 1
+            action.get_lines_status_subaction()[l] = 1
             reward_aslist = self.environment.simulate(action, do_sum=False)
             reward = sum(reward_aslist)
             if self.verbose:
@@ -187,32 +216,29 @@ class GreedySearch(Agent):
             actions.append(action)
             names.append('switching status of line %d' % l)
 
-        # Then test every node configuration for the considered nodes
-        # We are only interested in nodes that are connected to at least from 4 to 6 elements
-        # Those elements can be transmission lines or injections
-        #n_elements_nodes = [5, 8, 4, 7, 3, 8, 4, 1, 5, 3, 1, 3, 3, 1]
-        n_elements_nodes = [3, 6, 4, 6, 5, 6, 3, 2, 5, 3, 3, 3, 4, 3]
-        #element_per_node = {1: 5, 2: 8, 3: 4, 4: 7, 5: 3, 6: 8, 7: 4, 8: 1, 9: 5, 10: 3, 11: 1, 12: 3, 13: 3, 14: 1}
-        action_offset = 0
-        for node, n_elements in enumerate(n_elements_nodes):
-            if n_elements in [4, 5]:
-                # Loopking trhough all configurations of n_elements binary vector with first value fixed to 0
-                for configuration in list(itertools.product([0, 1], repeat=n_elements - 1)):
-                    conf = [0]+list(configuration)
+        # For every substation with at least 4 elements, try every possible configuration for the switches
+        for substation_id in action_space.substations_ids:
+            substation_n_elements = action_space.get_number_elements_of_substation(substation_id)
+            if 6 > substation_n_elements > 3:
+                # Look through all configurations of n_elements binary vector with first value fixed to 0
+                for configuration in list(itertools.product([0, 1], repeat=substation_n_elements - 1)):
+                    new_configuration = [0] + list(configuration)
                     if self.verbose:
-                        print(' Simulation with change in topo of node %d with switches %s' % (node, repr(conf)), end='')
+                        print(' Simulation with change in topo of sub. %d with switches %s' % (
+                            substation_id, repr(new_configuration)), end='')
                     # Construct action
                     action = action_space.get_do_nothing_action()
-                    action.get_topological_subaction()[action_offset:action_offset + n_elements] = conf
+                    action_space.set_switches_configuration_of_substation(action=action,
+                                                                          substation_id=substation_id,
+                                                                          new_configuration=new_configuration)
                     reward_aslist = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
                         print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
                     rewards.append(reward)
                     actions.append(action)
-                    names.append('change in topo of node %d with switches %s' % (node, repr(conf)))
-            # Add offset for next action position
-            action_offset += n_elements
+                    names.append('change in topo of sub. %d with switches %s' % (substation_id,
+                                                                                 repr(new_configuration)))
 
         # Take the best reward, and retrieve the corresponding action
         best_reward = max(rewards)
@@ -247,6 +273,7 @@ class ActionsFileReaderControler(Agent):
         self.action_ctr += 1
         return action
 
+
 import os
 
 
@@ -262,7 +289,7 @@ class ActIOnManager(object):
 
     def dump(self, action):
         with open(self.destination_path, 'a') as f:
-            f.write(','.join([str(int(switch)) for switch in action.as_array()])+'\n')
+            f.write(','.join([str(int(switch)) for switch in action.as_array()]) + '\n')
 
     @staticmethod
     def load(filepath):

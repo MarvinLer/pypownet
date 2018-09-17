@@ -3,6 +3,7 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
+from enum import Enum
 
 import pypownet.game
 import pypownet.grid
@@ -15,17 +16,38 @@ class IllegalActionException(Exception):
         self.illegal_lines_reconnections = illegal_lines_reconnections
 
 
-class ActionSpace(object):
-    def __init__(self, number_generators, number_consumers, number_power_lines):
-        self._n_prods = number_generators
-        self._n_loads = number_consumers
-        self._n_lines = number_power_lines
+class ElementType(Enum):
+    PRODUCTION = "production"
+    CONSUMPTION = "consumption"
+    ORIGIN_POWER_LINE = "origin of power line"
+    EXTREMITY_POWER_LINE = "extremity of power line"
+    POWER_LINE = "power line"
 
-        self.topological_subaction_length = self._n_prods + self._n_loads + 2 * self._n_lines
-        self.lines_status_subaction_length = self._n_lines
+
+class ActionSpace(object):
+    def __init__(self, number_generators, number_consumers, number_power_lines, substations_ids, prods_subs_ids,
+                 loads_subs_ids, lines_or_subs_id, lines_ex_subs_id):
+        self.prods_switches_subaction_length = number_generators
+        self.loads_switches_subaction_length = number_consumers
+        self.lines_or_switches_subaction_length = number_power_lines
+        self.lines_ex_switches_subaction_length = number_power_lines
+        self.lines_status_subaction_length = number_power_lines
 
         # In an environment, the actions have fixed shape: self.action_length is expected action list size
-        self.action_length = self.topological_subaction_length + self.lines_status_subaction_length
+        self.action_length = self.prods_switches_subaction_length + self.loads_switches_subaction_length + \
+                             self.lines_or_switches_subaction_length + self.lines_ex_switches_subaction_length + \
+                             self.lines_status_subaction_length
+
+        self.substations_ids = substations_ids
+        self.prods_subs_ids = prods_subs_ids
+        self.loads_subs_ids = loads_subs_ids
+        self.lines_or_subs_id = lines_or_subs_id
+        self.lines_ex_subs_id = lines_ex_subs_id
+
+        # Computes en saves the number of topological switches per substations (sum of prod + load + lines or. and ext.)
+        self._substations_n_elements = [len(self.get_topological_switches_of_substation(self.get_do_nothing_action(),
+                                                                                        sub_id)[1]) for sub_id in
+                                        self.substations_ids]
 
     def get_do_nothing_action(self):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
@@ -33,7 +55,10 @@ class ActionSpace(object):
 
         :return: an instance of Action that is equivalent to an action doing nothing
         """
-        return pypownet.game.Action(topological_subaction=np.zeros(self.topological_subaction_length),
+        return pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
+                                    loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
+                                    lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
+                                    lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
                                     lines_status_subaction=np.zeros(self.lines_status_subaction_length))
 
     def array_to_action(self, array):
@@ -46,10 +71,21 @@ class ActionSpace(object):
         if len(array) != self.action_length:
             raise ValueError('Expected binary array of length %d, got %d' % (self.action_length, len(array)))
 
-        topological_subaction = array[:self.topological_subaction_length]
-        lines_status_subaction = array[self.topological_subaction_length:]
+        offset = 0
+        prods_switches_subaction = array[:self.prods_switches_subaction_length]
+        offset += self.prods_switches_subaction_length
+        loads_switches_subaction = array[offset:offset + self.loads_switches_subaction_length]
+        offset += self.loads_switches_subaction_length
+        lines_or_switches_subaction = array[offset:offset + self.lines_or_switches_subaction_length]
+        offset += self.lines_or_switches_subaction_length
+        lines_ex_switches_subaction = array[offset:offset + self.lines_ex_switches_subaction_length]
+        lines_status_subaction = array[-self.lines_status_subaction_length:]
 
-        return pypownet.game.Action(topological_subaction, lines_status_subaction)
+        return pypownet.game.Action(prods_switches_subaction=prods_switches_subaction,
+                                    loads_switches_subaction=loads_switches_subaction,
+                                    lines_or_switches_subaction=lines_or_switches_subaction,
+                                    lines_ex_switches_subaction=lines_ex_switches_subaction,
+                                    lines_status_subaction=lines_status_subaction)
 
     def verify_action_shape(self, action):
         # Action of None is equivalent to no action
@@ -65,17 +101,118 @@ class ActionSpace(object):
         else:
             formatted_action = action
 
-        topological_subaction_length, lines_status_subaction_length = formatted_action.__len__(do_sum=False)
+        prods_switches_subaction_length, loads_switches_subaction_length, lines_or_switches_subaction_length, \
+        lines_ex_subaction_length, lines_status_subaction_length = formatted_action.__len__(do_sum=False)
 
-        if topological_subaction_length and topological_subaction_length != self.topological_subaction_length:
-            raise ValueError('Expected topological subaction of size %d, got %d' % (
-                self.topological_subaction_length, topological_subaction_length))
-
-        if lines_status_subaction_length and lines_status_subaction_length != self.lines_status_subaction_length:
-            raise ValueError('Expected lines status subaction of size %d, got %d' % (
-                self.lines_status_subaction_length, lines_status_subaction_length))
+        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+                self.prods_switches_subaction_length, prods_switches_subaction_length))
+        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+                self.prods_switches_subaction_length, prods_switches_subaction_length))
+        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+                self.prods_switches_subaction_length, prods_switches_subaction_length))
+        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+                self.prods_switches_subaction_length, prods_switches_subaction_length))
 
         return formatted_action
+
+    def get_number_elements_of_substation(self, substation_id):
+        return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
+
+    def get_topological_switches_of_substation(self, action, substation_id, do_concatenate=True):
+        """ From the current action, retrieves the list of value of the switch (0 or 1) of the switches on which each
+        element of the substation with input id. This function also computes the type of element associated to each
+        switch value of the returned switches-value list.
+
+        :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
+        input action
+        :return: a switch-values list (binary list) in the order: production (<=1), loads (<=1), lines origins, lines
+        extremities; also returns a ElementType list of same size, where each value indicates the type of element
+        associated to each first-returned list values.
+        """
+        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
+        # Save the type of each elements in the returned switches list
+        elements_type = []
+
+        # Retrieve switches associated with resp. production (max 1 per substation), consumptions (max 1 per substation),
+        # origins of lines, extremities of lines; also saves each type inserted within the switches-values list
+        prod_switches = action.prods_switches_subaction[
+            np.where(self.prods_subs_ids == substation_id)] if substation_id in self.prods_subs_ids else []
+        elements_type.extend([ElementType.PRODUCTION] * len(prod_switches))
+        load_switches = action.loads_switches_subaction[
+            np.where(self.loads_subs_ids == substation_id)] if substation_id in self.loads_subs_ids else []
+        elements_type.extend([ElementType.CONSUMPTION] * len(load_switches))
+        lines_origins_switches = action.lines_or_switches_subaction[
+            np.where(self.lines_or_subs_id == substation_id)] if substation_id in self.lines_or_subs_id else []
+        elements_type.extend([ElementType.ORIGIN_POWER_LINE] * len(lines_origins_switches))
+        lines_extremities_switches = action.lines_ex_switches_subaction[
+            np.where(self.lines_ex_subs_id == substation_id)] if substation_id in self.lines_ex_subs_id else []
+        elements_type.extend([ElementType.EXTREMITY_POWER_LINE] * len(lines_extremities_switches))
+
+        assert len(elements_type) == len(prod_switches) + len(load_switches) + len(lines_origins_switches) + len(
+            lines_extremities_switches), "Mistmatch lengths for elements type and switches-value list; should not happen"
+
+        return np.concatenate((prod_switches, load_switches, lines_origins_switches,
+                               lines_extremities_switches)) if do_concatenate else \
+                   (prod_switches, load_switches, lines_origins_switches, lines_extremities_switches), \
+               np.asarray(elements_type)
+
+    def set_switches_configuration_of_substation(self, action, substation_id, new_configuration):
+        new_configuration = np.asarray(new_configuration)
+
+        _, elements_type = self.get_topological_switches_of_substation(action, substation_id, do_concatenate=False)
+        expected_configuration_size = len(elements_type)
+        assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
+                                                                      ' substation %d, got %d' % (
+                                                                          expected_configuration_size, substation_id,
+                                                                          len(new_configuration))
+
+        action.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_configuration[
+            elements_type == ElementType.PRODUCTION]
+        action.loads_switches_subaction[self.loads_subs_ids == substation_id] = new_configuration[
+            elements_type == ElementType.CONSUMPTION]
+        action.lines_or_switches_subaction[self.lines_or_subs_id == substation_id] = new_configuration[
+            elements_type == ElementType.ORIGIN_POWER_LINE]
+        action.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_configuration[
+            elements_type == ElementType.EXTREMITY_POWER_LINE]
+
+        assert np.all(self.get_topological_switches_of_substation(action, substation_id)[0] == new_configuration), \
+            "Should not happen"
+
+    def get_lines_status_switches_of_substation(self, action, substation_id):
+        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
+        if substation_id in self.lines_or_subs_id or substation_id in self.lines_ex_subs_id:
+            lines_status_switches = action.lines_status_subaction[
+                np.where(np.logical_or((self.lines_or_subs_id == substation_id,
+                                        self.lines_ex_subs_id == substation_id)))]
+        else:
+            lines_status_switches = []
+
+        assert len(lines_status_switches) == len(self.lines_ex_subs_id == substation_id) + len(
+            self.lines_or_subs_id == substation_id)
+
+        return lines_status_switches
+
+    def set_lines_status_switches_of_substation(self, action, substation_id, new_configuration):
+        new_configuration = np.asarray(new_configuration)
+
+        lines_status_switches = self.get_topological_switches_of_substation(action, substation_id)
+        expected_configuration_size = len(lines_status_switches)
+        assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
+                                                                      ' substation %d, got %d' % (
+                                                                          expected_configuration_size, substation_id,
+                                                                          len(new_configuration))
+
+        action.lines_status_subaction[np.where(np.logical_or(
+            (self.lines_or_subs_id == substation_id, self.lines_ex_subs_id == substation_id)))] = new_configuration
+
+        assert np.all(self.get_lines_status_switches_of_substation(action, substation_id) == new_configuration), \
+            "Should not happen"
 
 
 class ObservationSpace(object):
@@ -97,7 +234,8 @@ class Observation(object):
     * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
     """
 
-    def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
+    def __init__(self, substations_ids, active_loads, reactive_loads, voltage_loads, active_productions,
+                 reactive_productions,
                  voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                  active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
                  thermal_limits, lines_status, are_isolated_loads, are_isolated_prods, loads_substations_ids,
@@ -105,6 +243,8 @@ class Observation(object):
                  timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
                  planned_reactive_loads, planned_active_productions, planned_voltage_productions, date,
                  prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
+        self.substations_ids = substations_ids
+
         # Loads related state values
         self.active_loads = active_loads
         self.reactive_loads = reactive_loads
@@ -172,6 +312,43 @@ class Observation(object):
 
             self.ampere_flows, self.thermal_limits, self.lines_status, self.timesteps_before_lines_reconnectable,
             self.timesteps_before_planned_maintenance))
+
+    def get_nodes_of_substation(self, substation_id):
+        """ From the current observation, retrieves the list of value of the nodes on which each element of the
+        substation with input id. This function also computes the type of element associated to each node value of the
+        returned nodes-value list.
+
+        :param substation_id: an integer of the id of the substation to retrieve the nodes on which its elements are
+        wired
+        :return: a nodes-values list in the order: production (<=1), loads (<=1), lines origins, lines extremities;
+        also returns a ElementType list of same size, where each value indicates the type of element associated to
+        each first-returned list values.
+        """
+        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
+        # Save the type of each elements in the returned nodes list
+        elements_type = []
+
+        # Retrieve nodes associated with resp. production (max 1 per substation), consumptions (max 1 per substation),
+        # origins of lines, extremities of lines; also saves each type inserted within the nodes-values list
+        prod_nodes = self.productions_nodes[np.where(
+            self.productions_substations_ids == substation_id)] if substation_id in \
+                                                                   self.productions_substations_ids else []
+        elements_type.extend([ElementType.PRODUCTION] * len(prod_nodes))
+        load_nodes = self.loads_nodes[np.where(
+            self.loads_substations_ids == substation_id)] if substation_id in self.loads_substations_ids else []
+        elements_type.extend([ElementType.CONSUMPTION] * len(load_nodes))
+        lines_origin_nodes = self.lines_or_nodes[np.where(
+            self.lines_or_substations_ids == substation_id)] if substation_id in self.lines_or_substations_ids else []
+        elements_type.extend([ElementType.ORIGIN_POWER_LINE] * len(lines_origin_nodes))
+        lines_extremities_nodes = self.lines_ex_nodes[np.where(
+            self.lines_ex_substations_ids == substation_id)] if substation_id in self.lines_ex_substations_ids else []
+        elements_type.extend([ElementType.EXTREMITY_POWER_LINE] * len(lines_extremities_nodes))
+
+        assert len(elements_type) == len(prod_nodes) + len(load_nodes) + len(lines_origin_nodes) + len(
+            lines_extremities_nodes), "Mistmatch lengths for elements type and nodes-value list; should not happen"
+
+        return np.concatenate((prod_nodes, load_nodes, lines_origin_nodes, lines_extremities_nodes)), elements_type
 
     def __str__(self):
         date_str = 'date:' + self.datetime.strftime("%Y-%m-%d %H:%M")
@@ -286,7 +463,12 @@ class RunEnv(object):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
         self.game = pypownet.game.Game(parameters_folder=parameters_folder, start_id=start_id, latency=latency)
-        self.action_space = ActionSpace(*self.game.get_number_elements())
+        self.action_space = ActionSpace(*self.game.get_number_elements(),
+                                        substations_ids=self.game.get_substations_ids(),
+                                        prods_subs_ids=self.game.get_substations_ids_prods(),
+                                        loads_subs_ids=self.game.get_substations_ids_loads(),
+                                        lines_or_subs_id=self.game.get_substations_ids_lines_or(),
+                                        lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
         # Reward hyperparameters
@@ -336,13 +518,18 @@ class RunEnv(object):
         :param action: an instance of Action or a binary numpy array of length self.action_space.n
         :return: a >=0 float of the cost of the action
         """
-        if action is None:
-            return 0.
-
         # Computes the number of activated switches of the action
-        number_node_switches = np.sum(action.get_lines_status_subaction())
-        number_line_switches = np.sum(action.get_topological_subaction())
-        action_cost = self.cost_node_switch * number_node_switches + self.cost_line_switch * number_line_switches
+        number_line_switches = np.sum(action.get_lines_status_subaction())
+        number_prod_nodes_switches = np.sum(action.get_prods_switches_subaction())
+        number_load_nodes_switches = np.sum(action.get_loads_switches_subaction())
+        number_line_or_nodes_switches = np.sum(action.get_lines_or_switches_subaction())
+        number_line_ex_nodes_switches = np.sum(action.get_lines_ex_switches_subaction())
+
+        action_cost = self.cost_node_switch * number_prod_nodes_switches + \
+                      self.cost_node_switch * number_load_nodes_switches + \
+                      self.cost_node_switch * number_line_or_nodes_switches + \
+                      self.cost_node_switch * number_line_ex_nodes_switches + \
+                      self.cost_line_switch * number_line_switches
         return action_cost
 
     def _get_lines_capacity_usage(self, observation):
