@@ -19,6 +19,18 @@ class NoMoreScenarios(Exception):
     pass
 
 
+class TooManyProductionsCut(Exception):
+    def __init__(self, *args):
+        super(TooManyProductionsCut, self).__init__(*args)
+        self.text = args[0]
+
+
+class TooManyConsumptionsCut(Exception):
+    def __init__(self, *args):
+        super(TooManyConsumptionsCut, self).__init__(*args)
+        self.text = args[0]
+
+
 class Action(object):
     def __init__(self, prods_switches_subaction, loads_switches_subaction,
                  lines_or_switches_subaction, lines_ex_switches_subaction, lines_status_subaction):
@@ -128,7 +140,8 @@ class Game(object):
             self.__parameters.get_n_timesteps_consecutive_soft_overflow_breaks()
         self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
         self.n_timesteps_horizon_maintenance = self.__parameters.get_n_timesteps_horizon_maintenance()
-        self.grid_case = self.__parameters.get_grid_case()
+        self.max_number_prods_game_over = self.__parameters.get_max_number_prods_game_over()
+        self.max_number_loads_game_over = self.__parameters.get_max_number_loads_game_over()
 
         # Seek and load chronic
         self.__chronic = Chronic(self.__parameters.get_chronics_path())
@@ -512,6 +525,23 @@ class Game(object):
         except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
             return None, e, True
 
+        are_isolated_loads, are_isolated_prods, _ = pypownet.grid.Grid._count_isolated_loads(self.grid.mpc,
+                                                                                             self.grid.are_loads)
+
+        # Check whether max number of productions and load cut are not reached
+        if np.sum(are_isolated_loads) > self.max_number_loads_game_over:
+            observation = None
+            flag = TooManyConsumptionsCut('There are %d isolated loads; at most %d tolerated' % (
+                np.sum(are_isolated_loads), self.max_number_loads_game_over))
+            done = True
+            return observation, flag, done
+        if np.sum(are_isolated_prods) > self.max_number_prods_game_over:
+            observation = None
+            flag = TooManyProductionsCut('There are %d isolated productions; at most %d tolerated' % (
+                np.sum(are_isolated_prods), self.max_number_prods_game_over))
+            done = True
+            return observation, flag, done
+
         return self.export_observation(), None, False
 
     def simulate(self, action):
@@ -608,7 +638,7 @@ class Game(object):
 
             from pypownet.renderer import Renderer
 
-            return Renderer(self.grid_case, idx_or, idx_ex, are_prods, are_loads)
+            return Renderer(len(self.grid.number_elements_per_substations), idx_or, idx_ex, are_prods, are_loads)
 
         try:
             import pygame

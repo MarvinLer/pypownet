@@ -107,12 +107,13 @@ class ActionSpace(object):
         if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
             raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
                 self.prods_switches_subaction_length, prods_switches_subaction_length))
-        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+        if loads_switches_subaction_length and loads_switches_subaction_length != self.loads_switches_subaction_length:
             raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
-                self.prods_switches_subaction_length, prods_switches_subaction_length))
-        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
+                self.loads_switches_subaction_length, loads_switches_subaction_length))
+        if lines_or_switches_subaction_length and lines_or_switches_subaction_length != \
+                self.lines_or_switches_subaction_length:
             raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
-                self.prods_switches_subaction_length, prods_switches_subaction_length))
+                self.lines_or_switches_subaction_length, lines_or_switches_subaction_length))
         if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
             raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
                 self.prods_switches_subaction_length, prods_switches_subaction_length))
@@ -482,6 +483,9 @@ class RunEnv(object):
 
         self.illegal_action_exception_reward = -self.observation_space.grid_number_of_elements / 100.  # Reward in case of bad action shape/form
 
+        self.too_many_productions_cut = -self.observation_space.grid_number_of_elements
+        self.too_many_consumptions_cut = -self.observation_space.grid_number_of_elements
+
         # Action cost reward hyperparameters
         self.cost_line_switch = .1  # 1 line switch off or switch on
         self.cost_node_switch = 0.  # Changing the node on which an element is directly wired
@@ -550,6 +554,10 @@ class RunEnv(object):
                 # the reward consequent to the newly submitted action
                 reward_aslist = self.get_reward(observation, action, flag=None)
                 reward_aslist[2] += self.illegal_action_exception_reward
+            elif isinstance(flag, pypownet.game.TooManyProductionsCut):
+                reward_aslist = [0., self.too_many_productions_cut, 0., 0., 0.]
+            elif isinstance(flag, pypownet.game.TooManyConsumptionsCut):
+                reward_aslist = [self.too_many_consumptions_cut, 0., 0., 0., 0.]
             else:  # Should not happen
                 raise flag
         else:

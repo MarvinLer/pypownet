@@ -60,5 +60,8 @@ class Parameters(object):
     def get_n_timesteps_horizon_maintenance(self):
         return self.simulator_configuration['n_timesteps_horizon_maintenance']
 
-    def get_grid_case(self):
-        return self.simulator_configuration['grid_case']
+    def get_max_number_prods_game_over(self):
+        return self.simulator_configuration['max_number_prods_game_over']
+
+    def get_max_number_loads_game_over(self):
+        return self.simulator_configuration['max_number_loads_game_over']
