@@ -108,15 +108,15 @@ class ActionSpace(object):
             raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
                 self.prods_switches_subaction_length, prods_switches_subaction_length))
         if loads_switches_subaction_length and loads_switches_subaction_length != self.loads_switches_subaction_length:
-            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+            raise ValueError('Expected loads_switches_subaction subaction of size %d, got %d' % (
                 self.loads_switches_subaction_length, loads_switches_subaction_length))
         if lines_or_switches_subaction_length and lines_or_switches_subaction_length != \
                 self.lines_or_switches_subaction_length:
-            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
+            raise ValueError('Expected lines_or_switches_subaction subaction of size %d, got %d' % (
                 self.lines_or_switches_subaction_length, lines_or_switches_subaction_length))
-        if prods_switches_subaction_length and prods_switches_subaction_length != self.prods_switches_subaction_length:
-            raise ValueError('Expected prods_switches_subaction subaction of size %d, got %d' % (
-                self.prods_switches_subaction_length, prods_switches_subaction_length))
+        if lines_ex_subaction_length and lines_ex_subaction_length != self.lines_ex_switches_subaction_length:
+            raise ValueError('Expected lines_ex_subaction subaction of size %d, got %d' % (
+                self.lines_ex_switches_subaction_length, lines_ex_subaction_length))
 
         return formatted_action
 
