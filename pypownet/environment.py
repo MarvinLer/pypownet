@@ -7,6 +7,7 @@ from enum import Enum
 
 import pypownet.game
 import pypownet.grid
+import pypownet.reward_signal
 
 
 class IllegalActionException(Exception):
@@ -21,7 +22,6 @@ class ElementType(Enum):
     CONSUMPTION = "consumption"
     ORIGIN_POWER_LINE = "origin of power line"
     EXTREMITY_POWER_LINE = "extremity of power line"
-    POWER_LINE = "power line"
 
 
 class ActionSpace(object):
@@ -472,121 +472,13 @@ class RunEnv(object):
                                         lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
-        # Reward hyperparameters
-        self.multiplicative_factor_line_usage_reward = -1.  # Mult factor for line capacity usage subreward
-        self.additive_factor_distance_initial_grid = -.02  # Additive factor for each differed node in the grid
-        self.additive_factor_load_cut = -self.observation_space.grid_number_of_elements / 10.  # Additive factor for each isolated load
-        self.additive_factor_prod_cut = .5 * self.additive_factor_load_cut
-        self.connexity_exception_reward = -self.observation_space.grid_number_of_elements  # Reward when the grid is not connexe
-        # (at least two islands)
-        self.loadflow_exception_reward = -self.observation_space.grid_number_of_elements  # Reward in case of loadflow software error
-
-        self.illegal_action_exception_reward = -self.observation_space.grid_number_of_elements / 100.  # Reward in case of bad action shape/form
-
-        self.too_many_productions_cut = -self.observation_space.grid_number_of_elements
-        self.too_many_consumptions_cut = -self.observation_space.grid_number_of_elements
-
-        # Action cost reward hyperparameters
-        self.cost_line_switch = .1  # 1 line switch off or switch on
-        self.cost_node_switch = 0.  # Changing the node on which an element is directly wired
+        self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(grid_case=self.game.get_grid_case(),
+                                                                        initial_topology=self.game.get_initial_topology())
 
         self.last_rewards = []
 
     def _get_obs(self):
         return self.game.export_observation()
-
-    def _get_distance_reference_grid(self, observation):
-        # Reference grid distance reward
-        """ Computes the distance of the current observation with the reference grid (i.e. initial grid of the game).
-        The distance is computed as the number of different nodes on which two identical elements are wired. For
-        instance, if the production of first current substation is wired on the node 1, and the one of the first initial
-        substation is wired on the node 0, then their is a distance of 1 (there are different) between the current and
-        reference grid (for this production). The total distance is the sum of those values (0 or 1) for all the
-        elements of the grid (productions, loads, origin of lines, extremity of lines).
-
-        :return: the number of different nodes between the current topology and the initial one
-        """
-        initial_topology = np.asarray(self.game.get_initial_topology())
-        current_topology = np.concatenate((observation.productions_nodes, observation.loads_nodes,
-                                           observation.lines_or_nodes, observation.lines_ex_nodes))
-
-        return np.sum((initial_topology != current_topology))  # Sum of nodes that are different
-
-    def _get_action_cost(self, action):
-        # Action cost reward: compute the number of line switches, node switches, and return the associated reward
-        """ Compute the >=0 cost of an action. We define the cost of an action as the sum of the cost of node-splitting
-        and the cost of lines status switches. In short, the function sums the number of 1 in the action vector, since
-        they represent activation of switches. The two parameters self.cost_node_switch and self.cost_line_switch
-        control resp the cost of 1 node switch activation and 1 line status switch activation.
-
-        :param action: an instance of Action or a binary numpy array of length self.action_space.n
-        :return: a >=0 float of the cost of the action
-        """
-        # Computes the number of activated switches of the action
-        number_line_switches = np.sum(action.get_lines_status_subaction())
-        number_prod_nodes_switches = np.sum(action.get_prods_switches_subaction())
-        number_load_nodes_switches = np.sum(action.get_loads_switches_subaction())
-        number_line_or_nodes_switches = np.sum(action.get_lines_or_switches_subaction())
-        number_line_ex_nodes_switches = np.sum(action.get_lines_ex_switches_subaction())
-
-        action_cost = self.cost_node_switch * number_prod_nodes_switches + \
-                      self.cost_node_switch * number_load_nodes_switches + \
-                      self.cost_node_switch * number_line_or_nodes_switches + \
-                      self.cost_node_switch * number_line_ex_nodes_switches + \
-                      self.cost_line_switch * number_line_switches
-        return action_cost
-
-    def _get_lines_capacity_usage(self, observation):
-        ampere_flows = observation.ampere_flows
-        thermal_limits = observation.thermal_limits
-        lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
-        return lines_capacity_usage
-
-    def get_reward(self, observation, action, flag=None):
-        # First, check for flag raised during step, as they indicate errors from grid computations
-        if flag is not None:
-            if isinstance(flag, pypownet.game.NoMoreScenarios):
-                reward_aslist = [0, 0, 0, 0, 0]
-            elif isinstance(flag, pypownet.grid.DivergingLoadflowException):
-                reward_aslist = [0., 0., -self._get_action_cost(action), self.loadflow_exception_reward, 0.]
-            elif isinstance(flag, IllegalActionException):
-                # If some broken lines are attempted to be switched on, put the switches to 0, and add penalty to
-                # the reward consequent to the newly submitted action
-                reward_aslist = self.get_reward(observation, action, flag=None)
-                reward_aslist[2] += self.illegal_action_exception_reward
-            elif isinstance(flag, pypownet.game.TooManyProductionsCut):
-                reward_aslist = [0., self.too_many_productions_cut, 0., 0., 0.]
-            elif isinstance(flag, pypownet.game.TooManyConsumptionsCut):
-                reward_aslist = [self.too_many_consumptions_cut, 0., 0., 0., 0.]
-            else:  # Should not happen
-                raise flag
-        else:
-            # Load cut reward
-            number_cut_loads = sum(observation.are_loads_cut)
-            load_cut_reward = self.additive_factor_load_cut * number_cut_loads
-
-            # Prod cut reward
-            number_cut_prods = sum(observation.are_productions_cut)
-            prod_cut_reward = self.additive_factor_prod_cut * number_cut_prods
-
-            # Reference grid distance reward
-            reference_grid_distance = self._get_distance_reference_grid(observation)
-            reference_grid_distance_reward = self.additive_factor_distance_initial_grid * reference_grid_distance
-
-            # Action cost reward: compute the number of line switches, node switches, and return the associated reward
-            action_cost_reward = -self._get_action_cost(action)
-
-            # The line usage subreward is the sum of the square of the lines capacity usage
-            lines_capacity_usage = self._get_lines_capacity_usage(observation)
-            line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
-
-            # Format reward
-            reward_aslist = [load_cut_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward,
-                             line_usage_reward]
-
-        self.last_rewards = reward_aslist
-
-        return reward_aslist
 
     def step(self, action, do_sum=True):
         """ Performs a game step given an action. The as list pattern is:
@@ -600,7 +492,8 @@ class RunEnv(object):
 
         observation, reward_flag, done = self.game.step(submitted_action)
 
-        reward_aslist = self.get_reward(observation=observation, action=action, flag=reward_flag)
+        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
+        self.last_rewards = reward_aslist
 
         return observation, sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
@@ -614,7 +507,8 @@ class RunEnv(object):
 
         observation, reward_flag, done = self.game.simulate(to_simulate_action)
 
-        reward_aslist = self.get_reward(observation=observation, action=action, flag=reward_flag)
+        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
+        self.last_rewards = reward_aslist
 
         return sum(reward_aslist) if do_sum else reward_aslist
 

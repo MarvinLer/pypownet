@@ -45,6 +45,9 @@ class Parameters(object):
     def is_dc_mode(self):
         return self._get_mode() == 'DC'.lower()
 
+    def get_grid_case(self):
+        return self.simulator_configuration['grid_case']
+
     def get_hard_overflow_coefficient(self):
         return self.simulator_configuration['hard_overflow_coefficient']
 
