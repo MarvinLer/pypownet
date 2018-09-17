@@ -1,5 +1,6 @@
 __author__ = 'marvinler'
 import os
+import sys
 import json
 
 
@@ -14,6 +15,7 @@ class Parameters(object):
             print('Use -p PARAM_FOLDER with PARAM_FOLDER as one of the previous located folders; see their '
                   'configuration.json for more info\n\n')
             raise FileNotFoundError('folder %s does not exist' % os.path.abspath(parameters_folder))
+        sys.path.append(self.__parameters_path)
 
         mandatory_files = ['configuration.json',  # Simulator parameters config file
                            'reference_grid.m']  # Reference (and initial starting) grid
@@ -29,6 +31,21 @@ class Parameters(object):
 
         with open(self.configuration_path, 'r') as f:
             self.simulator_configuration = json.load(f)
+
+        # Seek for custom reward signal file
+        reward_signal_expected_path = os.path.join(self.__parameters_path, 'reward_signal.py')
+        if os.path.exists(reward_signal_expected_path):
+            sys.path.append(os.path.dirname(reward_signal_expected_path))
+            try:
+                from reward_signal import CustomRewardSignal
+            except ImportError:
+                raise ImportError('Expected reward_signal.py to have CustomRewardSignal class but not found.')
+            self.reward_signal = CustomRewardSignal()
+        else:
+            self.reward_signal = None
+
+    def get_reward_signal(self):
+        return self.reward_signal
 
     def get_reference_grid_path(self):
         return self.reference_grid_path

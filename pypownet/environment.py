@@ -472,8 +472,11 @@ class RunEnv(object):
                                         lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
-        self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(grid_case=self.game.get_grid_case(),
-                                                                        initial_topology=self.game.get_initial_topology())
+        if self.game.get_custom_reward_signal() is not None:
+            self.reward_signal = self.game.get_custom_reward_signal()
+        else:
+            self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(grid_case=self.game.get_grid_case(),
+                                                                            initial_topology=self.game.get_initial_topology())
 
         self.last_rewards = []
 

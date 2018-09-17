@@ -178,6 +178,8 @@ class Game(object):
         self.epoch = 1
         self.timestep = 1
 
+        self.custom_reward_signal = self.__parameters.get_reward_signal()
+
         self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Loads first scenario
@@ -189,6 +191,9 @@ class Game(object):
 
     def get_number_elements(self):
         return self.grid.get_number_elements()
+
+    def get_custom_reward_signal(self):
+        return self.custom_reward_signal
 
     def get_substations_ids_prods(self):
         return np.asarray(list(map(lambda x: int(float(x)),
