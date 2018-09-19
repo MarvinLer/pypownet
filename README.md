@@ -5,17 +5,31 @@ The simulator is able to emulate a power grid (of any size or characteristics) s
 
 The simulator comes with an Reinforcement Learning-focused environment, which implements states (observations), actions (reduced to node-splitting and line status switches) as well as a reward signal. Finally, a renderer is available, such that the observations of the network can be plotted in real-time (synchronized with the game time).
 
+*   [1 Installation](#installation)
+    *   [1.1 Using Docker](#usingdocker)
+    *   [1.2 Without using Docker](#withoutusingdocker)
+        *   [1.2.1 Requirements](#requirements)
+        *   [1.2.2 Instructions](#instructions)
+*   [2 Basic usage](#basicusage)
+    *   [2.1 Without using Docker](#withoutusingdocker-1)
+    *   [2.2 Using Docker](#usingdocker-1)
+*   [3 Main features of pypownet](#mainfeatures)
+*   [4 Generate the documentation](#generatethedocumentation)
+*   [5 License information](#licenseinformation)
+
 # Installation
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/pypownet:2.0.3
+sudo docker pull marvinler/pypownet:2.0.4
 ```
 
 ## Without using Docker
 ### Requirements:
-- Python >= 3.6
-- Octave >= 4.0.6
+*   Python >= 3.6
+*   Octave >= 4.0.6
+*   Matpower >= 6.0
+*   PyPowNet >= 2.0.3
 
 ### Instructions:
 #### Step 1: Install Octave
@@ -75,7 +89,7 @@ sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 
-# pypownet main features
+# Main features
 pypownet is a power grid simulator, that emulates a power grid that is subject to pre-computed injections, planned maintenance as well as random external hazards. Here is a list of pypownet main features:
 * emulates a grid of any size and electrical properties in a game discretized in timesteps of any (fixed) size
 * computes and apply cascading failure process: at each timestep, overflowed lines with certain conditions are switched off, with a consequent loadflow computation to retrieve the new grid steady-state, and reiterating the process
@@ -101,7 +115,7 @@ sphinx-build -b html ./source ./build
 ```
 The html will be available within the folder [doc/build](doc/build/index.html).
 
-# License Information
+# License information
 
 Copyright 2017-2018 RTE and INRIA (France)
 
