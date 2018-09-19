@@ -1,5 +1,5 @@
-# PyPowNet
-PyPowNet stands for Python Power Network, which is a simulator for power (electrical) networks.
+# pypownet
+pypownet stands for Python Power Network, which is a simulator for power (electrical) networks.
 
 The simulator is able to emulate a power grid (of any size or characteristics) subject to a set of temporal injections (productions and consumptions) for discretized timesteps. Loadflow computations relies on Matpower and can be run under the AC or DC models. The simulator is able to simulate cascading failures, where successively overflowed lines are switched off and a loadflow is computed on the subsequent grid.
 
@@ -29,7 +29,6 @@ sudo docker pull marvinler/pypownet:2.0.4
 *   Python >= 3.6
 *   Octave >= 4.0.6
 *   Matpower >= 6.0
-*   PyPowNet >= 2.0.3
 
 ### Instructions:
 #### Step 1: Install Octave
@@ -77,11 +76,16 @@ After this, this simulator is available under the name pypownet (e.g. ```import 
 ## Without using Docker
 Experiments can be conducted using the CLI.
 ### Using CLI arguments
-Some experiements parameters are available via the CLI; you can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 4 simultaneous experiments for 100 iterations each with verbose:
+CLI can be used to run simulations:
+```
+python -m pypownet.main
+```
+You can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 1000 iterations (here, ~40 days) of the do-nothing (default) agent on a grid with 14 substations:
 ```
 python -m pypownet.main --parameters parameters/default14 --niter 1000 --verbose --render
 ```
-With the parameters of default14, 1000 timesteps takes approximately 100 seconds (depending on your machine).
+With this default14/ parameters (emulates a grid with 14 substations, 5 productions, 11 consumptions and 20 lines), it takes ~100 seconds to run 1000 timesteps (old i5).
+
 ## Using Docker
 You can use the command line of the image with shared display (for running the renderer):
 ```

@@ -18,11 +18,11 @@ parser.add_argument('--niter', type=int, metavar='n', default='100',
                     help='number of iterations to simulate; default 100')
 # parser.add_argument('--batch', type=int, metavar='n_agent', default=None,
 #                     help='number of game instances to run simultaneously; default 1')
-parser.add_argument('-v', '--verbose', action='store_true',
+parser.add_argument('-v', '--verbose', action='store_true', default=True,
                     help='display live info of the current experiment including reward, cumulative reward')
 parser.add_argument('-vv', '--vverbose', action='store_true',
                     help='display live info + observations and actions played')
-parser.add_argument('-r', '--render', action='store_true',
+parser.add_argument('-r', '--render', action='store_true', default=True,
                     help='render the power network observation at each timestep (not available if --batch is not 1)')
 parser.add_argument('--start', type=int, default=None,
                     help='id of the timestep to start the game at (>= 0)')
