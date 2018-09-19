@@ -75,6 +75,19 @@ sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 
+# pypownet main features
+pypownet is a power grid simulator, that emulates a power grid that is subject to pre-computed injections, planned maintenance as well as random external hazards. Here is a list of pypownet main features:
+* emulates a grid of any size and electrical properties in a game discretized in timesteps of any (fixed) size
+* computes and apply cascading failure process: at each timestep, overflowed lines with certain conditions are switched off, with a consequent loadflow computation to retrieve the new grid steady-state, and reiterating the process
+* has an RL-focused interface, where players or controlers can play actions (node-splitting or line status switches) on the current grid, based on a partial observation of the grid (high dimension), with a customable reward signal (and game over options)
+* has a renderer that enables the user to see the grid evolving in real-time, as well as the actions of the controler currently playing and further grid state details (works only for pypownet official grid cases)
+* has a runner that enables to use pypownet fully by simply coding an agent (with a method act(observation))
+* possess some baselines models (including treesearches) illustrating how to use the furnished environment
+* can be launched with CLI with the possibility of managing certain parameters (such as renderer toggling or the agent to be played)
+* functions on both DC and AC mode
+* has a set of parameters that can be customized (including AC or DC mode, or hard-overflow coefficient), associated with sets of injections, planned maintenance and random hazards of the various chronics
+* handles node-splitting (at the moment only max 2 nodes per substation) and lines switches off for topology management
+
 # Generate the documentation
 A copy of the documentation can be assess within the file [doc/build](doc/build/index.html).
 If you want to compute the latest updated documentation, you will need Sphinx, a Documentation building tool, and a nice-looking custom [Sphinx theme similar to the one of readthedocs.io](https://sphinx-rtd-theme.readthedocs.io/en/latest/):
@@ -88,7 +101,7 @@ sphinx-build -b html ./source ./build
 ```
 The html will be available within the folder [doc/build](doc/build/index.html).
 
-# License Information:
+# License Information
 
 Copyright 2017-2018 RTE and INRIA (France)
 
