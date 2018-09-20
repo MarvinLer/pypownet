@@ -23,10 +23,11 @@ class RewardSignal(object):
 
 
 class DefaultRewardSignal(RewardSignal):
-    def __init__(self, grid_case, initial_topology):
+    def __init__(self, initial_topology):
         super().__init__()
 
         self.initial_topology = initial_topology
+        n_elements = len(initial_topology)
 
         # Hyper-parameters for the subrewards
         # Mult factor for line capacity usage subreward
@@ -34,20 +35,20 @@ class DefaultRewardSignal(RewardSignal):
         # Multiplicative factor for total number of differed nodes in the grid and reference grid
         self.multiplicative_factor_distance_initial_grid = -.02
         # Multiplicative factor total number of isolated prods and loads in the grid
-        self.multiplicative_factor_number_loads_cut = -grid_case / 5.
-        self.multiplicative_factor_number_prods_cut = -grid_case / 10.
+        self.multiplicative_factor_number_loads_cut = -n_elements / 5.
+        self.multiplicative_factor_number_prods_cut = -n_elements / 10.
 
         # Reward when the grid is not connexe (at least two islands)
-        self.connexity_exception_reward = -grid_case
+        self.connexity_exception_reward = -n_elements
         # Reward in case of loadflow software error (e.g. 0 line ON)
-        self.loadflow_exception_reward = -grid_case
+        self.loadflow_exception_reward = -n_elements
 
         # Multiplicative factor for the total number of illegal lines reconnections
-        self.multiplicative_factor_number_illegal_lines_reconnection = -grid_case / 100.
+        self.multiplicative_factor_number_illegal_lines_reconnection = -n_elements / 100.
 
         # Reward when the maximum number of isolated loads or prods are exceeded
-        self.too_many_productions_cut = -grid_case
-        self.too_many_consumptions_cut = -grid_case
+        self.too_many_productions_cut = -n_elements
+        self.too_many_consumptions_cut = -n_elements
 
         # Action cost reward hyperparameters
         self.multiplicative_factor_number_line_switches = -.2  # equivalent to - cost of line switch

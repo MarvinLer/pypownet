@@ -83,9 +83,6 @@ class Parameters(object):
     def is_dc_mode(self):
         return self._get_loadflow_mode() == 'DC'.lower()
 
-    def get_grid_case(self):
-        return self.simulator_configuration['grid_case']
-
     def get_max_seconds_per_timestep(self):
         return self.simulator_configuration['max_seconds_per_timestep']
 

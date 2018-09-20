@@ -190,9 +190,6 @@ class Game(object):
         self.load_entries_from_next_timestep()
         self._compute_loadflow_cascading()
 
-    def get_grid_case(self):
-        return self.__parameters.get_grid_case()
-
     def get_max_seconds_per_timestep(self):
         return self.__parameters.get_max_seconds_per_timestep()
 

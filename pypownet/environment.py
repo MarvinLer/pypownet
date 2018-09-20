@@ -482,8 +482,7 @@ class RunEnv(object):
         if self.game.get_custom_reward_signal() is not None:
             self.reward_signal = self.game.get_custom_reward_signal()
         else:
-            self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(grid_case=self.game.get_grid_case(),
-                                                                            initial_topology=self.game.get_initial_topology())
+            self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(initial_topology=self.game.get_initial_topology())
 
         self.last_rewards = []
 

@@ -1,5 +1,4 @@
 {
-    "grid_case"                                       : 30,
     "loadflow_mode"                                   : "AC",
     "max_seconds_per_timestep"                        : 1.0,
 

@@ -1,7 +1,4 @@
 {
-    "game_mode"                                       : "soft",
-
-    "grid_case"                                       : 14,
     "loadflow_mode"                                   : "AC",
     "max_seconds_per_timestep"                        : 1.0,
 
