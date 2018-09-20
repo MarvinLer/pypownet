@@ -74,10 +74,10 @@ class RandomNodeSplitting(Agent):
     node within the substation on which they are directly wired.
     """
 
-    def __init__(self, environment, destination_path='saved_actions_RandomNodeSplitting.csv'):
+    def __init__(self, environment):
         super().__init__(environment)
 
-        self.ioman = ActIOnManager(destination_path=destination_path)
+        self.ioman = ActIOnManager(destination_path='saved_actions_RandomNodeSplitting.csv')
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
@@ -111,11 +111,11 @@ class TreeSearchLineServiceStatus(Agent):
     """ Exhaustive tree search of depth 1 limited to no action + 1 line switch activation
     """
 
-    def __init__(self, environment, destination_path='saved_actions_TreeSearchLineServiceStatus.csv', verbose=True):
+    def __init__(self, environment):
         super().__init__(environment)
-        self.verbose = verbose
+        self.verbose = True
 
-        self.ioman = ActIOnManager(destination_path=destination_path)
+        self.ioman = ActIOnManager(destination_path='saved_actions_TreeSearchLineServiceStatus.csv')
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
@@ -175,11 +175,11 @@ class GreedySearch(Agent):
     * simulate can not compute the hazards that are supposed to come at the next timestep
     """
 
-    def __init__(self, environment, verbose=True, destination_path='saved_actions.csv'):
+    def __init__(self, environment):
         super().__init__(environment)
-        self.verbose = verbose
+        self.verbose = True
 
-        self.ioman = ActIOnManager(destination_path=destination_path)
+        self.ioman = ActIOnManager(destination_path='saved_actions.csv')
 
     def act(self, observation):
         import itertools
@@ -259,12 +259,12 @@ class GreedySearch(Agent):
 
 
 class ActionsFileReaderControler(Agent):
-    def __init__(self, environment, storedactions_file='saved_actions.csv'):
+    def __init__(self, environment):
         super().__init__(environment)
 
         # Loads manager + actions
         ioman = ActIOnManager(delete=False)
-        self.actions = ioman.load(storedactions_file)
+        self.actions = ioman.load('saved_actions.csv')
         self.action_ctr = 0
 
         self.number_actions = len(self.actions)
