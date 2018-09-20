@@ -53,17 +53,29 @@ class Parameters(object):
     def get_chronics_path(self):
         return self.chronics_path
 
-    def _get_mode(self):
-        mode = self.simulator_configuration['mode'].lower()
+    def get_parameters_path(self):
+        return self.__parameters_path
+
+    def _get_game_mode(self):
+        mode = self.simulator_configuration['game_mode'].lower()
+        if mode not in ['hard', 'soft']:
+            raise ValueError('loadflow_mode value in configuration file should be either "hard" or "soft"')
+        return mode
+
+    def _get_loadflow_mode(self):
+        mode = self.simulator_configuration['loadflow_mode'].lower()
         if mode not in ['ac', 'dc']:
-            raise ValueError('mode value in configuration file should be either "AC" or "DC"')
+            raise ValueError('loadflow_mode value in configuration file should be either "AC" or "DC"')
         return mode
 
     def is_dc_mode(self):
-        return self._get_mode() == 'DC'.lower()
+        return self._get_loadflow_mode() == 'DC'.lower()
 
     def get_grid_case(self):
         return self.simulator_configuration['grid_case']
+
+    def get_max_seconds_per_timestep(self):
+        return self.simulator_configuration['max_seconds_per_timestep']
 
     def get_hard_overflow_coefficient(self):
         return self.simulator_configuration['hard_overflow_coefficient']

@@ -5,6 +5,7 @@ __author__ = 'marvinler'
 import os
 import numpy as np
 import inspect
+import logging
 from datetime import datetime
 
 
@@ -71,6 +72,7 @@ class Chronic(object):
         if not os.path.exists(source_folder):
             raise ValueError('Source folder %s does not exist' % source_folder)
         self.source_folder = source_folder
+        self.name = os.path.basename(source_folder)
         self.with_previsions = with_previsions  # True will seek and load planned injections (in Obs and simulate)
 
         # Containers for the ROI files paths
@@ -248,3 +250,43 @@ class Chronic(object):
 
     def get_imaps(self):
         return self.imaps
+
+
+class ChronicLooper(object):
+    def __init__(self, chronics_folder, game_level, start_id, looping_mode):
+        self.logger = logging.getLogger('pypownet.' + __name__)
+
+        self.chronics_folder = os.path.abspath(chronics_folder)
+        if not os.path.exists(self.chronics_folder):
+            raise FileNotFoundError('Chronic folder %s does not exist' % self.chronics_folder)
+        self.game_level_folder = os.path.join(self.chronics_folder, 'level' + str(game_level))
+        if not os.path.exists(self.game_level_folder):
+            # Seek existing levels folders
+            level_folders = [os.path.join(self.chronics_folder, d) for d in os.listdir(self.chronics_folder)
+                             if not os.path.isfile(d)]
+            raise FileNotFoundError('Game level folder %s does not exist; level folders found in %s: %s' % (
+                self.game_level_folder, self.chronics_folder, '[' + ', '.join(level_folders) + ']'))
+
+        if looping_mode not in ['natural', 'random', 'fixed']:
+            raise ValueError('Either natural "mode" (loops in the order of chronics ids), "random" (loops randomly) or'
+                             '"fixed" (plays the same chronic)')
+        self.looping_mode = looping_mode
+
+        # Seeks all available chronics (sorts alphabetically)
+        self.chronics = sorted([os.path.join(self.game_level_folder, d) for d in os.listdir(self.game_level_folder)
+                                if not os.path.isfile(d)])
+        self.logger.info('Found %d chronics of game level %s; looping with mode %s starting with chronic %s' % (
+            len(self.chronics), os.path.basename(self.game_level_folder), self.looping_mode,
+            os.path.basename(self.chronics[start_id])))
+
+        self.next_chronic_id = start_id
+
+    def get_next_chronic_folder(self):
+        res_chronic = self.chronics[self.next_chronic_id]
+        if self.looping_mode == 'natural':
+            self.next_chronic_id = (self.next_chronic_id + 1) % len(self.chronics)
+        elif self.looping_mode == 'random':
+            self.next_chronic_id = np.random.choice(len(self.chronics))
+        elif self.looping_mode == 'fixed':
+            self.next_chronic_id = self.next_chronic_id
+        return res_chronic

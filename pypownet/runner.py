@@ -12,8 +12,14 @@ from pypownet.environment import RunEnv
 from pypownet.agent import Agent
 import logging
 import logging.handlers
+import threading
+import queue
 
 LOG_FILENAME = 'runner.log'
+
+
+class TimestepTimeout(Exception):
+    pass
 
 
 class Runner(object):
@@ -48,11 +54,27 @@ class Runner(object):
         # First observation given by the environment
         self.last_observation = self.environment._get_obs()
 
+        self.max_seconds_per_timestep = self.environment.game.get_max_seconds_per_timestep()
+
         if self.render:
             self.environment.render()
 
     def step(self):
         # Policy inference
+        # def agent_inference(obs, q):
+        #     action = self.agent.act(obs)
+        #     q.put(action)
+        # q = queue.Queue()
+        # t = threading.Thread(target=agent_inference, name='AgentActThread', args=(self.last_observation, q))
+        # t.start()
+        # t.join(self.max_seconds_per_timestep)
+        # if t.is_alive():
+        #     self.logger.warn('\b\b\bTook too much time to compute action for current timestep: allowed at most %s '
+        #                      'seconds; emulating do-nothing action' % str(self.max_seconds_per_timestep))
+        #     action = self.environment.action_space.get_do_nothing_action()
+        # else:
+        #     action = q.get()
+
         action = self.agent.act(self.last_observation)
 
         # Update the environment with the chosen action

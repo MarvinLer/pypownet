@@ -460,10 +460,13 @@ class Observation(object):
 
 
 class RunEnv(object):
-    def __init__(self, parameters_folder, start_id=0, latency=None):
+    def __init__(self, parameters_folder, game_level, chronic_looping_mode='natural', start_id=0,
+                 game_over_mode='soft', renderer_latency=None):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
-        self.game = pypownet.game.Game(parameters_folder=parameters_folder, start_id=start_id, latency=latency)
+        self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
+                                       chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
+                                       game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
         self.action_space = ActionSpace(*self.game.get_number_elements(),
                                         substations_ids=self.game.get_substations_ids(),
                                         prods_subs_ids=self.game.get_substations_ids_prods(),

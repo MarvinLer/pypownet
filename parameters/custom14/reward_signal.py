@@ -11,3 +11,4 @@ class CustomRewardSignal(RewardSignal):
 
     def compute_reward(self, observation, action, flag):
         return [self.unsuccessful_step_reward] if flag is not None else [self.successful_step_reward]
+

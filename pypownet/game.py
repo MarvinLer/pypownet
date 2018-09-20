@@ -9,7 +9,7 @@ import copy
 import numpy as np
 import pypownet.grid
 import pypownet.environment
-from pypownet.chronic import Chronic
+from pypownet.chronic import Chronic, ChronicLooper
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.parameters import Parameters
 
@@ -125,11 +125,11 @@ class Action(object):
 
 
 class Game(object):
-    def __init__(self, parameters_folder, seed=None, start_id=0, latency=None):
+    def __init__(self, parameters_folder, game_level, chronic_looping_mode, chronic_starting_id,
+                 game_over_mode, renderer_frame_latency=None):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
-        if seed:
-            np.random.seed(seed)
+        self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Read parameters
         self.__parameters = Parameters(parameters_folder)
@@ -144,7 +144,13 @@ class Game(object):
         self.max_number_loads_game_over = self.__parameters.get_max_number_loads_game_over()
 
         # Seek and load chronic
-        self.__chronic = Chronic(self.__parameters.get_chronics_path())
+        self.__chronic_looper = ChronicLooper(chronics_folder=self.__parameters.get_chronics_path(),
+                                              game_level=game_level, start_id=chronic_starting_id,
+                                              looping_mode=chronic_looping_mode)
+        self.__chronic = self.get_next_chronic()
+
+        self.game_over_mode = game_over_mode
+
         # Seek and load starting reference grid
         self.grid = pypownet.grid.Grid(src_filename=self.__parameters.get_reference_grid_path(),
                                        dc_loadflow=self.is_mode_dc,
@@ -173,21 +179,22 @@ class Game(object):
 
         # Renderer params
         self.renderer = None
-        self.latency = latency  # Sleep time after each frame plot (multiple frame plots per timestep)
+        self.latency = renderer_frame_latency  # Sleep time after each frame plot (multiple frame plots per timestep)
         self.last_action = None
         self.epoch = 1
         self.timestep = 1
 
         self.custom_reward_signal = self.__parameters.get_reward_signal()
 
-        self.logger = logging.getLogger('pypownet.' + __name__)
-
         # Loads first scenario
-        self.load_entries_from_next_timestep(starting_timestep_id=start_id)
+        self.load_entries_from_next_timestep()
         self._compute_loadflow_cascading()
 
     def get_grid_case(self):
         return self.__parameters.get_grid_case()
+
+    def get_max_seconds_per_timestep(self):
+        return self.__parameters.get_max_seconds_per_timestep()
 
     def get_number_elements(self):
         return self.grid.get_number_elements()
@@ -237,6 +244,13 @@ class Game(object):
 
     def get_substations_ids(self):
         return self.substations_ids
+
+    def get_next_chronic(self):
+        self.logger.info('Loading next chronic...')
+        chronic = Chronic(self.__chronic_looper.get_next_chronic_folder())
+        self.logger.info('  loaded chronic %s' % chronic.name)
+        self.current_timestep_id = 0
+        return chronic
 
     def load_entries_from_timestep_id(self, timestep_id, is_simulation=False, silence=False):
         # Retrieve the Scenario object associated to the desired id
@@ -308,18 +322,18 @@ class Game(object):
         self.previous_date = copy.deepcopy(self.current_date)
         self.current_date = timestep_entries.get_datetime()
 
-    def load_entries_from_next_timestep(self, starting_timestep_id=None, is_simulation=False):
+    def load_entries_from_next_timestep(self, is_simulation=False):
         """ Loads the next timestep injections (set of injections, maintenance, hazard etc for the next timestep id).
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
         """
-        # If there are no more timestep to be played, raise NoMoreScenarios exception
+        # If there are no more timestep to be played, loads next chronic
         if self.current_timestep_id == self.timesteps_ids[-1]:
-            raise NoMoreScenarios('All timesteps have been played.')
+            self.__chronic = self.get_next_chronic()
 
         # If no timestep injections has been loaded so far, loads the first one
         if self.current_timestep_id is None:
-            next_timestep_id = self.timesteps_ids[0] if starting_timestep_id is None else starting_timestep_id
+            next_timestep_id = self.timesteps_ids[0]
         else:  # Otherwise loads the next one in the list of timesteps injections
             next_timestep_id = self.timesteps_ids[self.timesteps_ids.index(self.current_timestep_id) + 1]
 
@@ -407,21 +421,11 @@ class Game(object):
         # Retrieve current grid nodes + mapping arrays for unshuffling the topological subaction of action
         grid_topology = self.grid.get_topology()
         grid_topology_mapping_array = grid_topology.mapping_array
-        grid_topology_invert_mapping_function = grid_topology.invert_mapping_permutation
         prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = grid_topology.get_unzipped()
         # Retrieve lines status service of current grid
         lines_service = self.grid.get_lines_status()
 
         action_lines_service = action.get_lines_status_subaction()
-        # action_topology = action.get_topological_subaction()
-        # Split the action into 5 parts: prods nodes, loads nodes, lines or/ex nodes and lines status
-        # unzipped_action = pypownet.grid.Topology.unzip(action_topology,
-        #                                                len(prods_nodes), len(loads_nodes), len(lines_service),
-        #                                                grid_topology_invert_mapping_function)
-        # action_prods_nodes = unzipped_action[0]
-        # action_loads_nodes = unzipped_action[1]
-        # action_lines_or_nodes = unzipped_action[2]
-        # action_lines_ex_nodes = unzipped_action[3]
         action_prods_nodes = action.get_prods_switches_subaction()
         action_loads_nodes = action.get_loads_switches_subaction()
         action_lines_or_nodes = action.get_lines_or_switches_subaction()
@@ -481,6 +485,10 @@ class Game(object):
         if restart:  # If restart, put current id to None so that load_next will load first timestep
             self.current_timestep_id = None
             self.timestep = 1
+
+        # Loads next chronics if game is hardcore mode
+        if self.game_over_mode == 'hard':
+            self.__chronic = self.get_next_chronic()
 
         try:
             self.load_entries_from_next_timestep()
