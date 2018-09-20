@@ -44,10 +44,10 @@ class RandomLineSwitch(Agent):
     random line is previously online, switch it off, otherwise switch it on).
     """
 
-    def __init__(self, environment, destination_path='saved_actions_RandomLineSwitch.csv'):
+    def __init__(self, environment):
         super().__init__(environment)
 
-        self.ioman = ActIOnManager(destination_path=destination_path)
+        self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
 
     def act(self, observation):
         # Sanity check: an observation is a structured object defined in the environment file.
@@ -56,8 +56,9 @@ class RandomLineSwitch(Agent):
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action()
-
-        action.get_lines_status_subaction()[np.random.randint(action_space.lines_status_subaction_length)] = 1
+        action_space.set_lines_status_switch_from_id(action=action,
+                                                     line_id=np.random.randint(action_space.lines_status_subaction_length),
+                                                     new_switch_value=1)
 
         # Dump best action into stored actions file
         self.ioman.dump(action)
@@ -89,6 +90,7 @@ class RandomNodeSplitting(Agent):
         # Select a random substation ID on which to perform node-splitting
         target_substation_id = np.random.choice(action_space.substations_ids)
         expected_target_configuration_size = action_space.get_number_elements_of_substation(target_substation_id)
+        # Choses a new switch configuration (binary array)
         target_configuration = np.random.choice([0, 1], size=(expected_target_configuration_size,))
 
         action_space.set_switches_configuration_of_substation(action=action,
@@ -128,8 +130,9 @@ class TreeSearchLineServiceStatus(Agent):
         for l in range(number_of_lines):
             if self.verbose:
                 print('    Simulating switch activation line %d' % l, end='')
+            # Construct the action where only line status of line l is switched
             action = action_space.get_do_nothing_action()
-            action.get_lines_status_subaction()[l] = 1
+            action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
             simulated_reward = self.environment.simulate(action=action)
 
             # Store ROI values
@@ -207,7 +210,7 @@ class GreedySearch(Agent):
             if self.verbose:
                 print(' Simulation with switching status of line %d' % l, end='')
             action = action_space.get_do_nothing_action()
-            action.get_lines_status_subaction()[l] = 1
+            action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
             reward_aslist = self.environment.simulate(action, do_sum=False)
             reward = sum(reward_aslist)
             if self.verbose:
