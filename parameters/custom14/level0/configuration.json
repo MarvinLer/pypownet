@@ -1,6 +1,6 @@
 {
     "grid_case"                                       : 14,
-    "mode"                                            : "AC",
+    "loadflow_mode"                                   : "AC",
     "max_seconds_per_timestep"                        : 1.0,
 
     "hard_overflow_coefficient"                       : 1.5,

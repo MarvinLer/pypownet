@@ -132,7 +132,7 @@ class Game(object):
         self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Read parameters
-        self.__parameters = Parameters(parameters_folder)
+        self.__parameters = Parameters(parameters_folder, game_level)
         self.is_mode_dc = self.__parameters.is_dc_mode()
         self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
         self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()

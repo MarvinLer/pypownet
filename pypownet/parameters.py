@@ -2,11 +2,14 @@ __author__ = 'marvinler'
 import os
 import sys
 import json
+import logging
 
 
 class Parameters(object):
-    def __init__(self, parameters_folder):
+    def __init__(self, parameters_folder, game_level):
         self.__parameters_path = os.path.abspath(parameters_folder)
+        self.logger = logging.getLogger('pypownet.' + __name__)
+
         if not os.path.exists(self.__parameters_path):
             print('Parameters path %s does not exit' % self.__parameters_path)
             print('Located parameters folders:')
@@ -16,15 +19,22 @@ class Parameters(object):
                   'configuration.json for more info\n\n')
             raise FileNotFoundError('folder %s does not exist' % os.path.abspath(parameters_folder))
         sys.path.append(self.__parameters_path)
+        self.level_folder = os.path.join(self.__parameters_path, game_level)
+        if not os.path.exists(self.level_folder):
+            # Seek existing levels folders
+            level_folders = [os.path.join(self.__parameters_path, d) for d in os.listdir(self.__parameters_path)
+                             if not os.path.isfile(d)]
+            raise FileNotFoundError('Game level folder %s does not exist; level folders found in %s: %s' % (
+                game_level, self.__parameters_path, '[' + ', '.join(level_folders) + ']'))
 
         mandatory_files = ['configuration.json',  # Simulator parameters config file
                            'reference_grid.m']  # Reference (and initial starting) grid
         mandatory_folders = ['chronics/']
         for f in mandatory_files + mandatory_folders:
-            if not os.path.exists(os.path.join(self.__parameters_path, f)):
-                raise FileNotFoundError('Mandatory file/folder %s not found within %s' % (f, self.__parameters_path))
+            if not os.path.exists(os.path.join(self.level_folder, f)):
+                raise FileNotFoundError('Mandatory file/folder %s not found within %s' % (f, self.level_folder))
 
-        format_path = lambda f: os.path.join(self.__parameters_path, f)
+        format_path = lambda f: os.path.join(self.level_folder, f)
         self.reference_grid_path = format_path('reference_grid.m')
         self.configuration_path = format_path('configuration.json')
         self.chronics_path = format_path('chronics/')
@@ -38,6 +48,8 @@ class Parameters(object):
             sys.path.append(os.path.dirname(reward_signal_expected_path))
             try:
                 from reward_signal import CustomRewardSignal
+                self.logger.warn('Using custom reward signal CustomRewardSignal of file %s' %
+                                 reward_signal_expected_path)
             except ImportError:
                 raise ImportError('Expected reward_signal.py to have CustomRewardSignal class but not found.')
             self.reward_signal = CustomRewardSignal()

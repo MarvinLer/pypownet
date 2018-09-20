@@ -187,12 +187,8 @@ class ActionSpace(object):
     def get_lines_status_switches_of_substation(self, action, substation_id):
         assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
 
-        if substation_id in self.lines_or_subs_id or substation_id in self.lines_ex_subs_id:
-            lines_status_switches = action.lines_status_subaction[
-                np.where(np.logical_or((self.lines_or_subs_id == substation_id,
-                                        self.lines_ex_subs_id == substation_id)))]
-        else:
-            lines_status_switches = []
+        lines_status_switches = action.lines_status_subaction[
+            np.where(np.logical_or((self.lines_or_subs_id == substation_id, self.lines_ex_subs_id == substation_id)))]
 
         assert len(lines_status_switches) == len(self.lines_ex_subs_id == substation_id) + len(
             self.lines_or_subs_id == substation_id)
@@ -214,6 +210,17 @@ class ActionSpace(object):
 
         assert np.all(self.get_lines_status_switches_of_substation(action, substation_id) == new_configuration), \
             "Should not happen"
+
+    def get_lines_status_switches_from_id(self, action, line_id):
+        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
+        lines_status_switches = action.lines_status_subaction[
+            np.where(np.logical_or((self.lines_or_subs_id == substation_id, self.lines_ex_subs_id == substation_id)))]
+
+        assert len(lines_status_switches) == len(self.lines_ex_subs_id == substation_id) + len(
+            self.lines_or_subs_id == substation_id)
+
+        return lines_status_switches
 
 
 class ObservationSpace(object):

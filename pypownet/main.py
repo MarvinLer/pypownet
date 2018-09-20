@@ -16,8 +16,8 @@ parser.add_argument('-n', '--niter', type=int, metavar='NUMBER_ITERATIONS', defa
 parser.add_argument('-p', '--parameters', metavar='PARAMETERS_FOLDER', default='./parameters/default14/', type=str,
                     help='parent folder containing the parameters of the simulator to be used (folder should contain '
                          'configuration.json and reference_grid.m)')
-parser.add_argument('-lv', '--level', metavar='GAME_LEVEL', type=int, default='0',
-                    help='game level of the timestep entries to be played (default \'0\')')
+parser.add_argument('-lv', '--level', metavar='GAME_LEVEL', type=str, default='level0',
+                    help='game level of the timestep entries to be played (default \'level0\')')
 parser.add_argument('-s', '--start-id', metavar='CHRONIC_START_ID', type=int, default=0,
                     help='id of the first chronic to be played (default 0)')
 parser.add_argument('-lm', '--loop-mode', metavar='CHRONIC_LOOP_MODE', type=str, default='natural',
