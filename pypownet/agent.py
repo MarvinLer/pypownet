@@ -276,7 +276,9 @@ class ActionsFileReaderControler(Agent):
         self.action_ctr += 1
         return action
 
-
+###############
+# Helper agents
+###############
 import os
 
 
@@ -301,3 +303,16 @@ class ActIOnManager(object):
         actions = [[int(l) for l in line.split(',')] for line in lines]
         assert 0 in np.unique(actions) and 1 in np.unique(actions) and len(np.unique(actions)) == 2
         return actions
+
+
+class FlowsSaver(Agent):
+    def __init__(self, environment):
+        """Initialize a new agent."""
+        super().__init__(environment)
+        assert isinstance(environment, pypownet.environment.RunEnv)
+        self.environment = environment
+        self.destination_path = 'saved_flows.csv'
+
+    def act(self, observation):
+        open(self.destination_path, 'a').write(','.join(list(map(str, observation.ampere_flows))) + '\n')
+        return self.environment.action_space.get_do_nothing_action()
