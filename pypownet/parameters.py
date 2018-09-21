@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import logging
+import importlib
+from pypownet.reward_signal import RewardSignal
 
 
 class Parameters(object):
@@ -44,20 +46,21 @@ class Parameters(object):
 
         # Seek for custom reward signal file
         reward_signal_expected_path = os.path.join(self.__parameters_path, 'reward_signal.py')
-        if os.path.exists(reward_signal_expected_path):
+        if not os.path.exists(reward_signal_expected_path):
+            self.logger.error('/!\ Using default reward signal, as reward_signal.py file is not found')
+            self.reward_signal_class = RewardSignal
+        else:
             sys.path.append(os.path.dirname(reward_signal_expected_path))
             try:
-                from reward_signal import CustomRewardSignal
+                self.reward_signal_class = getattr(importlib.import_module('reward_signal'), 'CustomRewardSignal')
                 self.logger.warn('Using custom reward signal CustomRewardSignal of file %s' %
                                  reward_signal_expected_path)
             except ImportError:
-                raise ImportError('Expected reward_signal.py to have CustomRewardSignal class but not found.')
-            self.reward_signal = CustomRewardSignal()
-        else:
-            self.reward_signal = None
+                self.logger.error('/!\ Using default reward signal, as reward_signal.py file is not found')
+                self.reward_signal_class = RewardSignal
 
-    def get_reward_signal(self):
-        return self.reward_signal
+    def get_reward_signal_class(self):
+        return self.reward_signal_class
 
     def get_reference_grid_path(self):
         return self.reference_grid_path

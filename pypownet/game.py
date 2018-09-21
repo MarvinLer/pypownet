@@ -19,6 +19,11 @@ class NoMoreScenarios(Exception):
     pass
 
 
+class DivergingLoadflowException(pypownet.grid.DivergingLoadflowException):
+    def __init__(self, last_observation, *args):
+        super(DivergingLoadflowException, self).__init__(last_observation, *args)
+
+
 class TooManyProductionsCut(Exception):
     def __init__(self, *args):
         super(TooManyProductionsCut, self).__init__(*args)
@@ -185,7 +190,7 @@ class Game(object):
         self.epoch = 1
         self.timestep = 1
 
-        self.custom_reward_signal = self.__parameters.get_reward_signal()
+        self.get_reward_signal_class = self.__parameters.get_reward_signal_class()
 
         # Loads first scenario
         self.load_entries_from_next_timestep()
@@ -197,8 +202,8 @@ class Game(object):
     def get_number_elements(self):
         return self.grid.get_number_elements()
 
-    def get_custom_reward_signal(self):
-        return self.custom_reward_signal
+    def get_reward_signal_class(self):
+        return self.get_reward_signal_class
 
     def get_substations_ids_prods(self):
         return np.asarray(list(map(lambda x: int(float(x)),
@@ -238,7 +243,7 @@ class Game(object):
 
         :return: an instance of pypownet.grid.Topology or a list of integers
         """
-        return self.initial_topology.get_zipped()
+        return self.initial_topology.get_unzipped()
 
     def get_substations_ids(self):
         return self.substations_ids
@@ -356,9 +361,9 @@ class Game(object):
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': cascading emulation of depth %d has diverged' % depth
                 if self.renderer is not None:
-                    self._render(None, game_over=True, cascading_frame_id=depth,
-                                 date=self.previous_date, timestep_id=self.previous_timestep)
-                raise e
+                    self.render(None, game_over=True, cascading_frame_id=depth, date=self.previous_date,
+                                timestep_id=self.previous_timestep)
+                raise DivergingLoadflowException(e.last_observation, e.text)
 
             current_flows_a = self.grid.extract_flows_a()
             thermal_limits = self.grid.get_thermal_limits()
@@ -396,8 +401,7 @@ class Game(object):
 
             depth += 1
             if self.renderer is not None:
-                self._render(None, cascading_frame_id=depth, date=self.previous_date,
-                             timestep_id=self.previous_timestep)
+                self.render(None, cascading_frame_id=depth, date=self.previous_date, timestep_id=self.previous_timestep)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
         self.n_timesteps_soft_overflowed_lines[over_thlim_lines] += 1
@@ -523,7 +527,7 @@ class Game(object):
             self.last_action = action  # tmp
             self.apply_action(action)
             if self.renderer is not None:
-                self._render(None, cascading_frame_id=-1)
+                self.render(None, cascading_frame_id=-1)
         except pypownet.environment.IllegalActionException as e:
             e.text += ' Ignoring action switches of broken lines.'
             # If broken lines are attempted to be switched on, put the switches to 0
@@ -540,8 +544,8 @@ class Game(object):
             # Load next timestep entries, compute one loadflow, then potentially cascading failure
             self.load_entries_from_next_timestep(is_simulation=_is_simulation)
             self._compute_loadflow_cascading()
-        except (NoMoreScenarios, pypownet.grid.DivergingLoadflowException) as e:
-            return None, e, True
+        except pypownet.grid.DivergingLoadflowException as e:
+            return None, DivergingLoadflowException(e.last_observation, e.text), True
 
         are_isolated_loads, are_isolated_prods, _ = pypownet.grid.Grid._count_isolated_loads(self.grid.mpc,
                                                                                              self.grid.are_loads)
@@ -590,7 +594,7 @@ class Game(object):
             reload_minus_1_timestep()
             # Put back on previous mode (should be AC)
             self.grid.dc_loadflow = before_dc
-            raise e
+            raise DivergingLoadflowException(e.last_observation, e.text)
 
         # Reset previous timestep conditions (cancel previous step)
         reload_minus_1_timestep()
@@ -617,11 +621,18 @@ class Game(object):
         observation.planned_voltage_productions = self.grid.normalize_prods_voltages(
             current_timestep_entries.get_planned_prods_v())
 
+        # Initial topology
+        initial_topology = self.get_initial_topology()
+        observation.initial_productions_nodes = initial_topology[0]
+        observation.initial_loads_nodes = initial_topology[1]
+        observation.initial_lines_or_nodes = initial_topology[2]
+        observation.initial_lines_ex_nodes = initial_topology[3]
+
         observation.datetime = self.current_date
 
         return observation
 
-    def _render(self, rewards, close=False, game_over=False, cascading_frame_id=None, date=None, timestep_id=None):
+    def render(self, rewards, game_over=False, cascading_frame_id=None, date=None, timestep_id=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the
         renderer class (e.g. sum of consumptions).
 

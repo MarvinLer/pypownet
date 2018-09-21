@@ -5,8 +5,7 @@ __author__ = 'marvinler'
 import numpy as np
 from enum import Enum
 
-from pypownet.game import Game, Action
-from pypownet.reward_signal import DefaultRewardSignal
+import pypownet.game
 
 
 class IllegalActionException(Exception):
@@ -14,6 +13,22 @@ class IllegalActionException(Exception):
         super(IllegalActionException, self).__init__(*args)
         self.text = text
         self.illegal_lines_reconnections = illegal_lines_reconnections
+
+
+# Wrappers for the exceptions of the game module
+class DivergingLoadflowException(pypownet.game.DivergingLoadflowException):
+    def __init__(self, last_observation, *args):
+        super(DivergingLoadflowException, self).__init__(last_observation, *args)
+
+
+class TooManyProductionsCut(pypownet.game.TooManyProductionsCut):
+    def __init__(self, *args):
+        super(TooManyProductionsCut, self).__init__(*args)
+
+
+class TooManyConsumptionsCut(pypownet.game.TooManyConsumptionsCut):
+    def __init__(self, *args):
+        super(TooManyConsumptionsCut, self).__init__(*args)
 
 
 class ElementType(Enum):
@@ -52,19 +67,19 @@ class ActionSpace(object):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
         not activated.
 
-        :return: an instance of Action that is equivalent to an action doing nothing
+        :return: an instance of pypownet.game.Action that is equivalent to an action doing nothing
         """
-        return Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
+        return pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
                                     loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
                                     lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
                                     lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
                                     lines_status_subaction=np.zeros(self.lines_status_subaction_length))
 
     def array_to_action(self, array):
-        """ Converts and returns an Action from a array-object (e.g. list, numpy arrays).
+        """ Converts and returns an pypownet.game.Action from a array-object (e.g. list, numpy arrays).
 
         :param array: array-style object
-        :return: an instance of Action equivalent to input action :raise ValueError: the input array is not of the
+        :return: an instance of pypownet.game.Action equivalent to input action :raise ValueError: the input array is not of the
         same length than the expected action (self.action_length)
         """
         if len(array) != self.action_length:
@@ -80,19 +95,19 @@ class ActionSpace(object):
         lines_ex_switches_subaction = array[offset:offset + self.lines_ex_switches_subaction_length]
         lines_status_subaction = array[-self.lines_status_subaction_length:]
 
-        return Action(prods_switches_subaction=prods_switches_subaction,
+        return pypownet.game.Action(prods_switches_subaction=prods_switches_subaction,
                                     loads_switches_subaction=loads_switches_subaction,
                                     lines_or_switches_subaction=lines_or_switches_subaction,
                                     lines_ex_switches_subaction=lines_ex_switches_subaction,
                                     lines_status_subaction=lines_status_subaction)
 
     def verify_action_shape(self, action):
-        # Action of None is equivalent to no action
         if action is None:
             raise ValueError('Expected binary array of length %d, got None' % self.action_length)
 
-        # If the input action is not of class Action, try to format it into Action (action must be array-like)
-        if not isinstance(action, Action):
+        # If the input action is not of class pypownet.game.Action, try to format it into pypownet.game.Action
+        # (action must be array-like)
+        if not isinstance(action, pypownet.game.Action):
             try:
                 formatted_action = self.array_to_action(action)
             except ValueError as e:
@@ -246,7 +261,8 @@ class Observation(object):
                  prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
                  timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
                  planned_reactive_loads, planned_active_productions, planned_voltage_productions, date,
-                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
+                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes,
+                 initial_loads_nodes, initial_lines_or_nodes, initial_lines_ex_nodes):
         self.substations_ids = substations_ids
 
         # Loads related state values
@@ -293,6 +309,12 @@ class Observation(object):
         self.planned_reactive_loads = planned_reactive_loads
         self.planned_active_productions = planned_active_productions
         self.planned_voltage_productions = planned_voltage_productions
+
+        # Initial topological values of nodes
+        self.initial_productions_nodes = initial_productions_nodes
+        self.initial_loads_nodes = initial_loads_nodes
+        self.initial_lines_or_nodes = initial_lines_or_nodes
+        self.initial_lines_ex_nodes = initial_lines_ex_nodes
 
         self.datetime = date
 
@@ -467,7 +489,7 @@ class RunEnv(object):
                  game_over_mode='soft', renderer_latency=None):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
-        self.game = Game(parameters_folder=parameters_folder, game_level=game_level,
+        self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
                                        chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
                                        game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
         self.action_space = ActionSpace(*self.game.get_number_elements(),
@@ -478,10 +500,9 @@ class RunEnv(object):
                                         lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
-        if self.game.get_custom_reward_signal() is not None:
-            self.reward_signal = self.game.get_custom_reward_signal()
-        else:
-            self.reward_signal = DefaultRewardSignal(initial_topology=self.game.get_initial_topology())
+        self.number_elements = self.game.get_number_elements()
+
+        self.reward_signal = self.game.get_reward_signal_class()
 
         self.last_rewards = []
 
@@ -499,13 +520,14 @@ class RunEnv(object):
             raise e
 
         observation, reward_flag, done = self.game.step(submitted_action)
+        reward_flag = self.__wrap_exception(reward_flag)
 
         reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
         self.last_rewards = reward_aslist
 
         return observation, sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
-    def simulate(self, action=None, do_sum=True):
+    def simulate(self, action, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
@@ -514,6 +536,7 @@ class RunEnv(object):
             raise e
 
         observation, reward_flag, done = self.game.simulate(to_simulate_action)
+        reward_flag = self.__wrap_exception(reward_flag)
 
         reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
         self.last_rewards = reward_aslist
@@ -521,18 +544,21 @@ class RunEnv(object):
         return sum(reward_aslist) if do_sum else reward_aslist
 
     def reset(self):
-        # Reset the grid overall topology
         self.game.reset()
         return self._get_obs()
 
-    def render(self, mode='human', close=False, game_over=False):
-        if mode == 'human':
-            self.game._render(self.last_rewards, close, game_over=game_over)
-        else:
-            raise ValueError("Unsupported render mode: " + mode)
+    def render(self, game_over=False):
+        self.game.render(self.last_rewards, game_over=game_over)
 
-    def get_current_scenario_id(self):
-        return self.game.get_current_timestep_id()
+    def __wrap_exception(self, flag):
+        if isinstance(flag, pypownet.game.DivergingLoadflowException):
+            return DivergingLoadflowException(flag.last_observation, flag.text)
+        elif isinstance(flag, pypownet.game.TooManyConsumptionsCut):
+            return TooManyConsumptionsCut(flag.text)
+        elif isinstance(flag, pypownet.game.TooManyProductionsCut):
+            return TooManyProductionsCut(flag.text)
+        else:
+            return flag
 
 
 OBSERVATION_MEANING = {

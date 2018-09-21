@@ -195,7 +195,7 @@ class Grid(object):
         return are_isolated_buses[are_loads], are_isolated_buses[are_prods], are_isolated_buses
         #return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
-    def __vanilla_matpower_callback(self, fname_end=''):
+    def __vanilla_loadflow_backend_callback(self, fname_end=''):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
         from matpower). This function uses default octave mpoption (they control in certain ways how matpower behaves
         for the loadflow computation.
@@ -238,7 +238,7 @@ class Grid(object):
         """
         self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
         try:
-            output, loadflow_success = self.__vanilla_matpower_callback(fname_end=fname_end)
+            output, loadflow_success = self.__vanilla_loadflow_backend_callback(fname_end=fname_end)
         except DivergingLoadflowException as e:  # Propagates error if one was raised
             raise e
 
@@ -258,13 +258,13 @@ class Grid(object):
 
     def load_timestep_injections(self, timestep_injections, prods_p=None, prods_v=None, loads_p=None, loads_q=None):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads. Other
-    timestep entries are loaded using other modules (including pypownet.game).
-    If one of input except TimestepInjections are not None, they are all used for next injections (used in simulate
-    with planned injections).
+        timestep entries are loaded using other modules (including pypownet.game).
+        If one of input except TimestepInjections are not None, they are all used for next injections (used in simulate
+        with planned injections).
 
-    :param timestep_injections: an instance of class Scenario
-    :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
-    """
+        :param timestep_injections: an instance of class Scenario
+        :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
+        """
         assert isinstance(timestep_injections, TimestepEntries), 'Should not happen'
 
         # Change the filename of self to pretty print middle-end created temporary files
@@ -314,10 +314,10 @@ class Grid(object):
     def apply_topology(self, new_topology):
         # Verify new specified topology is of good number of elements and only 0 or 1
         """ Applies a new topology to self. topology should be an instance of class Topology, with computed values to
-    be replaced in self.
+        be replaced in self.
 
-    :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
-    """
+        :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
+        """
         cpy_new_topology = copy.deepcopy(
             new_topology)  # Deepcopy as this function sometimes uses to-be-fixed Topology
         assert cpy_new_topology.get_length() == self.get_topology().get_length(), 'Should not happen'
@@ -382,14 +382,14 @@ class Grid(object):
 
     def compute_topological_mapping_permutation(self):
         """ Computes a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
-    into a representation where all elements of a substation are consecutives values (same order, but locally).
-    By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
-    value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
-    lines service status.
+        into a representation where all elements of a substation are consecutives values (same order, but locally).
+        By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
+        value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
+        lines service status.
 
-    This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
-    function for the remaining of the game (also fixed along games).
-    """
+        This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
+        function for the remaining of the game (also fixed along games).
+        """
         # Retrieve the true ids of the productions, loads, lines origin (substation id where the origin of a line is
         # wired), lines extremity
         prods_ids = self.mpc['gen'][:, 0]
@@ -512,7 +512,9 @@ class Grid(object):
                                                 planned_reactive_loads=None, planned_active_productions=None,
                                                 planned_voltage_productions=None, date=None,
                                                 prods_nodes=prods_nodes, loads_nodes=loads_nodes,
-                                                lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes)
+                                                lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
+                                                initial_productions_nodes=None, initial_loads_nodes=None,
+                                                initial_lines_or_nodes=None, initial_lines_ex_nodes=None)
 
     def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
@@ -546,10 +548,9 @@ class Grid(object):
 
 class Topology(object):
     """
-This class is a container for the topology lists defining the current topological state of a grid. Topology should
-be manipulated using this class, as it maintains the adopted convention consistently.
-"""
-
+    This class is a container for the topology lists defining the current topological state of a grid. Topology should
+    be manipulated using this class, as it maintains the adopted convention consistently.
+    """
     def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, mapping_array):
         self.prods_nodes = prods_nodes
         self.loads_nodes = loads_nodes
@@ -602,4 +603,3 @@ be manipulated using this class, as it maintains the adopted convention consiste
 
     def __str__(self):
         return 'Grid topology: %s' % ('[%s]' % ', '.join(list(map(str, self.get_zipped()))))
-
