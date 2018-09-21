@@ -243,34 +243,19 @@ class ObservationSpace(object):
         self.grid_number_of_elements = self.number_productions + self.number_loads + 2 * self.number_power_lines
 
 
-class Observation(object):
-    """ The class State is a container for all the values representing the state of a given grid at a given time. It
-    contains the following values:
-    * The active and reactive power values of the loads
-    * The active power values and the voltage setpoints of the productions
-    * The values of the power through the lines: the active and reactive values at the origin/extremity of the
-    lines as well as the lines capacity usage
-    * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
-    """
-
-    def __init__(self, substations_ids, active_loads, reactive_loads, voltage_loads, active_productions,
-                 reactive_productions,
-                 voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
-                 active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                 thermal_limits, lines_status, are_isolated_loads, are_isolated_prods, loads_substations_ids,
-                 prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
+class MinimalistObservation(object):
+    def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions,
+                 reactive_productions, voltage_productions, active_flows_origin, reactive_flows_origin,
+                 voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
+                 ampere_flows, lines_status, are_isolated_loads, are_isolated_prods,
                  timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
                  planned_reactive_loads, planned_active_productions, planned_voltage_productions, date,
-                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes,
-                 initial_loads_nodes, initial_lines_or_nodes, initial_lines_ex_nodes):
-        self.substations_ids = substations_ids
-
+                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
         # Loads related state values
         self.active_loads = active_loads
         self.reactive_loads = reactive_loads
         self.voltage_loads = voltage_loads
         self.are_loads_cut = are_isolated_loads
-        self.loads_substations_ids = loads_substations_ids
         self.loads_nodes = loads_nodes
 
         # Productions related state values
@@ -278,25 +263,21 @@ class Observation(object):
         self.reactive_productions = reactive_productions
         self.voltage_productions = voltage_productions
         self.are_productions_cut = are_isolated_prods
-        self.productions_substations_ids = prods_substations_ids
         self.productions_nodes = prods_nodes
 
         # Origin flows related state values
         self.active_flows_origin = active_flows_origin
         self.reactive_flows_origin = reactive_flows_origin
         self.voltage_flows_origin = voltage_flows_origin
-        self.lines_or_substations_ids = lines_or_substations_ids
         self.lines_or_nodes = lines_or_nodes
         # Extremity flows related state values
         self.active_flows_extremity = active_flows_extremity
         self.reactive_flows_extremity = reactive_flows_extremity
         self.voltage_flows_extremity = voltage_flows_extremity
-        self.lines_ex_substations_ids = lines_ex_substations_ids
         self.lines_ex_nodes = lines_ex_nodes
 
         # Ampere flows and thermal limits
         self.ampere_flows = ampere_flows
-        self.thermal_limits = thermal_limits
         self.lines_status = lines_status
 
         # Per-line timesteps to wait before the line is full repaired, after being broken by cascading failure,
@@ -310,12 +291,6 @@ class Observation(object):
         self.planned_active_productions = planned_active_productions
         self.planned_voltage_productions = planned_voltage_productions
 
-        # Initial topological values of nodes
-        self.initial_productions_nodes = initial_productions_nodes
-        self.initial_loads_nodes = initial_loads_nodes
-        self.initial_lines_or_nodes = initial_lines_or_nodes
-        self.initial_lines_ex_nodes = initial_lines_ex_nodes
-
         self.datetime = date
 
     def as_dict(self):
@@ -323,21 +298,74 @@ class Observation(object):
 
     def as_array(self):
         return np.concatenate((
-            self.loads_substations_ids, self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
-            self.planned_active_loads, self.planned_reactive_loads, self.loads_nodes,
+            self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
+            self.planned_active_loads.flatten(), self.planned_reactive_loads.flatten(), self.loads_nodes,
 
-            self.productions_substations_ids, self.active_productions, self.reactive_productions,
-            self.voltage_productions, self.are_productions_cut,
-            self.planned_active_productions, self.planned_voltage_productions, self.productions_nodes,
+            self.active_productions, self.reactive_productions, self.voltage_productions, self.are_productions_cut,
+            self.planned_active_productions.flatten(), self.planned_voltage_productions.flatten(),
+            self.productions_nodes,
 
-            self.lines_or_substations_ids, self.active_flows_origin, self.reactive_flows_origin,
+            self.active_flows_origin, self.reactive_flows_origin,
             self.voltage_flows_origin, self.lines_or_nodes,
 
-            self.lines_ex_substations_ids, self.active_flows_extremity, self.reactive_flows_extremity,
+            self.active_flows_extremity, self.reactive_flows_extremity,
             self.voltage_flows_extremity, self.lines_ex_nodes,
 
-            self.ampere_flows, self.thermal_limits, self.lines_status, self.timesteps_before_lines_reconnectable,
-            self.timesteps_before_planned_maintenance))
+            self.ampere_flows, self.lines_status, self.timesteps_before_lines_reconnectable,
+            self.timesteps_before_planned_maintenance,))
+
+
+class Observation(MinimalistObservation):
+    """ The class State is a container for all the values representing the state of a given grid at a given time. It
+    contains the following values:
+    * The active and reactive power values of the loads
+    * The active power values and the voltage setpoints of the productions
+    * The values of the power through the lines: the active and reactive values at the origin/extremity of the
+    lines as well as the lines capacity usage
+    * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
+    """
+
+    def __init__(self, substations_ids, active_loads, reactive_loads, voltage_loads, active_productions,
+                 reactive_productions, voltage_productions, active_flows_origin, reactive_flows_origin,
+                 voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
+                 ampere_flows, thermal_limits, lines_status, are_isolated_loads, are_isolated_prods,
+                 loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
+                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
+                 planned_reactive_loads, planned_active_productions, planned_voltage_productions, date, prods_nodes,
+                 loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes, initial_loads_nodes,
+                 initial_lines_or_nodes, initial_lines_ex_nodes):
+        super().__init__(active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
+                         voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
+                         active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
+                         lines_status, are_isolated_loads, are_isolated_prods, timesteps_before_lines_reconnectable,
+                         timesteps_before_planned_maintenance, planned_active_loads, planned_reactive_loads,
+                         planned_active_productions, planned_voltage_productions, date, prods_nodes, loads_nodes,
+                         lines_or_nodes, lines_ex_nodes)
+        # Fixed ids of elements: substations, loads, prods, lines or and lines ex
+        self.substations_ids = substations_ids
+        self.loads_substations_ids = loads_substations_ids
+        self.productions_substations_ids = prods_substations_ids
+        self.lines_or_substations_ids = lines_or_substations_ids
+        self.lines_ex_substations_ids = lines_ex_substations_ids
+
+        self.thermal_limits = thermal_limits
+
+        # Initial topology
+        self.initial_productions_nodes = initial_productions_nodes
+        self.initial_loads_nodes = initial_loads_nodes
+        self.initial_lines_or_nodes = initial_lines_or_nodes
+        self.initial_lines_ex_nodes = initial_lines_ex_nodes
+
+    def as_dict(self):
+        return self.__dict__
+
+    def as_array(self):
+        return np.concatenate((super(Observation, self).as_array(),
+                               self.loads_substations_ids,
+                               self.productions_substations_ids,
+                               self.lines_or_substations_ids,
+                               self.lines_ex_substations_ids,
+                               self.thermal_limits,))
 
     def get_nodes_of_substation(self, substation_id):
         """ From the current observation, retrieves the list of value of the nodes on which each element of the

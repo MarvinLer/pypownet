@@ -8,4 +8,3 @@ class CustomRewardSignal(RewardSignal):
 
     def compute_reward(self, observation, action, flag):
         return [-1] if flag is not None else [1]
-
