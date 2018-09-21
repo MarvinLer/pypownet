@@ -1,4 +1,5 @@
 {
+    "loadflow_backend"                                : "pypower",
     "loadflow_mode"                                   : "AC",
     "max_seconds_per_timestep"                        : 1.0,
 

@@ -42,7 +42,7 @@ for case in chronics_cases:
 
 def main():
     setup(name='pypownet',
-          version='2.0.0',
+          version='2.0.4',
           description='A Gym/keras-rl compatible environment simulating large-scale power grids.',
           author='Marvin Lerousseau',
           author_email='marvin.lerousseau@gmail.com',

@@ -133,6 +133,7 @@ class Game(object):
 
         # Read parameters
         self.__parameters = Parameters(parameters_folder, game_level)
+        loadflow_backend = self.__parameters.get_loadflow_backend()
         self.is_mode_dc = self.__parameters.is_dc_mode()
         self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
         self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()
@@ -152,14 +153,14 @@ class Game(object):
         self.game_over_mode = game_over_mode
 
         # Seek and load starting reference grid
-        self.grid = pypownet.grid.Grid(src_filename=self.__parameters.get_reference_grid_path(),
+        self.grid = pypownet.grid.Grid(loadflow_backend=loadflow_backend,
+                                       src_filename=self.__parameters.get_reference_grid_path(),
                                        dc_loadflow=self.is_mode_dc,
                                        new_imaps=self.__chronic.get_imaps())
         # Container that counts the consecutive timesteps lines are soft-overflows
         self.n_timesteps_soft_overflowed_lines = np.zeros((self.grid.n_lines,))
 
         # Retrieve all the pertinent values of the chronic
-        self.timesteps_ids = self.__chronic.get_timestep_ids()
         self.current_timestep_id = None
         self.current_date = None
         self.current_timestep_entries = None
@@ -324,15 +325,16 @@ class Game(object):
 
         :return: :raise ValueError: raised in the case where they are no more scenarios available
         """
+        timesteps_ids = self.__chronic.get_timestep_ids()
         # If there are no more timestep to be played, loads next chronic
-        if self.current_timestep_id == self.timesteps_ids[-1]:
+        if self.current_timestep_id == timesteps_ids[-1]:
             self.__chronic = self.get_next_chronic()
 
         # If no timestep injections has been loaded so far, loads the first one
         if self.current_timestep_id is None:
-            next_timestep_id = self.timesteps_ids[0]
+            next_timestep_id = timesteps_ids[0]
         else:  # Otherwise loads the next one in the list of timesteps injections
-            next_timestep_id = self.timesteps_ids[self.timesteps_ids.index(self.current_timestep_id) + 1]
+            next_timestep_id = timesteps_ids[timesteps_ids.index(self.current_timestep_id) + 1]
 
         # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
         if not is_simulation:
@@ -350,7 +352,7 @@ class Game(object):
 
             # Compute loadflow of current grid
             try:
-                self.grid.compute_loadflow(fname_end='_cascading%d.m' % depth)
+                self.grid.compute_loadflow(fname_end='_cascading%d' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': cascading emulation of depth %d has diverged' % depth
                 if self.renderer is not None:
@@ -471,29 +473,28 @@ class Game(object):
         # Apply the newly computed destination topology to the grid
         self.grid.set_lines_status(new_lines_service)
 
-    def reset(self, restart):
+        # import pypower.api
+        # import os
+        # pypower.api.savecase(os.path.join('tmp', self.grid.filename[:-2]+'.py'), self.grid.mpc)
+
+    def reset(self):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
         load the first set of injections (i)_{t0}, otherwise the next set of injections of the chronics (i)_{t+1}
-
-        :param restart: True to restart the chronic, else pursue with next timestep
         """
         self.reset_grid()
         self.epoch += 1
-        if restart:  # If restart, put current id to None so that load_next will load first timestep
+        # Loads next chronics if game is hardcore mode
+        if self.game_over_mode == 'hard':  # If restart, put current id to None so that load_next will load first timestep
             self.current_timestep_id = None
             self.timestep = 1
-
-        # Loads next chronics if game is hardcore mode
-        if self.game_over_mode == 'hard':
             self.__chronic = self.get_next_chronic()
 
         try:
             self.load_entries_from_next_timestep()
             self._compute_loadflow_cascading()
         # If after reset there is a diverging loadflow, then recall reset w/o penalty (not the player's fault)
-        except pypownet.grid.DivergingLoadflowException as e:
-            self.logger.error(e)
-            self.reset(restart)
+        except pypownet.grid.DivergingLoadflowException:
+            self.reset()
 
     def reset_grid(self):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).
@@ -508,6 +509,10 @@ class Game(object):
         # Reset voltage magnitude and angles: they change when using AC mode
         self.grid.set_voltage_angles(self.initial_voltage_angles)
         self.grid.set_voltage_magnitudes(self.initial_voltage_magnitudes)
+
+        self.grid.mpc = {k: v for k, v in self.grid.mpc.items() if k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}
+
+        #self.grid.set_flows_to_0()
 
     def step(self, action, _is_simulation=False):
         if _is_simulation:

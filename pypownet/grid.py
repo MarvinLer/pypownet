@@ -5,12 +5,12 @@ __author__ = 'marvinler'
 import os
 import numpy as np
 import copy
-from oct2py import octave
-from oct2py.utils import Oct2PyError
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.chronic import TimestepEntries
 import pypownet.environment
 import math
+import logging
+import importlib
 
 
 class DivergingLoadflowException(Exception):
@@ -38,16 +38,37 @@ def compute_flows_a(active, reactive, voltage, are_lines_on):
 
 
 class Grid(object):
-    def __init__(self, src_filename, dc_loadflow, new_imaps, verbose=False):
+    def __init__(self, loadflow_backend, src_filename, dc_loadflow, new_imaps):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
-        self.verbose = verbose  # True to print some running logs, including cascading failure depth
 
-        # Container output of Matpower usual functions (mpc structure); contains all grid params/values as dic format
-        self.mpc = octave.loadcase(self.filename, verbose=False)
+        from pypownet import configure_matpower
+        # Import for this instance of __class__ an octave instance (even for pypower backend for loading grid)
+        oct2py = importlib.import_module('oct2py')
+        self.octave = getattr(oct2py, 'octave')
+        configure_matpower()  # Will declare path dependencies and such
+
+        # Initialize loadflow backend
+        if loadflow_backend not in ['matpower', 'pypower']:
+            raise ValueError('should not happen')
+        if loadflow_backend == 'matpower':
+            self.Oct2PyError = getattr(importlib.import_module('oct2py.utils'), 'Oct2PyError')
+            self.loadflow_options = self.octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25, 'verbose', 0, 'out.all', 0)
+            self.mpc = self.octave.loadcase(self.filename, verbose=False)
+        elif loadflow_backend == 'pypower':
+            try:
+                self.pypower_api = importlib.import_module('pypower.api')
+                self.loadflow_options = self.pypower_api.ppoption(PF_ALG=2, PF_MAX_IT_FD=15, PF_TOL=1e-6, VERBOSE=0, OUT_ALL=0)
+                self.mpc = self.octave.loadcase(self.filename, verbose=False)
+            except:
+                raise
+        else:
+            raise Exception('Should not happen')
+        self.loadflow_backend = loadflow_backend
+
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
         self.thermal_limits = np.asarray(new_imaps)
         self.mpc['branch'][:, 5] = np.asarray(new_imaps)
@@ -74,6 +95,8 @@ class Grid(object):
         self.topology = Topology(prods_nodes=np.zeros((self.n_prods,)), loads_nodes=np.zeros((self.n_loads,)),
                                  lines_or_nodes=np.zeros((self.n_lines,)), lines_ex_nodes=np.zeros((self.n_lines,)),
                                  mapping_array=mapping_permutation)
+
+        self.logger = logging.getLogger('pypownet.' + __file__)
 
     def get_number_elements(self):
         return self.n_prods, self.n_loads, self.n_lines
@@ -172,29 +195,36 @@ class Grid(object):
         return are_isolated_buses[are_loads], are_isolated_buses[are_prods], are_isolated_buses
         #return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
-    def __vanilla_matpower_callback(self, fname_end=None, verbose=False):
+    def __vanilla_matpower_callback(self, fname_end=''):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
         from matpower). This function uses default octave mpoption (they control in certain ways how matpower behaves
         for the loadflow computation.
 
-        :param fname_end: path to the output prettyprint file (produced by matpower) or None to not save this file
-        :param verbose: this verbose refers to the matpower verbose: if enabled, will plot the output grid in terminal
         :return: the ouput of matpower (typically mpc structure), and a boolean success of loadflow indicator
         """
-        # Fonction of matpower to compute loadflow
-        matpower_function = octave.rundcpf if self.dc_loadflow else octave.runpf
-
-        mpopt = octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25)
-
         if self.save_io:
-            fname_end = '.m' if fname_end is None else fname_end
-            fname = os.path.abspath(os.path.join('tmp', os.path.basename(self.filename)))[:-2] + fname_end
-            pprint = os.path.abspath(os.path.join('tmp', 'pp' + os.path.basename(self.filename)))[:-2] + fname_end
-            output = matpower_function(self.mpc, mpopt, pprint, fname, verbose=verbose)
+            fname_end += '.py' if self.loadflow_backend == 'pypower' else '.m'
+            fname = os.path.abspath(os.path.join('tmp', os.path.basename(self.filename))) + fname_end
+            pprint = os.path.abspath(os.path.join('tmp', 'pp' + os.path.basename(self.filename))) + fname_end
         else:
-            output = matpower_function(self.mpc, mpopt, verbose=verbose)
+            fname, pprint = '', ''
 
-        loadflow_success = output['success']  # 0 = failed, 1 = successed
+        if self.loadflow_backend == 'pypower':
+            function = self.pypower_api.rundcpf if self.dc_loadflow else self.pypower_api.runpf
+            try:
+                output, loadflow_success = function(self.mpc, self.loadflow_options, pprint, fname)
+            except (RuntimeError, RuntimeWarning):
+                raise DivergingLoadflowException(None, 'The grid is not connexe')
+        elif self.loadflow_backend == 'matpower':
+            function = self.octave.rundcpf if self.dc_loadflow else self.octave.runpf
+            try:
+                output = function(self.mpc, self.loadflow_options, pprint, fname)
+                loadflow_success = output['success']
+            except self.Oct2PyError:
+                raise DivergingLoadflowException(None, 'The grid is not connexe')
+        else:
+            raise Exception('Should not happen')
+
         return output, loadflow_success
 
     def compute_loadflow(self, fname_end):
@@ -207,11 +237,10 @@ class Grid(object):
         of grid not connexe, or voltages issues, or angle issues etc).
         """
         self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
-
         try:
             output, loadflow_success = self.__vanilla_matpower_callback(fname_end=fname_end)
-        except Oct2PyError:
-            raise DivergingLoadflowException(None, 'The grid is not connexe')
+        except DivergingLoadflowException as e:  # Propagates error if one was raised
+            raise e
 
         # Save the loadflow output as current grid
         self.mpc = output
@@ -229,17 +258,17 @@ class Grid(object):
 
     def load_timestep_injections(self, timestep_injections, prods_p=None, prods_v=None, loads_p=None, loads_q=None):
         """ Loads a scenario from class Scenario: contains P and V values for prods, and P and Q values for loads. Other
-        timestep entries are loaded using other modules (including pypownet.game).
-        If one of input except TimestepInjections are not None, they are all used for next injections (used in simulate
-        with planned injections).
+    timestep entries are loaded using other modules (including pypownet.game).
+    If one of input except TimestepInjections are not None, they are all used for next injections (used in simulate
+    with planned injections).
 
-        :param timestep_injections: an instance of class Scenario
-        :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
-        """
+    :param timestep_injections: an instance of class Scenario
+    :return: if do_trigger_lf_computation then the result of self.compute_loadflow else nothing
+    """
         assert isinstance(timestep_injections, TimestepEntries), 'Should not happen'
 
         # Change the filename of self to pretty print middle-end created temporary files
-        self.filename = 'scenario%d.m' % (timestep_injections.get_id())
+        self.filename = 'scenario%d.py' % (timestep_injections.get_id())
 
         mpc = self.mpc
         gen = mpc['gen']
@@ -279,14 +308,18 @@ class Grid(object):
     def get_lines_status(self):
         return self.mpc['branch'][:, 10]
 
+    def set_flows_to_0(self):
+        self.mpc['branch'][:, 13:] = 0.
+
     def apply_topology(self, new_topology):
         # Verify new specified topology is of good number of elements and only 0 or 1
         """ Applies a new topology to self. topology should be an instance of class Topology, with computed values to
-        be replaced in self.
+    be replaced in self.
 
-        :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
-        """
-        cpy_new_topology = copy.deepcopy(new_topology)  # Deepcopy as this function sometimes uses to-be-fixed Topology
+    :param new_topology: an instance of Topology, with destination values for the nodes values/lines service status
+    """
+        cpy_new_topology = copy.deepcopy(
+            new_topology)  # Deepcopy as this function sometimes uses to-be-fixed Topology
         assert cpy_new_topology.get_length() == self.get_topology().get_length(), 'Should not happen'
         assert set(cpy_new_topology.get_zipped()).issubset([0, 1]), 'Should not happen'
 
@@ -349,14 +382,14 @@ class Grid(object):
 
     def compute_topological_mapping_permutation(self):
         """ Computes a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
-        into a representation where all elements of a substation are consecutives values (same order, but locally).
-        By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
-        value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
-        lines service status.
+    into a representation where all elements of a substation are consecutives values (same order, but locally).
+    By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
+    value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
+    lines service status.
 
-        This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
-        function for the remaining of the game (also fixed along games).
-        """
+    This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
+    function for the remaining of the game (also fixed along games).
+    """
         # Retrieve the true ids of the productions, loads, lines origin (substation id where the origin of a line is
         # wired), lines extremity
         prods_ids = self.mpc['gen'][:, 0]
@@ -380,7 +413,8 @@ class Grid(object):
             n_lines_ex = (lines_ex_ids == node_id).sum()
             n_elements = n_prods + n_loads + n_lines_or + n_lines_ex
             substations_n_elements.append(n_elements)
-        assert sum(substations_n_elements) == len(prods_ids) + len(loads_ids) + len(lines_or_ids) + len(lines_ex_ids)
+        assert sum(substations_n_elements) == len(prods_ids) + len(loads_ids) + len(lines_or_ids) + len(
+            lines_ex_ids)
         # Based on the number of elements per substations, store the true id of substations with less than 4 elements
         mononode_substations = substations_ids[np.where(np.array(substations_n_elements) < 4)[0]]
 
@@ -468,10 +502,13 @@ class Grid(object):
                                                 active_prods, reactive_prods, voltage_prods, active_flows_origin,
                                                 reactive_flows_origin, voltage_origin, active_flows_extremity,
                                                 reactive_flows_extremity, voltage_extremity, ampere_flows,
-                                                thermal_limits, lines_status, are_isolated_loads, are_isolated_prods,
-                                                substations_ids_loads, substations_ids_prods, substations_ids_lines_or,
+                                                thermal_limits, lines_status, are_isolated_loads,
+                                                are_isolated_prods,
+                                                substations_ids_loads, substations_ids_prods,
+                                                substations_ids_lines_or,
                                                 substations_ids_lines_ex, timesteps_before_lines_reconnectable=None,
-                                                timesteps_before_planned_maintenance=None, planned_active_loads=None,
+                                                timesteps_before_planned_maintenance=None,
+                                                planned_active_loads=None,
                                                 planned_reactive_loads=None, planned_active_productions=None,
                                                 planned_voltage_productions=None, date=None,
                                                 prods_nodes=prods_nodes, loads_nodes=loads_nodes,
@@ -479,10 +516,10 @@ class Grid(object):
 
     def export_lines_capacity_usage(self, safe_mode=False):
         """ Computes and returns the lines capacity usage, i.e. the elementwise division of the flows in Ampere by the
-            lines nominal thermal limit.
+        lines nominal thermal limit.
 
-            :return: a list of size the number of lines of positive values
-            """
+        :return: a list of size the number of lines of positive values
+        """
         mpc = self.mpc
         branch = mpc['branch']
         to_array = lambda array: np.asarray(array)
@@ -500,15 +537,18 @@ class Grid(object):
             dst_fname = os.path.abspath(os.path.join('tmp', 'snapshot_' + os.path.basename(self.filename)))
             if not os.path.exists('tmp'):
                 os.makedirs('tmp')
-        print('Saved snapshot at', dst_fname)
-        return octave.savecase(dst_fname, self.mpc)
+        self.logger.info('Saved snapshot at', dst_fname)
+        if self.loadflow_backend == 'matpower':
+            return self.octave.savecase(dst_fname, self.mpc)
+        elif self.loadflow_backend == 'pypower':
+            return self.pypower_api.savecase(dst_fname, self.mpc)
 
 
 class Topology(object):
     """
-    This class is a container for the topology lists defining the current topological state of a grid. Topology should
-    be manipulated using this class, as it maintains the adopted convention consistently.
-    """
+This class is a container for the topology lists defining the current topological state of a grid. Topology should
+be manipulated using this class, as it maintains the adopted convention consistently.
+"""
 
     def __init__(self, prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes, mapping_array):
         self.prods_nodes = prods_nodes

@@ -68,6 +68,12 @@ class Parameters(object):
     def get_parameters_path(self):
         return self.__parameters_path
 
+    def get_loadflow_backend(self):
+        backend = self.simulator_configuration['loadflow_backend'].lower()
+        if backend not in ['matpower', 'pypower']:
+            raise ValueError('loadflow_backend %s is not currently supported; supported backend: "matpower", "pypower"')
+        return backend
+
     def _get_game_mode(self):
         mode = self.simulator_configuration['game_mode'].lower()
         if mode not in ['hard', 'soft']:

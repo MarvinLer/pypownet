@@ -86,7 +86,7 @@ class Runner(object):
 
         if done:
             self.logger.warn('\b\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
-            observation = self.environment.reset(restart=False)
+            observation = self.environment.reset()
         elif info:
             self.logger.warn(info.text)
 

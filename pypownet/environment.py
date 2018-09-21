@@ -5,9 +5,8 @@ __author__ = 'marvinler'
 import numpy as np
 from enum import Enum
 
-import pypownet.game
-import pypownet.grid
-import pypownet.reward_signal
+from pypownet.game import Game, Action
+from pypownet.reward_signal import DefaultRewardSignal
 
 
 class IllegalActionException(Exception):
@@ -55,7 +54,7 @@ class ActionSpace(object):
 
         :return: an instance of Action that is equivalent to an action doing nothing
         """
-        return pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
+        return Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
                                     loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
                                     lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
                                     lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
@@ -81,7 +80,7 @@ class ActionSpace(object):
         lines_ex_switches_subaction = array[offset:offset + self.lines_ex_switches_subaction_length]
         lines_status_subaction = array[-self.lines_status_subaction_length:]
 
-        return pypownet.game.Action(prods_switches_subaction=prods_switches_subaction,
+        return Action(prods_switches_subaction=prods_switches_subaction,
                                     loads_switches_subaction=loads_switches_subaction,
                                     lines_or_switches_subaction=lines_or_switches_subaction,
                                     lines_ex_switches_subaction=lines_ex_switches_subaction,
@@ -93,7 +92,7 @@ class ActionSpace(object):
             raise ValueError('Expected binary array of length %d, got None' % self.action_length)
 
         # If the input action is not of class Action, try to format it into Action (action must be array-like)
-        if not isinstance(action, pypownet.game.Action):
+        if not isinstance(action, Action):
             try:
                 formatted_action = self.array_to_action(action)
             except ValueError as e:
@@ -468,7 +467,7 @@ class RunEnv(object):
                  game_over_mode='soft', renderer_latency=None):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
-        self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
+        self.game = Game(parameters_folder=parameters_folder, game_level=game_level,
                                        chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
                                        game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
         self.action_space = ActionSpace(*self.game.get_number_elements(),
@@ -482,7 +481,7 @@ class RunEnv(object):
         if self.game.get_custom_reward_signal() is not None:
             self.reward_signal = self.game.get_custom_reward_signal()
         else:
-            self.reward_signal = pypownet.reward_signal.DefaultRewardSignal(initial_topology=self.game.get_initial_topology())
+            self.reward_signal = DefaultRewardSignal(initial_topology=self.game.get_initial_topology())
 
         self.last_rewards = []
 
@@ -521,9 +520,9 @@ class RunEnv(object):
 
         return sum(reward_aslist) if do_sum else reward_aslist
 
-    def reset(self, restart=True):
+    def reset(self):
         # Reset the grid overall topology
-        self.game.reset(restart=restart)
+        self.game.reset()
         return self._get_obs()
 
     def render(self, mode='human', close=False, game_over=False):
