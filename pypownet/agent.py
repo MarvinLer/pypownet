@@ -28,11 +28,6 @@ class Agent(object):
 
         return action
 
-    def feed_reward(self, observation, action, reward):
-        """ Here, the Agent upgrades his policy given the previous observation, its subsequently produced action, and
-        the associated reward. This is where the Agent learns. """
-        pass
-
 
 # Examples of baselines agents
 import numpy as np

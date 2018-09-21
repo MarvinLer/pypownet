@@ -79,16 +79,16 @@ class Runner(object):
 
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
-        reward = sum(reward_aslist)
-
-        # Feed the reward signal to the Agent along with last observation and its resulting action
-        self.agent.feed_reward(self.last_observation, action, reward)
-
         if done:
             self.logger.warn('\b\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
             observation = self.environment.reset()
         elif info:
             self.logger.warn(info.text)
+        # self.logger.error(observation.as_array().shape)
+        # self.logger.error(observation.as_ac_minimalist().as_array().shape)
+        # self.logger.error(observation.as_minimalist().as_array().shape)
+
+        reward = sum(reward_aslist)
 
         if self.render:
             self.environment.render()

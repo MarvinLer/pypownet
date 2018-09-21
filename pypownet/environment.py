@@ -244,36 +244,23 @@ class ObservationSpace(object):
 
 
 class MinimalistObservation(object):
-    def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions,
-                 reactive_productions, voltage_productions, active_flows_origin, reactive_flows_origin,
-                 voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
-                 ampere_flows, lines_status, are_isolated_loads, are_isolated_prods,
-                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
-                 planned_reactive_loads, planned_active_productions, planned_voltage_productions, date,
-                 prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
+    def __init__(self, active_loads, active_productions, ampere_flows, lines_status, are_isolated_loads,
+                 are_isolated_prods, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                 planned_active_loads, planned_active_productions, date, prods_nodes, loads_nodes,
+                 lines_or_nodes, lines_ex_nodes):
         # Loads related state values
         self.active_loads = active_loads
-        self.reactive_loads = reactive_loads
-        self.voltage_loads = voltage_loads
         self.are_loads_cut = are_isolated_loads
         self.loads_nodes = loads_nodes
 
         # Productions related state values
         self.active_productions = active_productions
-        self.reactive_productions = reactive_productions
-        self.voltage_productions = voltage_productions
         self.are_productions_cut = are_isolated_prods
         self.productions_nodes = prods_nodes
 
         # Origin flows related state values
-        self.active_flows_origin = active_flows_origin
-        self.reactive_flows_origin = reactive_flows_origin
-        self.voltage_flows_origin = voltage_flows_origin
         self.lines_or_nodes = lines_or_nodes
         # Extremity flows related state values
-        self.active_flows_extremity = active_flows_extremity
-        self.reactive_flows_extremity = reactive_flows_extremity
-        self.voltage_flows_extremity = voltage_flows_extremity
         self.lines_ex_nodes = lines_ex_nodes
 
         # Ampere flows and thermal limits
@@ -287,9 +274,7 @@ class MinimalistObservation(object):
 
         # Planned injections for the next timestep
         self.planned_active_loads = planned_active_loads
-        self.planned_reactive_loads = planned_reactive_loads
         self.planned_active_productions = planned_active_productions
-        self.planned_voltage_productions = planned_voltage_productions
 
         self.datetime = date
 
@@ -298,24 +283,58 @@ class MinimalistObservation(object):
 
     def as_array(self):
         return np.concatenate((
-            self.active_loads, self.reactive_loads, self.voltage_loads, self.are_loads_cut,
-            self.planned_active_loads.flatten(), self.planned_reactive_loads.flatten(), self.loads_nodes,
+            self.active_loads, self.are_loads_cut, self.planned_active_loads.flatten(), self.loads_nodes,
 
-            self.active_productions, self.reactive_productions, self.voltage_productions, self.are_productions_cut,
-            self.planned_active_productions.flatten(), self.planned_voltage_productions.flatten(),
+            self.active_productions, self.are_productions_cut, self.planned_active_productions.flatten(),
             self.productions_nodes,
 
-            self.active_flows_origin, self.reactive_flows_origin,
-            self.voltage_flows_origin, self.lines_or_nodes,
-
-            self.active_flows_extremity, self.reactive_flows_extremity,
-            self.voltage_flows_extremity, self.lines_ex_nodes,
+            self.lines_or_nodes, self.lines_ex_nodes,
 
             self.ampere_flows, self.lines_status, self.timesteps_before_lines_reconnectable,
             self.timesteps_before_planned_maintenance,))
 
 
-class Observation(MinimalistObservation):
+class MinimalistACObservation(MinimalistObservation):
+    def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
+                 voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
+                 active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows, lines_status,
+                 are_isolated_loads, are_isolated_prods, timesteps_before_lines_reconnectable,
+                 timesteps_before_planned_maintenance, planned_active_loads, planned_reactive_loads,
+                 planned_active_productions, planned_voltage_productions, date, prods_nodes, loads_nodes,
+                 lines_or_nodes, lines_ex_nodes):
+        super().__init__(active_loads, active_productions, ampere_flows, lines_status, are_isolated_loads,
+                         are_isolated_prods, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                         planned_active_loads, planned_active_productions, date, prods_nodes, loads_nodes,
+                         lines_or_nodes, lines_ex_nodes)
+        self.reactive_loads = reactive_loads
+        self.voltage_loads = voltage_loads
+
+        self.reactive_productions = reactive_productions
+        self.voltage_productions = voltage_productions
+
+        self.active_flows_origin = active_flows_origin
+        self.reactive_flows_origin = reactive_flows_origin
+        self.voltage_flows_origin = voltage_flows_origin
+        self.active_flows_extremity = active_flows_extremity
+        self.reactive_flows_extremity = reactive_flows_extremity
+        self.voltage_flows_extremity = voltage_flows_extremity
+
+        self.planned_reactive_loads = planned_reactive_loads
+        self.planned_voltage_productions = planned_voltage_productions
+
+    def as_array(self):
+        return np.concatenate((super(MinimalistACObservation, self).as_array(),
+                               self.reactive_loads,self.voltage_loads,
+                               self.reactive_productions, self.voltage_productions,
+                               self.active_flows_origin, self.reactive_flows_origin, self.voltage_flows_origin,
+                               self.active_flows_extremity,self.reactive_flows_extremity, self.voltage_flows_extremity,
+                               self.planned_reactive_loads, self.planned_voltage_productions,))
+
+    def as_minimalist(self):
+        return super(MinimalistACObservation, self)
+
+
+class Observation(MinimalistACObservation):
     """ The class State is a container for all the values representing the state of a given grid at a given time. It
     contains the following values:
     * The active and reactive power values of the loads
@@ -334,13 +353,15 @@ class Observation(MinimalistObservation):
                  planned_reactive_loads, planned_active_productions, planned_voltage_productions, date, prods_nodes,
                  loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes, initial_loads_nodes,
                  initial_lines_or_nodes, initial_lines_ex_nodes):
-        super().__init__(active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
-                         voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
-                         active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                         lines_status, are_isolated_loads, are_isolated_prods, timesteps_before_lines_reconnectable,
-                         timesteps_before_planned_maintenance, planned_active_loads, planned_reactive_loads,
-                         planned_active_productions, planned_voltage_productions, date, prods_nodes, loads_nodes,
-                         lines_or_nodes, lines_ex_nodes)
+        super(Observation, self).__init__(active_loads, reactive_loads, voltage_loads, active_productions,
+                                          reactive_productions, voltage_productions, active_flows_origin,
+                                          reactive_flows_origin, voltage_flows_origin, active_flows_extremity,
+                                          reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
+                                          lines_status, are_isolated_loads, are_isolated_prods,
+                                          timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                                          planned_active_loads, planned_reactive_loads, planned_active_productions,
+                                          planned_voltage_productions, date, prods_nodes, loads_nodes,
+                                          lines_or_nodes, lines_ex_nodes)
         # Fixed ids of elements: substations, loads, prods, lines or and lines ex
         self.substations_ids = substations_ids
         self.loads_substations_ids = loads_substations_ids
@@ -356,9 +377,6 @@ class Observation(MinimalistObservation):
         self.initial_lines_or_nodes = initial_lines_or_nodes
         self.initial_lines_ex_nodes = initial_lines_ex_nodes
 
-    def as_dict(self):
-        return self.__dict__
-
     def as_array(self):
         return np.concatenate((super(Observation, self).as_array(),
                                self.loads_substations_ids,
@@ -366,6 +384,12 @@ class Observation(MinimalistObservation):
                                self.lines_or_substations_ids,
                                self.lines_ex_substations_ids,
                                self.thermal_limits,))
+
+    def as_ac_minimalist(self):
+        return super(Observation, self)
+
+    def as_minimalist(self):
+        return super(Observation, self).as_minimalist()
 
     def get_nodes_of_substation(self, substation_id):
         """ From the current observation, retrieves the list of value of the nodes on which each element of the
