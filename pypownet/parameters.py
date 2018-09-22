@@ -121,3 +121,14 @@ class Parameters(object):
 
     def get_max_number_loads_game_over(self):
         return self.simulator_configuration['max_number_loads_game_over']
+
+    def __str__(self):
+        params_str = ['    ' + k + ': ' + str(v) for k, v in self.simulator_configuration.items()]
+        max_length = max(list(map(len, params_str)))
+        params_str = '\n'.join(params_str)
+
+        hdrs = '  ' + '=' * max_length + '\n' + \
+               ' ' * (max_length // 2 - 5) + 'GAME PARAMETERS\n' + \
+               '  ' + '=' * max_length
+        ftrs = '  ' + '=' * max_length
+        return '\n'.join([hdrs, params_str, ftrs])
