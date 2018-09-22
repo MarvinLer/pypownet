@@ -114,7 +114,7 @@ class Runner(object):
 
         # Close pygame if renderer has been used
         if self.render:
-            self.environment.render(close=True)
+            self.environment.render()
 
         return cumul_rew
 
