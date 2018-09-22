@@ -46,23 +46,24 @@ class CustomRewardSignal(RewardSignal):
 '''
     open(os.path.join(env_path, 'reward_signal.py'), 'w').write(reward_signal_template)
 
-configuration_file_template = '''{
-    "game_mode"                                       : "soft",
+configuration_file_template = '''loadflow_backend: pypower
+#loadflow_backend: matpower
 
-    "loadflow_mode"                                   : "AC",
-    "max_seconds_per_timestep"                        : 1.0,
+loadflow_mode: AC  # alternative current: more precise model but longer to process
+#loadflow_mode: DC  # direct current: more simplist and faster model
 
-    "hard_overflow_coefficient"                       : 1.5,
-    "n_timesteps_hard_overflow_is_broken"             : 10,
+max_seconds_per_timestep: 1.0  # time in seconds before player is timedout
 
-    "n_timesteps_consecutive_soft_overflow_breaks"    : 3,
-    "n_timesteps_soft_overflow_is_broken"             : 5,
+hard_overflow_coefficient: 1.5  # % of line capacity usage above which a line will break bc of hard overflow
+n_timesteps_hard_overflow_is_broken: 10  # number of timesteps a hard overflow broken line is broken
 
-    "n_timesteps_horizon_maintenance"                 : 20,
+n_timesteps_consecutive_soft_overflow_breaks: 3  # number of consecutive timesteps for a line to be overflowed b4 break
+n_timesteps_soft_overflow_is_broken: 5  # number of timesteps a soft overflow broken line is broken
 
-    "max_number_prods_game_over"                      : 1,
-    "max_number_loads_game_over"                      : 0
-}
+n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for planned maintenance prevision
+
+max_number_prods_game_over: 10  # number of tolerated isolated productions before game over
+max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
 '''
 
 # Construct each level
@@ -70,7 +71,7 @@ of = None
 for i in range(n_levels):
     level_path = os.path.join(env_path, 'level%d' % i)
     os.makedirs(level_path)
-    open(os.path.join(level_path, 'configuration.json'), 'w').write(configuration_file_template)
+    open(os.path.join(level_path, 'configuration.yaml'), 'w').write(configuration_file_template)
     os.makedirs(os.path.join(level_path, 'chronics/'))
     if i == 0:
         of = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.m'))

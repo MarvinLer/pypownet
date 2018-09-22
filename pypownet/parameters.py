@@ -1,7 +1,7 @@
 __author__ = 'marvinler'
 import os
 import sys
-import json
+import json, yaml
 import logging
 import importlib
 from pypownet.reward_signal import RewardSignal
@@ -29,7 +29,7 @@ class Parameters(object):
             raise FileNotFoundError('Game level folder %s does not exist; level folders found in %s: %s' % (
                 game_level, self.__parameters_path, '[' + ', '.join(level_folders) + ']'))
 
-        mandatory_files = ['configuration.json',  # Simulator parameters config file
+        mandatory_files = ['configuration.yaml',  # Simulator parameters config file
                            'reference_grid.m']  # Reference (and initial starting) grid
         mandatory_folders = ['chronics/']
         for f in mandatory_files + mandatory_folders:
@@ -38,11 +38,17 @@ class Parameters(object):
 
         format_path = lambda f: os.path.join(self.level_folder, f)
         self.reference_grid_path = format_path('reference_grid.m')
-        self.configuration_path = format_path('configuration.json')
         self.chronics_path = format_path('chronics/')
-
-        with open(self.configuration_path, 'r') as f:
-            self.simulator_configuration = json.load(f)
+        # Seek and read configuration file
+        # self.configuration_path = format_path('configuration.json')
+        # with open(self.configuration_path, 'r') as f:
+        #     self.simulator_configuration = json.load(f)
+        self.configuration_path = format_path('configuration.yaml')
+        with open(self.configuration_path, 'r') as stream:
+            try:
+                self.simulator_configuration = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                self.logger.error(exc)
 
         # Seek for custom reward signal file
         reward_signal_expected_path = os.path.join(self.__parameters_path, 'reward_signal.py')
