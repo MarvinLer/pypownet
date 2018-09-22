@@ -1,5 +1,5 @@
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Rectangle
 
 __author__ = 'marvinler'
 # Copyright (C) 2017-2018 RTE and INRIA (France)
@@ -118,13 +118,6 @@ class Renderer(object):
         self.loads = []
         self.relative_thermal_limits = []
 
-        self.game_over_font = pygame.font.SysFont("monospace", 40)
-        red = (255, 0, 0)
-        self.game_over_font.set_bold(True)
-        self.game_over_render = lambda s: self.game_over_font.render(s, False, red)
-        black = (0, 0, 0)
-        self.game_over_shadow_render = lambda s: self.game_over_font.render(s, False, black)
-
         self.black_bold_font = pygame.font.SysFont(font, 15)
         blackish = (70, 70, 70)
         self.black_bold_font.set_bold(True)
@@ -133,6 +126,8 @@ class Renderer(object):
         self.last_rewards_surface = None
 
         self.game_over_surface = self.draw_plot_game_over()
+
+        self.boolean_dynamic_arrows = True
 
     def draw_surface_nodes_headers(self, scenario_id, date, cascading_result_frame):
         surface = self.nodes_surface
@@ -189,19 +184,21 @@ class Renderer(object):
         if self.grid_case == 14:
             layout[:, 0] -= 120
             layout[:, 1] += 30
+        color_low = np.asarray((51, 204, 51))
+        color_middle = np.asarray((255, 93, 0))
+        color_high = np.asarray((255, 50, 30))
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
                                                       lines_por, lines_service_status):
             # Compute line thickness + color based on its thermal usage
             thickness = .6 + .25 * (min(1., rtl) // .1)
 
-            color_low = np.asarray((51, 204, 51))
-            color_middle = np.asarray((255, 165, 0))
-            color_high = np.asarray((214, 0, 0))
             if rtl < .5:
                 color = color_low + 2. * rtl * (color_middle - color_low)
-            else:
+            elif rtl < 1.:
                 #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
                 color = color_low + min(1., rtl) * (color_high - color_low)
+            else:
+                color = (255, 20, 20)
 
             # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
             if line_por >= 0:
@@ -218,7 +215,7 @@ class Renderer(object):
                 l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
                                       color=[c / 255. for c in color], figure=fig,
                                       linestyle='--' if rtl > 1. else '-',
-                                      dashes=(1., .33) if rtl > 1. else (None, None)))
+                                      dashes=(2., .8) if rtl > 1. else (None, None)))
         fig.lines.extend(l)
 
         ######## Draw nodes
@@ -246,29 +243,99 @@ class Renderer(object):
             prod_minus_load = prod - load
             # Determine color of filled circle based on the amount of production - consumption
             linewidth_min = 1.
-            if prod_minus_load > 0:
-                color = (0, 153, 255)
+            if prod_minus_load > 0:  # Draw production
+                color = [c / 255. for c in (0, 153, 255)]
+                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min + 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius + 3. * prod_minus_load / max_diff
-            elif prod_minus_load < 0:
-                color = (210, 77, 255)
+
+                c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                ax.add_artist(c)
+                c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
+                ax.add_artist(c)
+            elif prod_minus_load < 0:  # Draw consumption
+                color = [c / 255. for c in (210, 77, 255)]
+                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min - 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
+
+                c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                ax.add_artist(c)
+                c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
+                ax.add_artist(c)
             else:
-                color = (255, 255, 255)
+                color = [c / 255. for c in (255, 255, 255)]
+                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min
                 outer_radius = self.nodes_outer_radius
-            color = [c / 255. for c in color]
-            # Determine the color of the inner filled circle: background if no action changed at the substation,
-            # yellow otherwise
-            inner_circle_color = (255, 255, 0) if is_changed else self.background_color
-            inner_circle_color = [c / 255. for c in inner_circle_color]
 
-            c = Circle((x, y), self.nodes_inner_radius, linewidth=2, fill=True, color=inner_circle_color, zorder=9)
-            ax.add_artist(c)
-            c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
-            ax.add_artist(c)
+                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                ax.add_artist(c)
+                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=linewidth, fill=False, color=color, zorder=9)
+                ax.add_artist(c)
             #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+
+        l = []
+        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
+                                                      lines_por, lines_service_status):
+            if not is_on:
+                continue
+            # Compute line thickness + color based on its thermal usage
+            thickness = .6 + .04 * (min(1., rtl) // .1)
+
+            if rtl < .5:
+                color = color_low + 2. * rtl * (color_middle - color_low)
+            elif rtl < 1.:
+                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+                color = color_low + min(1., rtl) * (color_high - color_low)
+            else:
+                color = (255, 20, 20)
+
+            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
+            if line_por >= 0:
+                ori = layout[or_id]
+                ext = layout[ex_id]
+            else:
+                ori = layout[ex_id]
+                ext = layout[or_id]
+
+            # Compute the line characteristics: draxing is done by plotting two lines starting from the center
+            # with a specific angle and semi-length
+            length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
+            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
+            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
+
+            # First, draw the arrow heads; lines will be drawn on top
+            distance_arrow_heads = 25
+            n_arrow_heads = int(max(1, length // distance_arrow_heads))
+            for a in range(n_arrow_heads):
+                if n_arrow_heads != 1:
+                    offset = a + .25 if self.boolean_dynamic_arrows else a + .75
+                    x = center[0] + (offset * distance_arrow_heads - length / 2.) * math.cos(angle)
+                    y = center[1] + (offset * distance_arrow_heads - length / 2.) * math.sin(angle)
+                else:
+                    x = center[0]
+                    y = center[1]
+
+                #draw_arrow_head(x, y, angle, color, thickness)
+                head_angle = math.pi / 6.
+                width = 8 + 20 * (thickness - .6)
+                x -= width / 2. * math.cos(angle)
+                y -= width / 2. * math.sin(angle)
+                x1 = x + width * math.cos(angle + head_angle)
+                y1 = y + width * math.sin(angle + head_angle)
+                x2 = x + width * math.cos(angle - head_angle)
+                y2 = y + width * math.sin(angle - head_angle)
+                l.append(lines.Line2D([x, x2], [50 + y, 50 + y2], linewidth=thickness,
+                                      color=[c / 255. for c in color], figure=fig, linestyle='-'))
+                l.append(lines.Line2D([x, x1], [50 + y, 50 + y1], linewidth=thickness,
+                                      color=[c / 255. for c in color], figure=fig, linestyle='-'))
+        fig.lines.extend(l)
 
         #p.set_array(np.array(color*len(patches)))
         # Export plot into something readable by pygame
@@ -290,84 +357,6 @@ class Renderer(object):
         loads_curve_surface.blit(img_loads_curve_week, (0, 30) if self.grid_case != 30 else (-100, 0))
 
         return loads_curve_surface
-
-    def draw_surface_arrows(self, relative_thermal_limits, lines_por, lines_service_status):
-        layout = self.grid_layout
-
-        layout = np.asarray(deepcopy(layout))
-        min_x = np.min(layout[:, 0])
-        min_y = np.min(layout[:, 1])
-        layout[:, 0] -= (min_x + 890)
-        layout[:, 0] *= -1
-        layout[:, 1] = 680 + min_y - layout[:, 1]
-        if self.grid_case == 14:
-            layout[:, 0] -= 620
-            layout[:, 1] -= 430
-        if self.grid_case == 30:
-            layout[:, 0] -= 600
-            layout[:, 1] -= 430
-        if self.grid_case == 118:
-            layout[:, 0] -= 500
-            layout[:, 1] -= 400
-
-        def draw_arrow_head(x, y, angle, color, thickness):
-            head_angle = math.pi / 6.
-            width = 8 + thickness
-            x -= width / 2. * math.cos(angle)
-            y -= width / 2. * math.sin(angle)
-            x1 = x + width * math.cos(angle + head_angle)
-            y1 = y + width * math.sin(angle + head_angle)
-            x2 = x + width * math.cos(angle - head_angle)
-            y2 = y + width * math.sin(angle - head_angle)
-            gfxdraw.aapolygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
-            gfxdraw.filled_polygon(surface, ((x, y), (x1, y1), (x2, y2)), color)
-
-        surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
-        x_offset = int(self.topology_layout_shape[0] / 2.)
-        y_offset = int(self.topology_layout_shape[1] / 2.)
-        for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
-                                                      lines_por, lines_service_status):
-            if not is_on:
-                continue
-            # Compute line thickness + color based on its thermal usage
-            thickness = .6 + .25 * (min(1., rtl) // .1)
-
-            color_low = np.asarray((51, 204, 51))
-            color_middle = np.asarray((255, 165, 0))
-            color_high = np.asarray((214, 0, 0))
-            if rtl < .5:
-                color = color_low + 2. * rtl * (color_middle - color_low)
-            else:
-                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
-                color = color_low + min(1., rtl) * (color_high - color_low)
-
-            # Compute the true origin of the flow (lines always fixed or -> dest in IEEE files)
-            if line_por >= 0:
-                ori = layout[or_id]
-                ext = layout[ex_id]
-            else:
-                ori = layout[ex_id]
-                ext = layout[or_id]
-
-            # Compute the line characteristics: draxing is done by plotting two lines starting from the center
-            # with a specific angle and semi-length
-            length = math.sqrt((ori[0] - ext[0]) ** 2. + (ori[1] - ext[1]) ** 2.) - 2. * self.nodes_outer_radius
-            center = ((ori[0] + ext[0]) / 2., (ori[1] + ext[1]) / 2.)
-            angle = math.atan2(ori[1] - ext[1], ori[0] - ext[0])
-
-            # First, draw the arrow heads; lines will be drawn on top
-            distance_arrow_heads = 25
-            n_arrow_heads = int(max(1, length // distance_arrow_heads))
-            for a in range(n_arrow_heads):
-                if n_arrow_heads != 1:
-                    x = x_offset + center[0] + ((a + .5) * distance_arrow_heads - length / 2.) * math.cos(angle)
-                    y = y_offset + center[1] + ((a + .5) * distance_arrow_heads - length / 2.) * math.sin(angle)
-                else:
-                    x = x_offset + center[0]
-                    y = y_offset + center[1]
-                draw_arrow_head(x, y, angle, color, thickness)
-
-        return surface
 
     def create_plot_loads_curve(self, n_timesteps, left_xlabel):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
@@ -419,7 +408,7 @@ class Renderer(object):
         p90 = np.percentile(data, 90, axis=-1)
         p10 = np.percentile(data, 10, axis=-1)
         ax.fill_between(np.linspace(n_data, 0, num=n_data), p10, p90, color='#16AA16')
-        ax.fill_between(np.linspace(n_data, 0, num=n_data), p25, p75, color='#16BC16')
+        ax.fill_between(np.linspace(n_data, 0, num=n_data), p25, p75, color='#16DC16')
         ax.plot(np.linspace(n_data, 0, num=n_data), medians, '#AAFFAA')
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_10, '#33cc33')
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_90, '#33cc33')
@@ -570,11 +559,33 @@ class Renderer(object):
 
         return surface
 
-    def draw_plot_game_over(self):
-        game_over_surface = pygame.Surface((500, 200), pygame.SRCALPHA, 32).convert_alpha()
-        game_over_text = 'Game over!'
-        game_over_surface.blit(self.game_over_shadow_render(game_over_text), (2, 2))
-        game_over_surface.blit(self.game_over_render(game_over_text), (0, 0))
+    @staticmethod
+    def draw_plot_pause():
+        pause_font = pygame.font.SysFont("Arial", 25)
+        red = (255, 26, 255)
+        txt_surf = pause_font.render('pause', False, (255, 255, 255))
+        alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
+        alpha_img.fill(red + (128,))
+        #txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        pause_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
+        pause_surface.fill(red + (128,))
+        pause_surface.blit(txt_surf, (48, 18))
+
+        return pause_surface
+
+    @staticmethod
+    def draw_plot_game_over():
+        game_over_font = pygame.font.SysFont("Arial", 25)
+        red = (255, 26, 26)
+        txt_surf = game_over_font.render('game over', False, (255, 255, 255))
+        alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
+        alpha_img.fill(red + (128,))
+        #txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        game_over_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
+        game_over_surface.fill(red + (128,))
+        game_over_surface.blit(txt_surf, (38, 18))
 
         return game_over_surface
 
@@ -632,8 +643,8 @@ class Renderer(object):
         lines_surf = self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status,
                                              prods, loads, are_substations_changed)
         self.topology_layout.blit(lines_surf, (0, 0))
-        arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
-        self.topology_layout.blit(arrow_surf, (0, 0))
+        # arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
+        # self.topology_layout.blit(arrow_surf, (0, 0))
 
         # Dirty
         if not rewards:
@@ -657,11 +668,11 @@ class Renderer(object):
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case == 118 else (690, 50))
         #self.topology_layout.blit(legend_surface, (1, 470))
-        self.topology_layout.blit(self.nodes_surface, (0, 0) if self.grid_case != 30 else (-100, -30))
+        self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost
         if game_over:
-            self.topology_layout.blit(self.game_over_surface, (300, 200))
+            self.topology_layout.blit(self.game_over_surface, (320, 320))
 
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, game_over=False, cascading_frame_id=None):
@@ -710,6 +721,8 @@ class Renderer(object):
         pygame.display.flip()
         # Bugfix for mac
         pygame.event.get()
+
+        self.boolean_dynamic_arrows = not self.boolean_dynamic_arrows
 
 
 def scale(u, z, t):

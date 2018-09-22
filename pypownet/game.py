@@ -556,12 +556,16 @@ class Game(object):
             flag = TooManyConsumptionsCut('There are %d isolated loads; at most %d tolerated' % (
                 np.sum(are_isolated_loads), self.max_number_loads_game_over))
             done = True
+            if self.renderer is not None:
+                self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
         if np.sum(are_isolated_prods) > self.max_number_prods_game_over:
             observation = None
             flag = TooManyProductionsCut('There are %d isolated productions; at most %d tolerated' % (
                 np.sum(are_isolated_prods), self.max_number_prods_game_over))
             done = True
+            if self.renderer is not None:
+                self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
 
         return self.export_observation(), None, False
