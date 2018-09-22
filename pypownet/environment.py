@@ -278,9 +278,6 @@ class MinimalistObservation(object):
 
         self.datetime = date
 
-    def as_dict(self):
-        return self.__dict__
-
     def as_array(self):
         return np.concatenate((
             self.active_loads, self.are_loads_cut, self.planned_active_loads.flatten(), self.loads_nodes,
@@ -292,6 +289,16 @@ class MinimalistObservation(object):
 
             self.ampere_flows, self.lines_status, self.timesteps_before_lines_reconnectable,
             self.timesteps_before_planned_maintenance,))
+
+    @staticmethod
+    def __keys__():
+        return ['active_loads', 'are_loads_cut', 'loads_nodes', 'active_productions', 'are_productions_cut',
+                'productions_nodes', 'lines_or_nodes', 'lines_ex_nodes', 'ampere_flows', 'lines_status',
+                'timesteps_before_lines_reconnectable', 'timesteps_before_planned_maintenance', 'planned_active_loads',
+                'planned_active_productions', 'datetime']
+
+    def as_dict(self):
+        return {k: v for k, v in self.__dict__.items() if k in self.__keys__()}
 
 
 class MinimalistACObservation(MinimalistObservation):
@@ -324,11 +331,21 @@ class MinimalistACObservation(MinimalistObservation):
 
     def as_array(self):
         return np.concatenate((super(MinimalistACObservation, self).as_array(),
-                               self.reactive_loads,self.voltage_loads,
+                               self.reactive_loads, self.voltage_loads,
                                self.reactive_productions, self.voltage_productions,
                                self.active_flows_origin, self.reactive_flows_origin, self.voltage_flows_origin,
-                               self.active_flows_extremity,self.reactive_flows_extremity, self.voltage_flows_extremity,
+                               self.active_flows_extremity, self.reactive_flows_extremity, self.voltage_flows_extremity,
                                self.planned_reactive_loads, self.planned_voltage_productions,))
+
+    @staticmethod
+    def __keys__():
+        return ['reactive_loads', 'voltage_loads', 'reactive_productions', 'voltage_productions', 'active_flows_origin',
+                'reactive_flows_origin', 'voltage_flows_origin', 'active_flows_extremity', 'reactive_flows_extremity',
+                'voltage_flows_extremity', 'planned_reactive_loads', 'planned_voltage_productions']
+
+    def as_dict(self):
+        return {k: v for k, v in self.__dict__.items()
+                if k in self.__keys__() + super(MinimalistACObservation, self).__keys__()}
 
     def as_minimalist(self):
         return super(MinimalistACObservation, self)
@@ -376,6 +393,9 @@ class Observation(MinimalistACObservation):
         self.initial_loads_nodes = initial_loads_nodes
         self.initial_lines_or_nodes = initial_lines_or_nodes
         self.initial_lines_ex_nodes = initial_lines_ex_nodes
+
+    def as_dict(self):
+        return self.__dict__
 
     def as_array(self):
         return np.concatenate((super(Observation, self).as_array(),
@@ -634,6 +654,7 @@ OBSERVATION_MEANING = {
     'are_loads_cut': 'Mask whether the consumers are isolated (1) from the rest of the network.',
     'are_prods_cut': 'Mask whether the productors are isolated (1) from the rest of the network.',
 
+    'substations_ids': 'ID of all the substations of the grid.',
     'prods_substations_ids': 'ID of the substation on which the productions (generators) are wired.',
     'loads_substations_ids': 'ID of the substation on which the loads (consumers) are wired.',
     'lines_or_substations_ids': 'ID of the substation on which the lines origin are wired.',
@@ -644,11 +665,36 @@ OBSERVATION_MEANING = {
     'timesteps_before_planned_maintenance': 'Number of timesteps to wait before a line will be switched OFF for'
                                             'maintenance',
 
-    'topology': 'The ID of the subnode, within a substation, on which the elements of the system are '
-                'directly wired (0 or 1).',
+    'loads_nodes': 'The node on which each load is connected within their corresponding substations.',
+    'productions_nodes': 'The node on which each production is connected within their corresponding substations.',
+    'lines_or_nodes': 'The node on which each origin of line is connected within their corresponding substations.',
+    'lines_ex_nodes': 'The node on which each extremity of line is connected within their corresponding substations.',
+
+    'initial_productions_nodes': 'The initial (reference) node on which each load is connected within their '
+                                 'corresponding substations.',
+    'initial_loads_nodes': 'The initial (reference) node on which each production is connected within their '
+                           'corresponding substations.',
+    'initial_lines_or_nodes': 'The initial (reference) node on which each origin of line is connected within their '
+                              'corresponding substations.',
+    'initial_lines_ex_nodes': 'The initial (reference) node on which each extremity of line is connected within '
+                              'their corresponding substations.',
+
+    'planned_active_loads': 'An array-like container of the previsions of the active power of loads fur future'
+                            'timestep(s).',
+    'planned_reactive_loads': 'An array-like container of the previsions of the reactive power of loads fur future'
+                              'timestep(s).',
+    'planned_active_productions': 'An array-like container of the previsions of the active power of productions fur '
+                                  'future timestep(s).',
+    'planned_voltage_productions': 'An array-like container of the previsions of the voltage of productions fur future'
+                                   'timestep(s).',
+
+    'datetime': 'A Python datetime object containing the date of the observation.',
 }
 
-# TODO
-ACTION_MEANING = {
 
-}
+MINIMALISTACOBSERVATION_MEANING = {k: v for k, v in OBSERVATION_MEANING.items()
+                                   if k in MinimalistACObservation.__keys__()}
+
+
+MINIMALISTOBSERVATION_MEANING = {k: v for k, v in OBSERVATION_MEANING.items()
+                                   if k in MinimalistObservation.__keys__()}
