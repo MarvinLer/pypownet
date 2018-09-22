@@ -124,10 +124,13 @@ class Grid(object):
         voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
 
         if safe_mode:
+            active[np.isnan(active)] = 1e5
             active[active > 1e5] = 1e5
             active[active < -1e5] = -1e5
+            reactive[np.isnan(reactive)] = 1e5
             reactive[reactive > 1e5] = 1e5
             reactive[reactive < -1e5] = -1e5
+            voltage[np.isnan(voltage)] = 1.
             voltage[voltage > 1e2] = 1e2
             voltage[voltage < -1e2] = -1e2
         are_lines_on = self.get_lines_status()
