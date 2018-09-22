@@ -1,3 +1,6 @@
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Circle
+
 __author__ = 'marvinler'
 # Copyright (C) 2017-2018 RTE and INRIA (France)
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
@@ -75,8 +78,8 @@ class Renderer(object):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         # Substations layer
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
-        self.nodes_outer_radius = 10
-        self.nodes_inner_radius = 7
+        self.nodes_outer_radius = 8
+        self.nodes_inner_radius = 5
         #node_img = pygame.image.load(os.path.join(media_path, 'substation.png')).convert_alpha()
         #self.node_img = pygame.transform.scale(node_img, (20, 20))
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -131,46 +134,8 @@ class Renderer(object):
 
         self.game_over_surface = self.draw_plot_game_over()
 
-    def draw_surface_nodes(self, scenario_id, date, prods, loads, are_substations_changed, cascading_result_frame):
-        layout = self.grid_layout
-
-        layout = np.asarray(deepcopy(layout))
-        min_x = np.min(layout[:, 0])
-        min_y = np.min(layout[:, 1])
-        layout[:, 0] -= (min_x + 890)
-        layout[:, 0] *= -1
-        layout[:, 1] = 680 + min_y - layout[:, 1]
-        if self.grid_case == 14:
-            layout[:, 0] -= 120
-            layout[:, 1] -= 30
-
+    def draw_surface_nodes_headers(self, scenario_id, date, cascading_result_frame):
         surface = self.nodes_surface
-        prods_iter = iter(prods)
-        loads_iter = iter(loads)
-        for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
-                zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
-            prod = next(prods_iter) if is_prod else 0.
-            load = next(loads_iter) if is_load else 0.
-            prod_minus_load = prod - load
-            relative_prod = abs(prod / np.max(prods))
-            relative_load = abs(load / np.max(loads))
-            # Determine color of filled circle based on the amount of production - consumption
-            if prod_minus_load > 0:
-                color = (0, 153, 255)
-                offset_radius = 0 if relative_prod < 0.4 else 2 if relative_prod < 0.7 else 3
-            elif prod_minus_load < 0:
-                color = (210, 77, 255)
-                offset_radius = 0 if relative_load < 0.4 else 2 if relative_load < 0.7 else 3
-            else:
-                color = (255, 255, 255)
-                offset_radius = 0
-            # Determine the color of the inner filled circle: background if no action changed at the substation,
-            # yellow otherwise
-            inner_circle_color = (255, 255, 102) if is_changed else self.background_color
-            gfxdraw.aacircle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
-            gfxdraw.filled_circle(surface, x, y, self.nodes_outer_radius + offset_radius, color)
-            gfxdraw.aacircle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
-            gfxdraw.filled_circle(surface, x, y, self.nodes_inner_radius, inner_circle_color)
 
         # Print some scenario stats
         surface.blit(self.text_render('Date'), (25, 15))
@@ -206,15 +171,9 @@ class Renderer(object):
             surface.blit(
                 self.black_bold_font_render('new observation frame'),
                 (x_offset + 120, y_offset + 4))
-        # else:
-        #     width = 400
-        #     gfxdraw.filled_polygon(surface,
-        #                            ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
-        #                             (x_offset + width, y_offset + height)),
-        #                            (250, 200, 200, 240))
-        #     surface.blit(self.black_bold_font_render('result of action frame'), (x_offset + 65, y_offset + 4))
 
-    def plot_lines_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status):
+    def plot_lines_nodes_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
+                                    are_substations_changed):
         layout = self.grid_layout
         my_dpi = 200
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
@@ -263,53 +222,55 @@ class Renderer(object):
         fig.lines.extend(l)
 
         ######## Draw nodes
-        # ax = fig.add_subplot(1, 1, 1)
-        # ax.set_xlim(np.min(layout[:, 0])-50, np.max(layout[:, 0])+50)
-        # ax.set_ylim(np.min(layout[:, 1])-50, np.max(layout[:, 1])+50)
-        # #ax.set_facecolor([c / 255. for c in self.background_color])
-        # #plt.axis('off')
-        # fig.subplots_adjust(0, 0, 1, 1, 0, 0)
-        # ax.set_xticks([])
-        # ax.set_yticks([])
-        # x_offset = int(self.topology_layout_shape[0] / 2.)
-        # y_offset = int(self.topology_layout_shape[1] / 2.)
-        # prods_iter = iter(prods)
-        # loads_iter = iter(loads)
-        # patches = []
-        # ax.lines.extend(l)
-        # for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
-        #         zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
-        #     print((x, y))
-        #     prod = next(prods_iter) if is_prod else 0.
-        #     load = next(loads_iter) if is_load else 0.
-        #     prod_minus_load = prod - load
-        #     relative_prod = abs(prod / np.max(prods))
-        #     relative_load = abs(load / np.max(loads))
-        #     # Determine color of filled circle based on the amount of production - consumption
-        #     if prod_minus_load > 0:
-        #         color = (0, 153, 255)
-        #         offset_radius = 0 if relative_prod < 0.4 else 2 if relative_prod < 0.7 else 3
-        #     elif prod_minus_load < 0:
-        #         color = (210, 77, 255)
-        #         offset_radius = 0 if relative_load < 0.4 else 2 if relative_load < 0.7 else 3
-        #     else:
-        #         color = (255, 255, 255)
-        #         offset_radius = 0
-        #     color = [c / 255. for c in color]
-        #     color = [1., 1., 1.]
-        #     # Determine the color of the inner filled circle: background if no action changed at the substation,
-        #     # yellow otherwise
-        #     inner_circle_color = (255, 255, 0) if is_changed else self.background_color
-        #     inner_circle_color = [c / 255. for c in inner_circle_color]
-        #
-        #     c = Circle((x, y), self.nodes_outer_radius, linewidth=3, fill=True, color=color, figure=fig, zorder=10000)
-        #     patches.append(c)
-        #     print(self.nodes_outer_radius, offset_radius)
-        #     #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
-        #
-        # p = PatchCollection(patches, alpha=1.)
-        # ax.add_collection(p)
-        # p.set_array(np.array(color*len(patches)))
+        ax = fig.gca(frame_on=False, autoscale_on=False, zorder=10)
+        ax.set_xlim(0, 1000)
+        ax.set_ylim(-50, 650)
+        fig.subplots_adjust(0, 0, 1, 1, 0, 0)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        # Loop to compute prods minus loads
+        prods_iter, loads_iter = iter(prods), iter(loads)
+        prods_minus_loads = []
+        for is_prod, is_load in zip(self.are_prods, self.are_loads):
+            prod = next(prods_iter) if is_prod else 0.
+            load = next(loads_iter) if is_load else 0.
+            prods_minus_loads.append(prod - load)
+        max_diff = max(abs(np.max(prods_minus_loads)), abs(np.min(prods_minus_loads)))
+
+        prods_iter, loads_iter = iter(prods), iter(loads)
+        for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
+                zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
+            prod = next(prods_iter) if is_prod else 0.
+            load = next(loads_iter) if is_load else 0.
+            prod_minus_load = prod - load
+            # Determine color of filled circle based on the amount of production - consumption
+            linewidth_min = 1.
+            if prod_minus_load > 0:
+                color = (0, 153, 255)
+                linewidth = linewidth_min + 2. * prod_minus_load / max_diff
+                outer_radius = self.nodes_outer_radius + 3. * prod_minus_load / max_diff
+            elif prod_minus_load < 0:
+                color = (210, 77, 255)
+                linewidth = linewidth_min - 2. * prod_minus_load / max_diff
+                outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
+            else:
+                color = (255, 255, 255)
+                linewidth = linewidth_min
+                outer_radius = self.nodes_outer_radius
+            color = [c / 255. for c in color]
+            # Determine the color of the inner filled circle: background if no action changed at the substation,
+            # yellow otherwise
+            inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+            inner_circle_color = [c / 255. for c in inner_circle_color]
+
+            c = Circle((x, y), self.nodes_inner_radius, linewidth=2, fill=True, color=inner_circle_color, zorder=9)
+            ax.add_artist(c)
+            c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
+            ax.add_artist(c)
+            #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+
+        #p.set_array(np.array(color*len(patches)))
         # Export plot into something readable by pygame
         canvas = agg.FigureCanvasAgg(fig)
         canvas.draw()
@@ -319,8 +280,11 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status):
-        img_loads_curve_week = self.plot_lines_matplotlib(relative_thermal_limits, lines_por, lines_service_status)
+    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
+                           are_substations_changed):
+        img_loads_curve_week = self.plot_lines_nodes_matplotlib(relative_thermal_limits, lines_por,
+                                                                lines_service_status, prods, loads,
+                                                                are_substations_changed)
         loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.background_color)
         loads_curve_surface.blit(img_loads_curve_week, (0, 30) if self.grid_case != 30 else (-100, 0))
@@ -465,9 +429,9 @@ class Renderer(object):
         ax.set_xticklabels(['now', left_xlabel])
         ax.set_ylim([0, max(1.05, min(2., np.max([medians, p90, p10]) * 1.05))])
         ax.set_yticks([0, 1])
-        ax.set_yticklabels(['', '1'])
+        ax.set_yticklabels(['', '100%'])
         label_color_hexa = '#D2D2D2'
-        ax.tick_params(axis='y', labelsize=6, pad=-12, labelcolor=label_color_hexa, direction='in')
+        ax.tick_params(axis='y', labelsize=6, pad=-22, labelcolor=label_color_hexa, direction='in')
         ax.tick_params(axis='x', labelsize=6, labelcolor=label_color_hexa)
         # Top and right axis
         ax.spines['right'].set_visible(False)
@@ -665,14 +629,15 @@ class Renderer(object):
         else:
             self.relative_thermal_limits.append(relative_thermal_limits)
 
-        lines_surf = self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status)
+        lines_surf = self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status,
+                                             prods, loads, are_substations_changed)
         self.topology_layout.blit(lines_surf, (0, 0))
         arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
         self.topology_layout.blit(arrow_surf, (0, 0))
 
         # Dirty
         if not rewards:
-            rewards = [0]*5
+            rewards = [0] * 5
         if self.last_rewards_surface is None or cascading_frame_id is None:
             last_rewards_surface = self.draw_surface_rewards(rewards)
             self.last_rewards_surface = last_rewards_surface
@@ -687,8 +652,7 @@ class Renderer(object):
         else:
             self.loads.append(loads)
         # Nodes
-        self.draw_surface_nodes(scenario_id, date, prods, loads, are_substations_changed,
-                                cascading_result_frame=cascading_frame_id)
+        self.draw_surface_nodes_headers(scenario_id, date, cascading_result_frame=cascading_frame_id)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case == 118 else (690, 50))
