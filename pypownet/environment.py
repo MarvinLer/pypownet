@@ -564,6 +564,7 @@ class RunEnv(object):
         self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
                                        chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
                                        game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
+        print('\n' + self.game.parameters_environment_tostring() + '\n')
         self.action_space = ActionSpace(*self.game.get_number_elements(),
                                         substations_ids=self.game.get_substations_ids(),
                                         prods_subs_ids=self.game.get_substations_ids_prods(),

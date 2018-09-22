@@ -405,26 +405,26 @@ class Renderer(object):
 
         return surface
 
-    def create_plot_loads_curve(self, n_hours, left_xlabel):
+    def create_plot_loads_curve(self, n_timesteps, left_xlabel):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1.5], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
         ax = fig.gca()
         # Retrieve data for the specified time
         data = np.sum(self.loads, axis=-1)
-        data = data[-min(len(data), n_hours):]
+        data = data[-min(len(data), n_timesteps):]
         n_data = len(data)
         ax.plot(np.linspace(n_data, 0, num=n_data), data, '#d24dff')
         # Ticks and labels
-        ax.set_xlim([n_hours, 1])
-        ax.set_xticks([1, n_hours])
+        ax.set_xlim([n_timesteps, 1])
+        ax.set_xticks([1, n_timesteps])
         ax.set_xticklabels(['now', left_xlabel])
         ax.set_ylim([0, np.max(data) * 1.05])
         ax.set_yticks([0, np.max(data)])
-        ax.set_yticklabels(['', '%.0fMW' % (np.max(data))])
-        label_color_hexa = '#a6a6a6'
-        ax.tick_params(axis='y', labelsize=6, pad=-27, labelcolor=label_color_hexa)
-        ax.tick_params(axis='x', labelsize=6, bottom=False, labelcolor=label_color_hexa)
+        ax.set_yticklabels(['', '%.0f MW' % (np.max(data))])
+        label_color_hexa = '#D2D2D2'
+        ax.tick_params(axis='y', labelsize=6, pad=-30, labelcolor=label_color_hexa, direction='in')
+        ax.tick_params(axis='x', labelsize=6, labelcolor=label_color_hexa)
         # Top and right axis
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -440,32 +440,35 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def create_plot_relative_thermal_limits(self, n_hours, left_xlabel):
+    def create_plot_relative_thermal_limits(self, n_timesteps, left_xlabel):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1.5], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
         ax = fig.gca()
         # Retrieve data for the specified time
         data = self.relative_thermal_limits
-        data = data[-min(len(data), n_hours):]
+        data = data[-min(len(data), n_timesteps):]
         n_data = len(data)
         medians = np.median(data, axis=-1)
-        percentiles_90 = np.percentile(data, 90, axis=-1)
-        percentiles_10 = np.percentile(data, 10, axis=-1)
-        ax.plot(np.linspace(n_data, 0, num=n_data), medians, '#84e184')
-        ax.fill_between(np.linspace(n_data, 0, num=n_data), percentiles_10, percentiles_90, color='#239023')
+        p25 = np.percentile(data, 25, axis=-1)
+        p75 = np.percentile(data, 75, axis=-1)
+        p90 = np.percentile(data, 90, axis=-1)
+        p10 = np.percentile(data, 10, axis=-1)
+        ax.fill_between(np.linspace(n_data, 0, num=n_data), p10, p90, color='#32AA32')
+        ax.fill_between(np.linspace(n_data, 0, num=n_data), p25, p75, color='#32CD32')
+        ax.plot(np.linspace(n_data, 0, num=n_data), medians, '#AAFFAA')
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_10, '#33cc33')
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_90, '#33cc33')
         # Ticks and labels
-        ax.set_xlim([n_hours, 1])
-        ax.set_xticks([1, n_hours])
+        ax.set_xlim([n_timesteps, 1])
+        ax.set_xticks([1, n_timesteps])
         ax.set_xticklabels(['now', left_xlabel])
-        ax.set_ylim([0, max(1.05, min(2., np.max([medians, percentiles_90, percentiles_10]) * 1.05))])
+        ax.set_ylim([0, max(1.05, min(2., np.max([medians, p90, p10]) * 1.05))])
         ax.set_yticks([0, 1])
         ax.set_yticklabels(['', '1'])
-        label_color_hexa = '#a6a6a6'
-        ax.tick_params(axis='y', labelsize=6, pad=-12, labelcolor=label_color_hexa)
-        ax.tick_params(axis='x', labelsize=6, bottom=False, labelcolor=label_color_hexa)
+        label_color_hexa = '#D2D2D2'
+        ax.tick_params(axis='y', labelsize=6, pad=-12, labelcolor=label_color_hexa, direction='in')
+        ax.tick_params(axis='x', labelsize=6, labelcolor=label_color_hexa)
         # Top and right axis
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -481,26 +484,26 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def create_plot_number_overflows(self, n_hours, left_xlabel):
+    def create_plot_number_overflows(self, n_timesteps, left_xlabel):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
         ax = fig.gca()
         # Retrieve data for the specified time
         data = np.sum(np.asarray(self.relative_thermal_limits) >= 1., axis=-1)
-        data = data[-min(len(data), n_hours):]
+        data = data[-min(len(data), n_timesteps):]
         n_data = len(data)
         ax.plot(np.linspace(n_data, 0, num=n_data), data, '#ff3333')
         # Ticks and labels
-        ax.set_xlim([n_hours, 1])
-        ax.set_xticks([1, n_hours])
+        ax.set_xlim([n_timesteps, 1])
+        ax.set_xticks([1, n_timesteps])
         ax.set_xticklabels(['now', left_xlabel])
         ax.set_ylim([0, max(1, np.max(data) * 1.05)])
         ax.set_yticks([0, max(1, np.max(data))])
-        ax.set_yticklabels(['', '%d' % np.max(data)])
-        label_color_hexa = '#a6a6a6'
-        ax.tick_params(axis='y', labelsize=6, pad=-12, labelcolor=label_color_hexa)
-        ax.tick_params(axis='x', labelsize=6, bottom=False, labelcolor=label_color_hexa)
+        ax.set_yticklabels(['', '%d' % max(1, np.max(data))])
+        label_color_hexa = '#D2D2D2'
+        ax.tick_params(axis='y', labelsize=6, pad=-12, labelcolor=label_color_hexa, direction='in')
+        ax.tick_params(axis='x', labelsize=6, labelcolor=label_color_hexa)
         # Top and right axis
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -546,13 +549,13 @@ class Renderer(object):
     def draw_surface_loads_curves(self):
         # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
         # at top and bottom of latter surface
-        img_loads_curve_week = self.create_plot_loads_curve(n_hours=7 * 24, left_xlabel=' 7 days ago  ')
-        img_loads_curve_day = self.create_plot_loads_curve(n_hours=24, left_xlabel='24 hours ago')
+        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
+        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=24, left_xlabel='24 hours ago')
         loads_curve_surface = pygame.Surface(
             (img_loads_curve_week.get_width(), 2 * img_loads_curve_week.get_height() + 30),
             pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.left_menu_tile_color)
-        loads_curve_surface.blit(self.bold_white_render('Total demand'), (30, 10))
+        loads_curve_surface.blit(self.bold_white_render('Historical total consumption'), (30, 10))
         loads_curve_surface.blit(img_loads_curve_week, (0, 30))
         loads_curve_surface.blit(img_loads_curve_day, (0, 30 + img_loads_curve_week.get_height()))
         gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), 0, (64, 64, 64))
@@ -562,11 +565,11 @@ class Renderer(object):
         return loads_curve_surface
 
     def draw_surface_relative_thermal_limits(self):
-        img_rtl = self.create_plot_relative_thermal_limits(n_hours=24, left_xlabel='24 hours ago')
+        img_rtl = self.create_plot_relative_thermal_limits(n_timesteps=24, left_xlabel='24 hours ago')
         rtl_curves_surface = pygame.Surface((img_rtl.get_width(), 2 * img_rtl.get_height() + 30),
                                             pygame.SRCALPHA, 32).convert_alpha()
         rtl_curves_surface.fill(self.left_menu_tile_color)
-        rtl_curves_surface.blit(self.bold_white_render('Lines capacity usage'), (30, 10))
+        rtl_curves_surface.blit(self.bold_white_render('Last 24h lines capacity usage'), (30, 10))
         rtl_curves_surface.blit(img_rtl, (0, 30))
         gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), 0, (64, 64, 64))
         gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), rtl_curves_surface.get_height() - 1,
@@ -575,7 +578,7 @@ class Renderer(object):
         return rtl_curves_surface
 
     def draw_surface_n_overflows(self):
-        img_rtl = self.create_plot_number_overflows(n_hours=7 * 24, left_xlabel=' 7 days ago  ')
+        img_rtl = self.create_plot_number_overflows(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
         n_overflows_surface = pygame.Surface((img_rtl.get_width(), 2 * img_rtl.get_height() + 30),
                                              pygame.SRCALPHA, 32).convert_alpha()
         n_overflows_surface.fill(self.left_menu_tile_color)

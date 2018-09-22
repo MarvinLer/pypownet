@@ -710,3 +710,6 @@ class Game(object):
 
         if self.latency:
             sleep(self.latency)
+
+    def parameters_environment_tostring(self):
+        return self.__parameters.__str__()
