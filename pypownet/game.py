@@ -645,7 +645,6 @@ class Game(object):
         renderer class (e.g. sum of consumptions).
 
         :param rewards: list of subrewards of the last timestep (used to plot reward per timestep)
-        :param close: True to close the application
         :param game_over: True to plot a "Game over!" over the screen if game is over
         :return: :raise ImportError: pygame not found raises an error (it is mandatory for the renderer)
         """
@@ -710,17 +709,27 @@ class Game(object):
                 has_been_changed[i] = np.any([l != 0 for l in last_action[offset:offset + n_elements]])
                 offset += n_elements
 
+        are_isolated_loads, are_isolated_prods, _ = self.grid._count_isolated_loads(self.grid.mpc, self.grid.are_loads)
+        number_unavailable_lines = sum(self.timesteps_before_lines_reconnectable > 0)
+
+        initial_topo = self.initial_topology
+        current_topo = self.grid.get_topology()
+        distance_ref_grid = sum(np.asarray(initial_topo.get_zipped()) != np.asarray(current_topo.get_zipped()))
+
         self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
                              self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
                              prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                              date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
-                             number_loads_cut=self.n_loads_cut, number_prods_cut=self.n_prods_cut,
+                             number_loads_cut=sum(are_isolated_loads),
+                             number_prods_cut=sum(are_isolated_prods),
                              number_nodes_splitting=sum(self.last_action.get_node_splitting_subaction())
                                         if self.last_action is not None else 0,
                              number_lines_switches=sum(self.last_action.get_lines_status_subaction())
                                         if self.last_action is not None else 0,
-                             distance_initial_grid=0., number_off_lines=sum(self.grid.get_lines_status() == 0),
-                             game_over=game_over, cascading_frame_id=cascading_frame_id, )
+                             distance_initial_grid=distance_ref_grid,
+                             number_off_lines=sum(self.grid.get_lines_status() == 0),
+                             number_unavailable_lines=number_unavailable_lines,
+                             game_over=game_over, cascading_frame_id=cascading_frame_id)
 
         if self.latency:
             sleep(self.latency)

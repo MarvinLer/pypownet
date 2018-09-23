@@ -479,15 +479,72 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_rewards(self, rewards, number_loads_cut, number_prods_cut, number_nodes_splitting,
-                             number_lines_switches, distance_initial_grid, line_capacity_usage, number_off_lines):
-        last_rewards_surface_shape = (self.left_menu_shape[0], 180)
+    def draw_surface_diagnosis(self, number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
+                               distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines):
+        my_dpi = 100
+        height = 220
+        fig = plt.figure(figsize=(self.left_menu_shape[0] / my_dpi, height / my_dpi), dpi=my_dpi,
+                         facecolor=[c / 255. for c in self.left_menu_tile_color], clear=True, tight_layout={'pad': 0.2})
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+        plt.axis('off')
+        plt.ylim(0, height)
+        plt.xlim(0, self.left_menu_shape[0])
+
+        string_color = (180 / 255., 180 / 255., 180 / 255.)
+        header_color = (220 / 255., 220 / 255., 220 / 255.)
+        value_color = (1., 1., 1.)
+        plt.text(0, height - 20, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
+
+        string_offset = 65
+        value_offset = 10
+        plt.text(string_offset, height - 60, '# of isolated loads', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 60, '%d' % number_loads_cut, fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 80, '# of isolated productions', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 80, '%d' % number_prods_cut, fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 110, '# of node switches of last action', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 110, '%d' % number_nodes_splitting, fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 130, '# of line switches of last action', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 130, '%d' % number_lines_switches, fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 160, 'average line capacity usage', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 160, '%d%%' % (100. * np.mean(line_capacity_usage)), fontdict={'size': 8.5},
+                 color=value_color)
+        plt.text(string_offset, height - 180, '# of OFF lines', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 180, '%d' % n_offlines_lines, fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 200, '# of unavailable lines', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 200, '%d' % number_unavailable_lines, fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 230, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 230, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
+
+        fig.tight_layout()
+
+        canvas = agg.FigureCanvasAgg(fig)
+        canvas.draw()
+        renderer = canvas.get_renderer()
+        raw_data = renderer.tostring_rgb()
+        size = canvas.get_width_height()
+
+        img = pygame.image.fromstring(raw_data, size, "RGB")
+        last_rewards_surface_shape = (self.left_menu_shape[0], height)
         last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
         last_rewards_surface.fill(self.left_menu_tile_color)
+
+        #last_rewards_surface.blit(img, (0, 30) if self.grid_case != 30 else (-100, 0))
+        last_rewards_surface.blit(img, (-20, 0))
+        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
+        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
+                      (64, 64, 64))
+        gfxdraw.vline(last_rewards_surface, 0, last_rewards_surface_shape[1] - 1, 0, (64, 64, 64))
+        gfxdraw.vline(last_rewards_surface, last_rewards_surface_shape[0], 0, last_rewards_surface_shape[1] - 1,
+                      (64, 64, 64))
+        return last_rewards_surface
+
         last_rewards_surface.blit(self.bold_white_render('Last timestep reward'), (30, 20))
 
         reward_offset = (50, 40)
-        x_offset = 180
+        string_offset = 180
         line_spacing = 20
 
         rewards_labels = ['Loads cut', 'Productions cut', 'Last action cost', 'Distance to initial grid',
@@ -495,16 +552,13 @@ class Renderer(object):
         for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
             last_rewards_surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
             last_rewards_surface.blit(self.value_render('%.2f' % reward if reward else '0'),
-                                      (reward_offset[0] + x_offset if reward >= 0 else reward_offset[0] + x_offset - 7
+                                      (reward_offset[0] + string_offset if reward >= 0 else reward_offset[0] + string_offset - 7
                                        , reward_offset[1] + i * line_spacing))
         last_rewards_surface.blit(self.text_render('Total'),
                                   (reward_offset[0], reward_offset[1] + (i + 1) * line_spacing))
         last_rewards_surface.blit(self.value_render('%.2f' % np.sum(rewards)),
-                                  (reward_offset[0] + x_offset - 7, reward_offset[1] + (i + 1) * line_spacing))
+                                  (reward_offset[0] + string_offset - 7, reward_offset[1] + (i + 1) * line_spacing))
 
-        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
-        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
-                      (64, 64, 64))
         return last_rewards_surface
 
     def draw_surface_loads_curves(self):
@@ -628,7 +682,7 @@ class Renderer(object):
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
                          prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id,
                          number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
-                         distance_initial_grid, line_capacity_usage, number_off_lines):
+                         distance_initial_grid, line_capacity_usage, number_off_lines, number_unavailable_lines):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -651,11 +705,11 @@ class Renderer(object):
         # Dirty
         if not rewards:
             rewards = [0] * 5
-        if self.last_rewards_surface is None or cascading_frame_id is None:
-            diagnosis_reward = self.draw_surface_rewards(rewards, number_loads_cut, number_prods_cut,
-                                                         number_nodes_splitting, number_lines_switches,
-                                                         distance_initial_grid, line_capacity_usage, number_off_lines)
-            self.last_rewards_surface = diagnosis_reward
+
+        diagnosis_reward = self.draw_surface_diagnosis(number_loads_cut, number_prods_cut, number_nodes_splitting,
+                                                       number_lines_switches, distance_initial_grid,
+                                                       line_capacity_usage, number_off_lines, number_unavailable_lines)
+        self.last_rewards_surface = diagnosis_reward
 
         # Legend
         #legend_surface = self.draw_surface_legend()
@@ -670,7 +724,7 @@ class Renderer(object):
         self.draw_surface_nodes_headers(scenario_id, date, cascading_result_frame=cascading_frame_id)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(self.last_rewards_surface, (600, 50) if self.grid_case == 118 else (690, 50))
+        self.topology_layout.blit(self.last_rewards_surface, (690, 1))
         #self.topology_layout.blit(legend_surface, (1, 470))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
@@ -681,7 +735,8 @@ class Renderer(object):
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, number_loads_cut, number_prods_cut,
                number_nodes_splitting, number_lines_switches, distance_initial_grid,
-               number_off_lines, game_over=False, cascading_frame_id=None):
+               number_off_lines, number_unavailable_lines,
+               game_over=False, cascading_frame_id=None):
         plt.close('all')
 
         def event_looper(force=False):
@@ -711,7 +766,8 @@ class Renderer(object):
         self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
                               prods, loads, last_timestep_rewards, are_substations_changed, game_over,
                               cascading_frame_id, number_loads_cut, number_prods_cut, number_nodes_splitting,
-                              number_lines_switches, distance_initial_grid, lines_capacity_usage, number_off_lines)
+                              number_lines_switches, distance_initial_grid, lines_capacity_usage, number_off_lines,
+                              number_unavailable_lines)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)
