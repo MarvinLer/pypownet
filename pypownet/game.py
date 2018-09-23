@@ -74,13 +74,15 @@ class Action(object):
     def get_lines_ex_switches_subaction(self):
         return self.lines_ex_switches_subaction
 
+    def get_node_splitting_subaction(self):
+        return np.concatenate((self.get_prods_switches_subaction(), self.get_loads_switches_subaction(),
+                               self.get_lines_or_switches_subaction(), self.get_lines_ex_switches_subaction(),))
+
     def get_lines_status_subaction(self):
         return self.lines_status_subaction
 
     def as_array(self):
-        return np.concatenate((self.get_prods_switches_subaction(), self.get_loads_switches_subaction(),
-                               self.get_lines_or_switches_subaction(), self.get_lines_ex_switches_subaction(),
-                               self.get_lines_status_subaction()))
+        return np.concatenate((self.get_node_splitting_subaction(), self.get_lines_status_subaction(),))
 
     def __str__(self):
         return ', '.join(list(map(str, self.as_array())))
@@ -171,6 +173,7 @@ class Game(object):
         self.current_timestep_entries = None
         self.previous_timestep = None  # Hack for renderer
         self.previous_date = None  # Hack for renderer
+        self.n_loads_cut, self.n_prods_cut = 0, 0  # for renderer
 
         # Save the initial topology (explicitely create another copy) + voltage angles and magnitudes of buses
         self.initial_topology = copy.deepcopy(self.grid.get_topology())
@@ -549,6 +552,7 @@ class Game(object):
 
         are_isolated_loads, are_isolated_prods, _ = pypownet.grid.Grid._count_isolated_loads(self.grid.mpc,
                                                                                              self.grid.are_loads)
+        self.n_loads_cut, self.n_prods_cut = sum(are_isolated_loads), sum(are_isolated_prods)
 
         # Check whether max number of productions and load cut are not reached
         if np.sum(are_isolated_loads) > self.max_number_loads_game_over:
@@ -710,7 +714,13 @@ class Game(object):
                              self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
                              prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
                              date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
-                             game_over=game_over, cascading_frame_id=cascading_frame_id)
+                             number_loads_cut=self.n_loads_cut, number_prods_cut=self.n_prods_cut,
+                             number_nodes_splitting=sum(self.last_action.get_node_splitting_subaction())
+                                        if self.last_action is not None else 0,
+                             number_lines_switches=sum(self.last_action.get_lines_status_subaction())
+                                        if self.last_action is not None else 0,
+                             distance_initial_grid=0., number_off_lines=sum(self.grid.get_lines_status() == 0),
+                             game_over=game_over, cascading_frame_id=cascading_frame_id, )
 
         if self.latency:
             sleep(self.latency)

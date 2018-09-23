@@ -69,7 +69,7 @@ class Renderer(object):
         self.video_width, self.video_height = 1300, 800
 
         self.screen = pygame.display.set_mode((self.video_width, self.video_height), pygame.RESIZABLE)
-        pygame.display.set_caption('Learning to Run a Power Network - render mode')  # Window title
+        pygame.display.set_caption('pypownet - render mode')  # Window title
         # Set default background color
         self.background_color = [70, 70, 73]
         self.screen.fill(self.background_color)
@@ -261,9 +261,16 @@ class Renderer(object):
                 linewidth = linewidth_min - 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
 
-                c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                # c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                # ax.add_artist(c)
+                # c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
+                # ax.add_artist(c)
+
+                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
-                c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
+                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=linewidth, fill=False, color=color, zorder=10)
                 ax.add_artist(c)
             else:
                 color = [c / 255. for c in (255, 255, 255)]
@@ -272,13 +279,13 @@ class Renderer(object):
                 linewidth = linewidth_min
                 outer_radius = self.nodes_outer_radius
 
-                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
-                              linewidth=0, fill=True, color=inner_circle_color, zorder=9)
+                c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=0, fill=True, color=inner_circle_color, zorder=9, angle=45.)
                 ax.add_artist(c)
-                c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
-                              linewidth=linewidth, fill=False, color=color, zorder=9)
+                c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
+                              linewidth=linewidth, fill=False, color=color, zorder=10, angle=45.)
                 ax.add_artist(c)
-            #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+                #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
 
         l = []
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
@@ -472,7 +479,8 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_rewards(self, rewards):
+    def draw_surface_rewards(self, rewards, number_loads_cut, number_prods_cut, number_nodes_splitting,
+                             number_lines_switches, distance_initial_grid, line_capacity_usage, number_off_lines):
         last_rewards_surface_shape = (self.left_menu_shape[0], 180)
         last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
         last_rewards_surface.fill(self.left_menu_tile_color)
@@ -509,8 +517,8 @@ class Renderer(object):
             pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.left_menu_tile_color)
         loads_curve_surface.blit(self.bold_white_render('Historical total consumption'), (30, 10))
-        loads_curve_surface.blit(img_loads_curve_week, (0, 30))
-        loads_curve_surface.blit(img_loads_curve_day, (0, 30 + img_loads_curve_week.get_height()))
+        loads_curve_surface.blit(img_loads_curve_day, (0, 30))
+        loads_curve_surface.blit(img_loads_curve_week, (0, 30 + img_loads_curve_day.get_height()))
         gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), 0, (64, 64, 64))
         gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), loads_curve_surface.get_height() - 1,
                       (64, 64, 64))
@@ -562,15 +570,15 @@ class Renderer(object):
     @staticmethod
     def draw_plot_pause():
         pause_font = pygame.font.SysFont("Arial", 25)
-        red = (255, 26, 255)
-        txt_surf = pause_font.render('pause', False, (255, 255, 255))
+        yellow = (255, 255, 179)
+        txt_surf = pause_font.render('pause', False, (80., 80., 80.))
         alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
-        alpha_img.fill(red + (128,))
+        alpha_img.fill(yellow + (72,))
         #txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
         pause_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
-        pause_surface.fill(red + (128,))
-        pause_surface.blit(txt_surf, (48, 18))
+        pause_surface.fill(yellow + (128,))
+        pause_surface.blit(txt_surf, (64, 18))
 
         return pause_surface
 
@@ -586,14 +594,6 @@ class Renderer(object):
         game_over_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
         game_over_surface.fill(red + (128,))
         game_over_surface.blit(txt_surf, (38, 18))
-
-        return game_over_surface
-
-    def draw_test(self):
-        game_over_surface = pygame.Surface((500, 200), pygame.SRCALPHA, 32).convert_alpha()
-        game_over_text = 'Game Paused'
-        game_over_surface.blit(self.game_over_shadow_render(game_over_text), (2, 2))
-        game_over_surface.blit(self.game_over_render(game_over_text), (0, 0))
 
         return game_over_surface
 
@@ -626,7 +626,9 @@ class Renderer(object):
 
     # noinspection PyArgumentList
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
-                         prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id):
+                         prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id,
+                         number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
+                         distance_initial_grid, line_capacity_usage, number_off_lines):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -650,8 +652,10 @@ class Renderer(object):
         if not rewards:
             rewards = [0] * 5
         if self.last_rewards_surface is None or cascading_frame_id is None:
-            last_rewards_surface = self.draw_surface_rewards(rewards)
-            self.last_rewards_surface = last_rewards_surface
+            diagnosis_reward = self.draw_surface_rewards(rewards, number_loads_cut, number_prods_cut,
+                                                         number_nodes_splitting, number_lines_switches,
+                                                         distance_initial_grid, line_capacity_usage, number_off_lines)
+            self.last_rewards_surface = diagnosis_reward
 
         # Legend
         #legend_surface = self.draw_surface_legend()
@@ -675,42 +679,39 @@ class Renderer(object):
             self.topology_layout.blit(self.game_over_surface, (320, 320))
 
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
-               loads, last_timestep_rewards, date, are_substations_changed, game_over=False, cascading_frame_id=None):
+               loads, last_timestep_rewards, date, are_substations_changed, number_loads_cut, number_prods_cut,
+               number_nodes_splitting, number_lines_switches, distance_initial_grid,
+               number_off_lines, game_over=False, cascading_frame_id=None):
         plt.close('all')
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+        def event_looper(force=False):
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
                     pygame.quit()
                     exit()
-                if event.key == pygame.K_SPACE:
-                    game_over_surface = self.draw_test()
-                    self.screen.blit(game_over_surface, (300, 200))
-                    pygame.display.flip()
-                    again = True
-                    while again:
-                        # stay in the loop until a key is being pressed
-                        for e in pygame.event.get():
-                            if event.key == pygame.K_ESCAPE:
-                                pygame.quit()
-                                exit()
-                            if e.type == pygame.KEYDOWN:  # and event.key == pygame.K_ESCAPE:
-                                if e.key == pygame.K_SPACE:
-                                    again = False
-                            if e.key == pygame.K_ESCAPE:
-                                pygame.quit()
-                                exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        exit()
+                    if event.key == pygame.K_SPACE:
+                        pause_surface = self.draw_plot_pause()
+                        self.screen.blit(pause_surface, (320 + self.left_menu_shape[0], 320))
+                        pygame.display.flip()
+                        return not force
+            return force
+
+        force = event_looper(force=False)
+        while event_looper(force=force):
+            pass
 
         # The game is not paused anymore (or never has been), I can render the next surface
         self.screen.fill(self.background_color)
 
         # Execute full plotting mechanism: order is important
         self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
-                              prods, loads, last_timestep_rewards, are_substations_changed, game_over=game_over,
-                              cascading_frame_id=cascading_frame_id)
+                              prods, loads, last_timestep_rewards, are_substations_changed, game_over,
+                              cascading_frame_id, number_loads_cut, number_prods_cut, number_nodes_splitting,
+                              number_lines_switches, distance_initial_grid, lines_capacity_usage, number_off_lines)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)
@@ -720,7 +721,7 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
         pygame.display.flip()
         # Bugfix for mac
-        pygame.event.get()
+        #pygame.event.get()
 
         self.boolean_dynamic_arrows = not self.boolean_dynamic_arrows
 
