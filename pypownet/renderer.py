@@ -66,7 +66,7 @@ class Renderer(object):
         self.grid_case = grid_case
         self.grid_layout = np.asarray(case_layouts[grid_case])
 
-        self.video_width, self.video_height = 1300, 800
+        self.video_width, self.video_height = 1300, 700
 
         self.screen = pygame.display.set_mode((self.video_width, self.video_height), pygame.RESIZABLE)
         pygame.display.set_caption('pypownet - render mode')  # Window title
@@ -167,8 +167,8 @@ class Renderer(object):
                 self.black_bold_font_render('new observation frame'),
                 (x_offset + 120, y_offset + 4))
 
-    def plot_lines_nodes_matplotlib(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                                    are_substations_changed):
+    def draw_surface_grid(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
+                          are_substations_changed):
         layout = self.grid_layout
         my_dpi = 200
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
@@ -261,11 +261,6 @@ class Renderer(object):
                 linewidth = linewidth_min - 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
 
-                # c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
-                # ax.add_artist(c)
-                # c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
-                # ax.add_artist(c)
-
                 c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
@@ -352,13 +347,8 @@ class Renderer(object):
         raw_data = renderer.tostring_rgb()
         size = canvas.get_width_height()
 
-        return pygame.image.fromstring(raw_data, size, "RGB")
+        img_loads_curve_week = pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_lines(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                           are_substations_changed):
-        img_loads_curve_week = self.plot_lines_nodes_matplotlib(relative_thermal_limits, lines_por,
-                                                                lines_service_status, prods, loads,
-                                                                are_substations_changed)
         loads_curve_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.background_color)
         loads_curve_surface.blit(img_loads_curve_week, (0, 30) if self.grid_case != 30 else (-100, 0))
@@ -400,7 +390,99 @@ class Renderer(object):
 
         return pygame.image.fromstring(raw_data, size, "RGB")
 
-    def create_plot_relative_thermal_limits(self, n_timesteps, left_xlabel):
+    def draw_surface_diagnosis(self, number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
+                               distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines,
+                               max_number_isolated_loads, max_number_isolated_prods):
+        my_dpi = 100
+        height = 225
+        fig = plt.figure(figsize=(self.left_menu_shape[0] / my_dpi, height / my_dpi), dpi=my_dpi,
+                         facecolor=[c / 255. for c in self.left_menu_tile_color], clear=True, tight_layout={'pad': -.3})
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+        plt.axis('off')
+        plt.ylim(0, height)
+        plt.xlim(0, self.left_menu_shape[0])
+
+        string_color = (180 / 255., 180 / 255., 180 / 255.)
+        header_color = (220 / 255., 220 / 255., 220 / 255.)
+        value_color = (1., 1., 1.)
+        plt.text(0, height - 25, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
+
+        string_offset = 65
+        value_offset = 10
+        plt.text(string_offset, height - 60, '# of isolated loads', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 61, '%d' % number_loads_cut,
+                 fontdict={'size': 8.5},
+                 color=(1., 0.3, 0.3) if number_loads_cut > max_number_isolated_loads else value_color)
+        plt.text(value_offset, height - 60, '   / %d' % max_number_isolated_loads,
+                 fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 80, '# of isolated productions', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 81, '%d' % number_prods_cut,
+                 fontdict={'size': 8.5},
+                 color=(1., 0.3, 0.3) if number_prods_cut > max_number_isolated_prods else value_color)
+        plt.text(value_offset, height - 80, '   / %d' % max_number_isolated_prods,
+                 fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 110, '# of node switches of last action', fontdict={'size': 8.5},
+                 color=string_color)
+        plt.text(value_offset, height - 110, '%d' % number_nodes_splitting, fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 130, '# of line switches of last action', fontdict={'size': 8.5},
+                 color=string_color)
+        plt.text(value_offset, height - 130, '%d' % number_lines_switches, fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 160, 'average line capacity usage', fontdict={'size': 8.5}, color=string_color)
+        usage = 100. * np.mean(line_capacity_usage)
+        plt.text(value_offset, height - 160, '%d%%' % usage if usage < 5000 else '∞', fontdict={'size': 8.5},
+                 color=value_color)
+        plt.text(string_offset, height - 180, '# of OFF lines', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 180, '%d' % n_offlines_lines, fontdict={'size': 8.5}, color=value_color)
+        plt.text(string_offset, height - 200, '# of unavailable lines', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 200, '%d' % number_unavailable_lines, fontdict={'size': 8.5}, color=value_color)
+
+        plt.text(string_offset, height - 230, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 230, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
+
+        fig.tight_layout()
+
+        canvas = agg.FigureCanvasAgg(fig)
+        canvas.draw()
+        renderer = canvas.get_renderer()
+        raw_data = renderer.tostring_rgb()
+        size = canvas.get_width_height()
+
+        img = pygame.image.fromstring(raw_data, size, "RGB")
+        last_rewards_surface_shape = (self.left_menu_shape[0], height)
+        last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
+        last_rewards_surface.fill(self.left_menu_tile_color)
+
+        #last_rewards_surface.blit(img, (0, 30) if self.grid_case != 30 else (-100, 0))
+        last_rewards_surface.blit(img, (-20, 0))
+        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
+        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
+                      (64, 64, 64))
+        gfxdraw.vline(last_rewards_surface, 0, last_rewards_surface_shape[1] - 1, 0, (64, 64, 64))
+        gfxdraw.vline(last_rewards_surface, last_rewards_surface_shape[0], 0, last_rewards_surface_shape[1] - 1,
+                      (64, 64, 64))
+        return last_rewards_surface
+
+    def draw_surface_loads_curves(self):
+        # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
+        # at top and bottom of latter surface
+        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
+        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=24, left_xlabel='24 hours ago')
+        loads_curve_surface = pygame.Surface(
+            (img_loads_curve_week.get_width(), 2 * img_loads_curve_week.get_height() + 30),
+            pygame.SRCALPHA, 32).convert_alpha()
+        loads_curve_surface.fill(self.left_menu_tile_color)
+        loads_curve_surface.blit(self.bold_white_render('Historical total consumption'), (30, 10))
+        loads_curve_surface.blit(img_loads_curve_day, (0, 30))
+        loads_curve_surface.blit(img_loads_curve_week, (0, 30 + img_loads_curve_day.get_height()))
+        gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), 0, (64, 64, 64))
+        gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), loads_curve_surface.get_height() - 1,
+                      (64, 64, 64))
+
+        return loads_curve_surface
+
+    def draw_surface_relative_thermal_limits(self, n_timesteps=24, left_xlabel='24 hours ago'):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1.5], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
@@ -442,9 +524,20 @@ class Renderer(object):
         raw_data = renderer.tostring_rgb()
         size = canvas.get_width_height()
 
-        return pygame.image.fromstring(raw_data, size, "RGB")
+        img_rtl = pygame.image.fromstring(raw_data, size, "RGB")
 
-    def create_plot_number_overflows(self, n_timesteps, left_xlabel):
+        rtl_curves_surface = pygame.Surface((img_rtl.get_width(), 2 * img_rtl.get_height() + 30),
+                                            pygame.SRCALPHA, 32).convert_alpha()
+        rtl_curves_surface.fill(self.left_menu_tile_color)
+        rtl_curves_surface.blit(self.bold_white_render('Last 24h lines capacity usage'), (30, 10))
+        rtl_curves_surface.blit(img_rtl, (0, 30))
+        gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), 0, (64, 64, 64))
+        gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), rtl_curves_surface.get_height() - 1,
+                      (64, 64, 64))
+
+        return rtl_curves_surface
+
+    def draw_surface_n_overflows(self, n_timesteps=7 * 24, left_xlabel=' 7 days ago  '):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
@@ -477,133 +570,8 @@ class Renderer(object):
         raw_data = renderer.tostring_rgb()
         size = canvas.get_width_height()
 
-        return pygame.image.fromstring(raw_data, size, "RGB")
+        img_rtl = pygame.image.fromstring(raw_data, size, "RGB")
 
-    def draw_surface_diagnosis(self, number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
-                               distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines,
-                               max_number_isolated_loads, max_number_isolated_prods):
-        my_dpi = 100
-        height = 220
-        fig = plt.figure(figsize=(self.left_menu_shape[0] / my_dpi, height / my_dpi), dpi=my_dpi,
-                         facecolor=[c / 255. for c in self.left_menu_tile_color], clear=True, tight_layout={'pad': 0.2})
-        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
-        plt.axis('off')
-        plt.ylim(0, height)
-        plt.xlim(0, self.left_menu_shape[0])
-
-        string_color = (180 / 255., 180 / 255., 180 / 255.)
-        header_color = (220 / 255., 220 / 255., 220 / 255.)
-        value_color = (1., 1., 1.)
-        plt.text(0, height - 20, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
-
-        string_offset = 65
-        value_offset = 10
-        plt.text(string_offset, height - 60, '# of isolated loads', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 61, '%d' % number_loads_cut,
-                 fontdict={'size': 8.5},
-                 color=(1., 0.3, 0.3) if number_loads_cut > max_number_isolated_loads else value_color)
-        plt.text(value_offset, height - 60, '   / %d' % max_number_isolated_loads,
-                 fontdict={'size': 8.5}, color=value_color)
-        plt.text(string_offset, height - 80, '# of isolated productions', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 81, '%d' % number_prods_cut,
-                 fontdict={'size': 8.5},
-                 color=(1., 0.3, 0.3) if number_prods_cut > max_number_isolated_prods else value_color)
-        plt.text(value_offset, height - 80, '   / %d' % max_number_isolated_prods,
-                 fontdict={'size': 8.5}, color=value_color)
-
-        plt.text(string_offset, height - 110, '# of node switches of last action', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 110, '%d' % number_nodes_splitting, fontdict={'size': 8.5}, color=value_color)
-        plt.text(string_offset, height - 130, '# of line switches of last action', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 130, '%d' % number_lines_switches, fontdict={'size': 8.5}, color=value_color)
-
-        plt.text(string_offset, height - 160, 'average line capacity usage', fontdict={'size': 8.5}, color=string_color)
-        usage = 100. * np.mean(line_capacity_usage)
-        plt.text(value_offset, height - 160, '%d%%' % usage if usage < 5000 else '∞', fontdict={'size': 8.5},
-                 color=value_color)
-        plt.text(string_offset, height - 180, '# of OFF lines', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 180, '%d' % n_offlines_lines, fontdict={'size': 8.5}, color=value_color)
-        plt.text(string_offset, height - 200, '# of unavailable lines', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 200, '%d' % number_unavailable_lines, fontdict={'size': 8.5}, color=value_color)
-
-        plt.text(string_offset, height - 230, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 230, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
-
-        fig.tight_layout()
-
-        canvas = agg.FigureCanvasAgg(fig)
-        canvas.draw()
-        renderer = canvas.get_renderer()
-        raw_data = renderer.tostring_rgb()
-        size = canvas.get_width_height()
-
-        img = pygame.image.fromstring(raw_data, size, "RGB")
-        last_rewards_surface_shape = (self.left_menu_shape[0], height)
-        last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
-        last_rewards_surface.fill(self.left_menu_tile_color)
-
-        #last_rewards_surface.blit(img, (0, 30) if self.grid_case != 30 else (-100, 0))
-        last_rewards_surface.blit(img, (-20, 0))
-        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
-        gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
-                      (64, 64, 64))
-        gfxdraw.vline(last_rewards_surface, 0, last_rewards_surface_shape[1] - 1, 0, (64, 64, 64))
-        gfxdraw.vline(last_rewards_surface, last_rewards_surface_shape[0], 0, last_rewards_surface_shape[1] - 1,
-                      (64, 64, 64))
-        return last_rewards_surface
-
-        last_rewards_surface.blit(self.bold_white_render('Last timestep reward'), (30, 20))
-
-        reward_offset = (50, 40)
-        string_offset = 180
-        line_spacing = 20
-
-        rewards_labels = ['Loads cut', 'Productions cut', 'Last action cost', 'Distance to initial grid',
-                          'Line capacity usage']
-        for i, (reward, label) in enumerate(zip(rewards, rewards_labels)):
-            last_rewards_surface.blit(self.text_render(label), (reward_offset[0], reward_offset[1] + i * line_spacing))
-            last_rewards_surface.blit(self.value_render('%.2f' % reward if reward else '0'),
-                                      (reward_offset[0] + string_offset if reward >= 0 else reward_offset[0] + string_offset - 7
-                                       , reward_offset[1] + i * line_spacing))
-        last_rewards_surface.blit(self.text_render('Total'),
-                                  (reward_offset[0], reward_offset[1] + (i + 1) * line_spacing))
-        last_rewards_surface.blit(self.value_render('%.2f' % np.sum(rewards)),
-                                  (reward_offset[0] + string_offset - 7, reward_offset[1] + (i + 1) * line_spacing))
-
-        return last_rewards_surface
-
-    def draw_surface_loads_curves(self):
-        # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
-        # at top and bottom of latter surface
-        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
-        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=24, left_xlabel='24 hours ago')
-        loads_curve_surface = pygame.Surface(
-            (img_loads_curve_week.get_width(), 2 * img_loads_curve_week.get_height() + 30),
-            pygame.SRCALPHA, 32).convert_alpha()
-        loads_curve_surface.fill(self.left_menu_tile_color)
-        loads_curve_surface.blit(self.bold_white_render('Historical total consumption'), (30, 10))
-        loads_curve_surface.blit(img_loads_curve_day, (0, 30))
-        loads_curve_surface.blit(img_loads_curve_week, (0, 30 + img_loads_curve_day.get_height()))
-        gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), 0, (64, 64, 64))
-        gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), loads_curve_surface.get_height() - 1,
-                      (64, 64, 64))
-
-        return loads_curve_surface
-
-    def draw_surface_relative_thermal_limits(self):
-        img_rtl = self.create_plot_relative_thermal_limits(n_timesteps=24, left_xlabel='24 hours ago')
-        rtl_curves_surface = pygame.Surface((img_rtl.get_width(), 2 * img_rtl.get_height() + 30),
-                                            pygame.SRCALPHA, 32).convert_alpha()
-        rtl_curves_surface.fill(self.left_menu_tile_color)
-        rtl_curves_surface.blit(self.bold_white_render('Last 24h lines capacity usage'), (30, 10))
-        rtl_curves_surface.blit(img_rtl, (0, 30))
-        gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), 0, (64, 64, 64))
-        gfxdraw.hline(rtl_curves_surface, 0, rtl_curves_surface.get_width(), rtl_curves_surface.get_height() - 1,
-                      (64, 64, 64))
-
-        return rtl_curves_surface
-
-    def draw_surface_n_overflows(self):
-        img_rtl = self.create_plot_number_overflows(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
         n_overflows_surface = pygame.Surface((img_rtl.get_width(), 2 * img_rtl.get_height() + 30),
                                              pygame.SRCALPHA, 32).convert_alpha()
         n_overflows_surface.fill(self.left_menu_tile_color)
@@ -616,18 +584,133 @@ class Renderer(object):
         return n_overflows_surface
 
     def draw_surface_legend(self):
-        surface_shape = (self.left_menu_shape[0], 100)
+        surface_shape = (175, 355)
         surface = pygame.Surface(surface_shape, pygame.SRCALPHA, 32).convert_alpha()
         surface.fill(self.left_menu_tile_color)
-        surface.blit(self.bold_white_render('Legend'), (15, 10))
 
-        # Lines legend
-        xs, ys, thi, lrg = 30, 30, 1, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
-        xs, ys, thi, lrg = xs + lrg, 30, 2, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
-        xs, ys, thi, lrg = xs + lrg, 30, 4, 40
-        gfxdraw.filled_polygon(surface, ((xs, ys), (xs + lrg, ys), (xs + lrg, ys + thi), (xs, ys + thi)), (51, 204, 51))
+        my_dpi = 100
+        fig = plt.figure(figsize=(surface_shape[0] / my_dpi, surface_shape[1] / my_dpi), dpi=my_dpi,
+                         facecolor=[c / 255. for c in self.left_menu_tile_color], clear=True, tight_layout={'pad': -.3})
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+        plt.axis('off')
+        plt.ylim(0, surface_shape[1])
+        plt.xlim(0, surface_shape[0])
+
+        ax = fig.gca()
+        ax.set_xlim(0, surface_shape[0])
+        ax.set_ylim(0, surface_shape[1])
+        #fig.subplots_adjust(0, 0, 1, 1, 0, 0)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        offset_text = 40
+        string_color = (180 / 255., 180 / 255., 180 / 255.)
+        header2_color = (200 / 255., 200 / 255., 200 / 255.)
+        header_color = (220 / 255., 220 / 255., 220 / 255.)
+        value_color = (1., 1., 1.)
+
+        plt.text(0, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
+        plt.text(5, surface_shape[1] - 50, 'Substations', fontdict={'size': 8.5}, color=header2_color)
+        plt.text(offset_text, surface_shape[1] - 70, 'energy output > 0', fontdict={'size': 8.5}, color=string_color)
+        c = Circle((21, surface_shape[1] - 66), self.nodes_outer_radius, linewidth=1.,
+                   fill=False, color=[c / 255. for c in (0, 153, 255)])
+        ax.add_artist(c)
+        plt.text(offset_text, surface_shape[1] - 95, 'energy output < 0', fontdict={'size': 8.5}, color=string_color)
+        c = Rectangle((13, surface_shape[1] - 99), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
+                      linewidth=1., fill=False, color=[c / 255. for c in (210, 77, 255)])
+        ax.add_artist(c)
+        plt.text(offset_text, surface_shape[1] - 120, 'energy output = 0', fontdict={'size': 8.5}, color=string_color)
+        c = Rectangle((22, surface_shape[1] - 128), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
+                      linewidth=1., fill=False, color=[c / 255. for c in (255, 255, 255)], angle=45.)
+        ax.add_artist(c)
+
+        plt.text(5, surface_shape[1] - 150, 'Power lines', fontdict={'size': 8.5}, color=header2_color)
+        fig.lines.append(lines.Line2D([10, 33], [surface_shape[1] - 170, surface_shape[1] - 170], linewidth=1.,
+                                      color=[c / 255. for c in (51, 204, 51)]))
+        fig.lines.append(lines.Line2D([20, 23], [surface_shape[1] - 167, surface_shape[1] - 170], linewidth=1.,
+                                      color=[c / 255. for c in (51, 204, 51)]))
+        fig.lines.append(lines.Line2D([20, 23], [surface_shape[1] - 174, surface_shape[1] - 171], linewidth=1.,
+                                      color=[c / 255. for c in (51, 204, 51)]))
+        plt.text(offset_text, surface_shape[1] - 174, 'direction of current', fontdict={'size': 8.5},
+                 color=string_color)
+
+        color_low = np.asarray((51, 204, 51))
+        color_middle = np.asarray((255, 93, 0))
+        color_high = np.asarray((255, 50, 30))
+
+        l = []
+        n = 50
+        for i in range(n):
+            if i < n // 2:
+                color = [c1 + (c2 - c1) * (i / (n // 2)) for c1, c2 in zip(color_low, color_middle)]
+                l.append(lines.Line2D([15, 28], [surface_shape[1] - (190 + i), surface_shape[1] - (190 + i)],
+                                      linewidth=1., color=[c / 255. for c in color]))
+            else:
+                color = [c1 + (c2 - c1) * ((i - n // 2) / (n // 2)) for c1, c2 in zip(color_middle, color_high)]
+                l.append(lines.Line2D([15, 28], [surface_shape[1] - (190 + i), surface_shape[1] - (190 + i)],
+                                      linewidth=1., color=[c / 255. for c in color]))
+        fig.lines.extend(l)
+        # Print lines charge indicators
+        fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 190, surface_shape[1] - 190],
+                                      linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
+        plt.text(offset_text, surface_shape[1] - 194, '0% capacity usage', fontdict={'size': 8.5},
+                 color=string_color)
+        fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 215, surface_shape[1] - 215],
+                                      linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
+        plt.text(offset_text, surface_shape[1] - 219, '50% cap. usage', fontdict={'size': 8.5},
+                 color=string_color)
+        fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 239, surface_shape[1] - 239],
+                                      linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
+        plt.text(offset_text, surface_shape[1] - 244, '100% cap. usage', fontdict={'size': 8.5},
+                 color=string_color)
+
+        # Overflowed lines
+        fig.lines.append(lines.Line2D([10, 33], [surface_shape[1] - 259, surface_shape[1] - 259], linewidth=2.,
+                                      color=[c / 255. for c in (255, 20, 20)], figure=fig, linestyle='--',
+                                      dashes=(2., .8)))
+        fig.lines.append(lines.Line2D([19, 23], [surface_shape[1] - 255, surface_shape[1] - 259], linewidth=2.,
+                                      color=[c / 255. for c in (255, 20, 20)]))
+        fig.lines.append(lines.Line2D([19, 23], [surface_shape[1] - 263, surface_shape[1] - 259], linewidth=2.,
+                                      color=[c / 255. for c in (255, 20, 20)]))
+        plt.text(offset_text, surface_shape[1] - 263, 'overflowed', fontdict={'size': 8.5}, color=string_color)
+
+        # OFF lines
+        fig.lines.append(lines.Line2D([10, 33], [surface_shape[1] - 279, surface_shape[1] - 279], linewidth=1.,
+                                      color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+        plt.text(offset_text, surface_shape[1] - 283, 'switched OFF', fontdict={'size': 8.5}, color=string_color)
+
+        plt.text(5, surface_shape[1] - 315, 'Last action changes', fontdict={'size': 8.5}, color=header2_color)
+        c = Rectangle((12, surface_shape[1] - 335), 2.5 * self.nodes_outer_radius, self.nodes_outer_radius,
+                      linewidth=1., fill=True, color=[c / 255. for c in (255, 255, 0)])
+        ax.add_artist(c)
+        plt.text(offset_text, surface_shape[1] - 335, 'node splitting', fontdict={'size': 8.5}, color=string_color)
+        #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+        #         l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.8,
+        #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+        #     else:
+        #         l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=thickness,
+        #                               color=[c / 255. for c in color], figure=fig,
+        #                               linestyle='--' if rtl > 1. else '-',
+        #                               dashes=(2., .8) if rtl > 1. else (None, None)))
+        #     fig.lines.extend(l)
+
+        fig.tight_layout()
+
+        canvas = agg.FigureCanvasAgg(fig)
+        canvas.draw()
+        renderer = canvas.get_renderer()
+        raw_data = renderer.tostring_rgb()
+        size = canvas.get_width_height()
+
+        img_legend = pygame.image.fromstring(raw_data, size, "RGB")
+        surface.blit(img_legend, (10, 5))
+
+        gfxdraw.hline(surface, 0, surface_shape[0], 0, (64, 64, 64))
+        gfxdraw.hline(surface, 0, surface_shape[0], surface_shape[1] - 1,
+                      (64, 64, 64))
+        gfxdraw.vline(surface, 0, surface_shape[1] - 1, 0, (64, 64, 64))
+        gfxdraw.vline(surface, surface_shape[0], 0, surface_shape[1] - 1,
+                      (64, 64, 64))
 
         return surface
 
@@ -689,11 +772,11 @@ class Renderer(object):
         self.left_menu.blit(n_overflows_surface, (0, 560))
 
     # noinspection PyArgumentList
-    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
-                         prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id,
-                         number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
-                         distance_initial_grid, line_capacity_usage, number_off_lines, number_unavailable_lines,
-                         max_number_isolated_loads, max_number_isolated_prods):
+    def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status, prods,
+                         loads, are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
+                         number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
+                         line_capacity_usage, number_off_lines, number_unavailable_lines, max_number_isolated_loads,
+                         max_number_isolated_prods):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -707,15 +790,12 @@ class Renderer(object):
         else:
             self.relative_thermal_limits.append(relative_thermal_limits)
 
-        lines_surf = self.draw_surface_lines(relative_thermal_limits, lines_por, lines_service_status,
-                                             prods, loads, are_substations_changed)
-        self.topology_layout.blit(lines_surf, (0, 0))
+        lines_surf = self.draw_surface_grid(relative_thermal_limits, lines_por, lines_service_status, prods, loads,
+                                            are_substations_changed)
+        offset = -68 if self.grid_case == 118 else -20 if self.grid_case == 30 else 0
+        self.topology_layout.blit(lines_surf, (0 + offset, 0))
         # arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
         # self.topology_layout.blit(arrow_surf, (0, 0))
-
-        # Dirty
-        if not rewards:
-            rewards = [0] * 5
 
         diagnosis_reward = self.draw_surface_diagnosis(number_loads_cut, number_prods_cut, number_nodes_splitting,
                                                        number_lines_switches, distance_initial_grid,
@@ -724,7 +804,7 @@ class Renderer(object):
         self.last_rewards_surface = diagnosis_reward
 
         # Legend
-        #legend_surface = self.draw_surface_legend()
+        legend_surface = self.draw_surface_legend()
 
         # Dirty
         if self.loads:
@@ -737,7 +817,7 @@ class Renderer(object):
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (690, 1))
-        #self.topology_layout.blit(legend_surface, (1, 470))
+        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height()))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost
@@ -775,11 +855,11 @@ class Renderer(object):
         self.screen.fill(self.background_color)
 
         # Execute full plotting mechanism: order is important
-        self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status,
-                              prods, loads, last_timestep_rewards, are_substations_changed, game_over,
-                              cascading_frame_id, number_loads_cut, number_prods_cut, number_nodes_splitting,
-                              number_lines_switches, distance_initial_grid, lines_capacity_usage, number_off_lines,
-                              number_unavailable_lines, max_number_isolated_loads, max_number_isolated_prods)
+        self._update_topology(scenario_id, date, lines_capacity_usage, lines_por, lines_service_status, prods, loads,
+                              are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
+                              number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
+                              lines_capacity_usage, number_off_lines, number_unavailable_lines,
+                              max_number_isolated_loads, max_number_isolated_prods)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)
@@ -797,7 +877,7 @@ class Renderer(object):
 def scale(u, z, t):
     for k, v in case_layouts.items():
         print(k)
-        print([(int(a * u + -0), int(b * z + -40)) for a, b in v])
+        print([(int(a * u + -40), int(b * z + -0)) for a, b in v])
 
 
 def recenter():
@@ -826,4 +906,4 @@ if __name__ == '__main__':
     print(np.max(a[:, 0]))
     print(np.min(a[:, 1]))
     print(np.max(a[:, 1]))
-    scale(1.01, 1., 0)
+    scale(1, 1., 0)
