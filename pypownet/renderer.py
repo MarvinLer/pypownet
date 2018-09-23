@@ -480,7 +480,8 @@ class Renderer(object):
         return pygame.image.fromstring(raw_data, size, "RGB")
 
     def draw_surface_diagnosis(self, number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
-                               distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines):
+                               distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines,
+                               max_number_isolated_loads, max_number_isolated_prods):
         my_dpi = 100
         height = 220
         fig = plt.figure(figsize=(self.left_menu_shape[0] / my_dpi, height / my_dpi), dpi=my_dpi,
@@ -498,9 +499,17 @@ class Renderer(object):
         string_offset = 65
         value_offset = 10
         plt.text(string_offset, height - 60, '# of isolated loads', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 60, '%d' % number_loads_cut, fontdict={'size': 8.5}, color=value_color)
+        plt.text(value_offset, height - 61, '%d' % number_loads_cut,
+                 fontdict={'size': 8.5},
+                 color=(1., 0.3, 0.3) if number_loads_cut > max_number_isolated_loads else value_color)
+        plt.text(value_offset, height - 60, '   / %d' % max_number_isolated_loads,
+                 fontdict={'size': 8.5}, color=value_color)
         plt.text(string_offset, height - 80, '# of isolated productions', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 80, '%d' % number_prods_cut, fontdict={'size': 8.5}, color=value_color)
+        plt.text(value_offset, height - 81, '%d' % number_prods_cut,
+                 fontdict={'size': 8.5},
+                 color=(1., 0.3, 0.3) if number_prods_cut > max_number_isolated_prods else value_color)
+        plt.text(value_offset, height - 80, '   / %d' % max_number_isolated_prods,
+                 fontdict={'size': 8.5}, color=value_color)
 
         plt.text(string_offset, height - 110, '# of node switches of last action', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 110, '%d' % number_nodes_splitting, fontdict={'size': 8.5}, color=value_color)
@@ -508,7 +517,8 @@ class Renderer(object):
         plt.text(value_offset, height - 130, '%d' % number_lines_switches, fontdict={'size': 8.5}, color=value_color)
 
         plt.text(string_offset, height - 160, 'average line capacity usage', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 160, '%d%%' % (100. * np.mean(line_capacity_usage)), fontdict={'size': 8.5},
+        usage = 100. * np.mean(line_capacity_usage)
+        plt.text(value_offset, height - 160, '%d%%' % usage if usage < 5000 else '∞', fontdict={'size': 8.5},
                  color=value_color)
         plt.text(string_offset, height - 180, '# of OFF lines', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 180, '%d' % n_offlines_lines, fontdict={'size': 8.5}, color=value_color)
@@ -682,7 +692,8 @@ class Renderer(object):
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status,
                          prods, loads, rewards, are_substations_changed, game_over, cascading_frame_id,
                          number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
-                         distance_initial_grid, line_capacity_usage, number_off_lines, number_unavailable_lines):
+                         distance_initial_grid, line_capacity_usage, number_off_lines, number_unavailable_lines,
+                         max_number_isolated_loads, max_number_isolated_prods):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -708,7 +719,8 @@ class Renderer(object):
 
         diagnosis_reward = self.draw_surface_diagnosis(number_loads_cut, number_prods_cut, number_nodes_splitting,
                                                        number_lines_switches, distance_initial_grid,
-                                                       line_capacity_usage, number_off_lines, number_unavailable_lines)
+                                                       line_capacity_usage, number_off_lines, number_unavailable_lines,
+                                                       max_number_isolated_loads, max_number_isolated_prods)
         self.last_rewards_surface = diagnosis_reward
 
         # Legend
@@ -735,7 +747,7 @@ class Renderer(object):
     def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
                loads, last_timestep_rewards, date, are_substations_changed, number_loads_cut, number_prods_cut,
                number_nodes_splitting, number_lines_switches, distance_initial_grid,
-               number_off_lines, number_unavailable_lines,
+               number_off_lines, number_unavailable_lines, max_number_isolated_loads, max_number_isolated_prods,
                game_over=False, cascading_frame_id=None):
         plt.close('all')
 
@@ -767,7 +779,7 @@ class Renderer(object):
                               prods, loads, last_timestep_rewards, are_substations_changed, game_over,
                               cascading_frame_id, number_loads_cut, number_prods_cut, number_nodes_splitting,
                               number_lines_switches, distance_initial_grid, lines_capacity_usage, number_off_lines,
-                              number_unavailable_lines)
+                              number_unavailable_lines, max_number_isolated_loads, max_number_isolated_prods)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)

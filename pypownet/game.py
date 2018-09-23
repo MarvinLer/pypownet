@@ -716,6 +716,9 @@ class Game(object):
         current_topo = self.grid.get_topology()
         distance_ref_grid = sum(np.asarray(initial_topo.get_zipped()) != np.asarray(current_topo.get_zipped()))
 
+        max_number_isolated_loads = self.__parameters.get_max_number_loads_game_over()
+        max_number_isolated_prods = self.__parameters.get_max_number_prods_game_over()
+
         self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
                              self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
                              prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
@@ -729,6 +732,8 @@ class Game(object):
                              distance_initial_grid=distance_ref_grid,
                              number_off_lines=sum(self.grid.get_lines_status() == 0),
                              number_unavailable_lines=number_unavailable_lines,
+                             max_number_isolated_loads=max_number_isolated_loads,
+                             max_number_isolated_prods=max_number_isolated_prods,
                              game_over=game_over, cascading_frame_id=cascading_frame_id)
 
         if self.latency:
