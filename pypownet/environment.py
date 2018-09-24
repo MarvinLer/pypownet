@@ -448,6 +448,9 @@ class Observation(MinimalistACObservation):
 
         return np.concatenate((prod_nodes, load_nodes, lines_origin_nodes, lines_extremities_nodes)), elements_type
 
+    def get_lines_capacity_usage(self):
+        return np.divide(self.ampere_flows, self.thermal_limits)
+
     def __str__(self):
         date_str = 'date:' + self.datetime.strftime("%Y-%m-%d %H:%M")
 
