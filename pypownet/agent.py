@@ -24,9 +24,9 @@ class Agent(object):
         assert isinstance(observation, pypownet.environment.Observation)
 
         # Implement your policy here.
-        action = self.environment.action_space.get_do_nothing_action()
+        do_nothing_action = self.environment.action_space.get_do_nothing_action()
 
-        return action
+        return do_nothing_action
 
 
 # Examples of baselines agents

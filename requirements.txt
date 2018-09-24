@@ -6,3 +6,4 @@ pygame==1.9.4
 scipy==1.1.0
 gym>=0.10.5
 PYPOWER==5.1.4
+PyYAML>=3.13

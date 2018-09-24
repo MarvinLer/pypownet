@@ -42,6 +42,7 @@ class Runner(object):
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG if vverbose and verbose else logging.INFO)
             ch.setFormatter(logging.Formatter('%(levelname)s        %(message)s'))
+            self.ch = ch
             # add ch to logger
             self.logger.addHandler(ch)
             self.logger.setLevel(logging.DEBUG if vverbose else logging.INFO)

@@ -1,7 +1,7 @@
 __author__ = 'marvinler'
 import os
 import sys
-import json, yaml
+import yaml
 import logging
 import importlib
 from pypownet.reward_signal import RewardSignal
@@ -15,10 +15,13 @@ class Parameters(object):
         if not os.path.exists(self.__parameters_path):
             print('Parameters path %s does not exit' % self.__parameters_path)
             print('Located parameters folders:')
-            print('  ' + '\n  '.join(
-                os.path.join('parameters/', f) for f in os.listdir('parameters/') if not os.path.isfile(f)))
-            print('Use -p PARAM_FOLDER with PARAM_FOLDER as one of the previous located folders; see their '
-                  'configuration.json for more info\n\n')
+            available_folders = [f for f in os.listdir('parameters/') if not os.path.isfile(f)]
+            if not available_folders:
+                print('  no parameters environment found')
+            else:
+                print('  ' + '\n  '.join([os.path.join('parameters/', f) for f in available_folders]))
+                print('Use -p PARAM_FOLDER with PARAM_FOLDER as one of the previous located folders; see their '
+                      'configuration.json for more info\n\n')
             raise FileNotFoundError('folder %s does not exist' % os.path.abspath(parameters_folder))
         sys.path.append(self.__parameters_path)
         self.level_folder = os.path.join(self.__parameters_path, game_level)
