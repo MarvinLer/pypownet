@@ -653,7 +653,7 @@ class Renderer(object):
         # Print lines charge indicators
         fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 190, surface_shape[1] - 190],
                                       linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
-        plt.text(offset_text, surface_shape[1] - 194, '0% capacity usage', fontdict={'size': 8.5},
+        plt.text(offset_text, surface_shape[1] - 196, '0% capacity usage', fontdict={'size': 8.5},
                  color=string_color)
         fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 215, surface_shape[1] - 215],
                                       linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
@@ -661,7 +661,7 @@ class Renderer(object):
                  color=string_color)
         fig.lines.append(lines.Line2D([29, offset_text - 5], [surface_shape[1] - 239, surface_shape[1] - 239],
                                       linewidth=1., color=[c / 255. for c in [234, 234, 160]]))
-        plt.text(offset_text, surface_shape[1] - 244, '100% cap. usage', fontdict={'size': 8.5},
+        plt.text(offset_text, surface_shape[1] - 242, '100% cap. usage', fontdict={'size': 8.5},
                  color=string_color)
 
         # Overflowed lines
