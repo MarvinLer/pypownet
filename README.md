@@ -21,7 +21,7 @@ The simulator comes with an Reinforcement Learning-focused environment, which im
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/pypownet:2.0.4
+sudo docker pull marvinler/pypownet:2.1.1
 ```
 
 ## Without using Docker
@@ -72,26 +72,6 @@ python3.6 setup.py install
 After this, this simulator is available under the name pypownet (e.g. ```import pypownet```).
 
 
-# Basic usage
-## Without using Docker
-Experiments can be conducted using the CLI.
-### Using CLI arguments
-CLI can be used to run simulations:
-```
-python -m pypownet.main
-```
-You can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 1000 iterations (here, ~40 days) of the do-nothing (default) agent on a grid with 14 substations:
-```
-python -m pypownet.main --parameters parameters/default14 --niter 1000 --verbose --render
-```
-With this default14/ parameters (emulates a grid with 14 substations, 5 productions, 11 consumptions and 20 lines), it takes ~100 seconds to run 1000 timesteps (old i5).
-
-## Using Docker
-You can use the command line of the image with shared display (for running the renderer):
-```
-sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
-```
-This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 
 # Main features
 pypownet is a power grid simulator, that emulates a power grid that is subject to pre-computed injections, planned maintenance as well as random external hazards. Here is a list of pypownet main features:

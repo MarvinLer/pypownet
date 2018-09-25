@@ -21,12 +21,12 @@ RUN git clone https://github.com/MATPOWER/matpower.git && \
     git clone https://github.com/MarvinLer/pypownet.git
 
 # Install pypownet (including necessary packages installation)
+WORKDIR pypownet/
 RUN cd /pypownet && python setup.py install && cd ..
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
-WORKDIR pypownet/
 
 # Run the sample experiments when the container launches
 CMD ["python3.6", "-m", "pypownet.main"]

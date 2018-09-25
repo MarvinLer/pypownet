@@ -79,8 +79,8 @@ class ActionSpace(object):
         """ Converts and returns an pypownet.game.Action from a array-object (e.g. list, numpy arrays).
 
         :param array: array-style object
-        :return: an instance of pypownet.game.Action equivalent to input action :raise ValueError: the input array is not of the
-        same length than the expected action (self.action_length)
+        :return: an instance of pypownet.game.Action equivalent to input action
+        :raise ValueError: the input array is not of the same length than the expected action (self.action_length)
         """
         if len(array) != self.action_length:
             raise ValueError('Expected binary array of length %d, got %d' % (self.action_length, len(array)))
@@ -360,7 +360,6 @@ class Observation(MinimalistACObservation):
     lines as well as the lines capacity usage
     * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
     """
-
     def __init__(self, substations_ids, active_loads, reactive_loads, voltage_loads, active_productions,
                  reactive_productions, voltage_productions, active_flows_origin, reactive_flows_origin,
                  voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
