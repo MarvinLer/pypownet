@@ -8,16 +8,19 @@ Welcome to pypownet's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Quick start
    
    introduction.rst
    installation.rst
    usage.rst
    changelog.rst
 
-   :hidden:
-   api_reference.rst
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Simulation environments
+
+   game_settings.rst
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
