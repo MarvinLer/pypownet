@@ -245,6 +245,11 @@ class Chronic(object):
         planned_maintenance = (maintenances != 0).argmax(axis=0)
         return planned_maintenance
 
+    def get_timestep_duration(self):
+        first_datetime = self.timesteps_entries[0].get_datetime()
+        second_datetime = self.timesteps_entries[1].get_datetime()
+        return (second_datetime - first_datetime).total_seconds()
+
     def get_timestep_ids(self):
         return self.timestep_ids
 

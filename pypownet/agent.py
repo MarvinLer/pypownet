@@ -14,7 +14,6 @@ class Agent(object):
         """Initialize a new agent."""
         assert isinstance(environment, pypownet.environment.RunEnv)
         self.environment = environment
-        # Do not forget to call super() for the daughter classes
 
     def act(self, observation):
         """Produces an action given an observation of the environment.

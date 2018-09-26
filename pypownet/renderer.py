@@ -62,11 +62,13 @@ case_layouts = {
 
 # noinspection PyArgumentList
 class Renderer(object):
-    def __init__(self, grid_case, or_ids, ex_ids, are_prods, are_loads):
+    def __init__(self, grid_case, or_ids, ex_ids, are_prods, are_loads, timestep_duration_seconds):
         self.grid_case = grid_case
         self.grid_layout = np.asarray(case_layouts[grid_case])
 
         self.video_width, self.video_height = 1300, 700
+
+        self.timestep_duration_seconds = timestep_duration_seconds
 
         self.screen = pygame.display.set_mode((self.video_width, self.video_height), pygame.RESIZABLE)
         pygame.display.set_caption('pypownet - render mode')  # Window title
@@ -467,8 +469,10 @@ class Renderer(object):
     def draw_surface_loads_curves(self):
         # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
         # at top and bottom of latter surface
-        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=7 * 24, left_xlabel=' 7 days ago  ')
-        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=24, left_xlabel='24 hours ago')
+        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds),
+                                                            left_xlabel=' 7 days ago  ')
+        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=int(24 * 3600 // self.timestep_duration_seconds),
+                                                           left_xlabel='24 hours ago')
         loads_curve_surface = pygame.Surface(
             (img_loads_curve_week.get_width(), 2 * img_loads_curve_week.get_height() + 30),
             pygame.SRCALPHA, 32).convert_alpha()
@@ -482,7 +486,7 @@ class Renderer(object):
 
         return loads_curve_surface
 
-    def draw_surface_relative_thermal_limits(self, n_timesteps=24, left_xlabel='24 hours ago'):
+    def draw_surface_relative_thermal_limits(self, n_timesteps, left_xlabel='24 hours ago'):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1.5], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
@@ -537,7 +541,7 @@ class Renderer(object):
 
         return rtl_curves_surface
 
-    def draw_surface_n_overflows(self, n_timesteps=7 * 24, left_xlabel=' 7 days ago  '):
+    def draw_surface_n_overflows(self, n_timesteps, left_xlabel=' 7 days ago  '):
         facecolor_asfloat = np.asarray(self.left_menu_tile_color) / 255.
         layout_config = {'pad': 0.2}
         fig = pylab.figure(figsize=[3, 1], dpi=100, facecolor=facecolor_asfloat, tight_layout=layout_config)
@@ -760,10 +764,10 @@ class Renderer(object):
         loads_curve_surface = self.draw_surface_loads_curves()
 
         # Relative thermal limits curves
-        rtl_curves_surface = self.draw_surface_relative_thermal_limits()
+        rtl_curves_surface = self.draw_surface_relative_thermal_limits(n_timesteps=int(24 * 3600 // self.timestep_duration_seconds))
 
         # Number of overflowed lines curves
-        n_overflows_surface = self.draw_surface_n_overflows()
+        n_overflows_surface = self.draw_surface_n_overflows(n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds))
 
         gfxdraw.vline(self.left_menu, self.left_menu_shape[0] - 1, 0, self.left_menu_shape[1], (128, 128, 128))
         #self.left_menu.blit(last_rewards_surface, (0, 50))

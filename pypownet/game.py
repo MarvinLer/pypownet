@@ -672,9 +672,12 @@ class Game(object):
             are_loads = np.logical_or(self.grid.are_loads[:len(mpcbus) // 2],
                                       self.grid.are_loads[len(nodes_ids) // 2:])
 
+            timestep_duration_seconds = self.__chronic.get_timestep_duration()
+
             from pypownet.renderer import Renderer
 
-            return Renderer(len(self.grid.number_elements_per_substations), idx_or, idx_ex, are_prods, are_loads)
+            return Renderer(len(self.grid.number_elements_per_substations), idx_or, idx_ex, are_prods, are_loads,
+                            timestep_duration_seconds)
 
         try:
             import pygame

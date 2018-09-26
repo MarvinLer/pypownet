@@ -1,7 +1,3 @@
-**********************
-Environment parameters
-**********************
-
 Context
 =======
 
@@ -118,7 +114,7 @@ At initialization, the software will read the 4 realized files of the chronic. T
 
 For illustration, suppose a grid is made of 2 productions and 2 consumptions, with the following realized injections which correspond to 3 timesteps (because there are 3 lines of data):
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 2
    :caption: _N_prods_p.csv
@@ -128,7 +124,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    11;6
    12;6.4
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 2
    :caption: _N_prods_v.csv
@@ -138,7 +134,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    1;1
    1;1
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 2
    :caption: _N_loads_p.csv
@@ -148,7 +144,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    9;8.4
    11;7
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 2
    :caption: _N_loads_q.csv
@@ -178,7 +174,7 @@ At each timestep, the software will read the next line for all the 4 realized in
 
 For illustration, given the following pair of realized/planned active power of productions, for the second timestep, the software will read the 3rd line in both files, replace the current productions P output by the read values, and carry the previsions of P values in an Observation:
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 3
    :caption: _N_prods_p.csv
@@ -189,7 +185,7 @@ For illustration, given the following pair of realized/planned active power of p
    12;6.4
 
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :emphasize-lines: 3
    :caption: _N_prods_p_planned.csv
@@ -212,7 +208,7 @@ The file **maintenance.csv** provide all the maintenance that will happen during
 Similarly to the previous files, the maintenance file has a header (not effectively use), followed by ';'-separated data e.g.:
 
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :caption: maintenance.csv
 
@@ -238,7 +234,7 @@ The datetime file, **_N_datetimes.csv** contains the date associated with each t
 The date should have the following format: 'yyyy-mmm-dd;h:mm' with 'yyyy' the 4 digits of the year, 'mmm' the 3 first letters in lowercase of the month, 'dd' the 1 or 2 digits of the day in the month, 'h' for the 1 or 2 digits of hour (from 0 to 23) and 'mm' for the 2 digits of minutes.
 Example of datetimes file:
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :caption: _N_datetimes.csv
 
@@ -253,7 +249,7 @@ In the latter example, the duration between two timesteps is 1 hour, so an agent
 
 The file **_N_simu_ids.csv** allows to bring consistency with the indexing of timesteps. This simple csv file has one column, one header line and one int or float value per timestep e.g.:
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :caption: _N_simu_ids.csv
 
@@ -269,7 +265,7 @@ With both examples, the timestep of id 2 happens at precisely 31st January of 20
 Finally, the last file of a chronic is the file **_N_imaps.csv** containing the nominal thermal limits of the power line: one thermal limit per line.
 The file consists in two lines: one is the header, not used (but should respect the correct number of columns), the other contain a list of ';'-separated float or int, indicating the thermal limits of each line e.g.:
 
-.. code-block:: typoscript
+.. code-block:: resource
    :linenos:
    :caption: _N_imaps.csv
 
@@ -280,6 +276,61 @@ The file consists in two lines: one is the header, not used (but should respect 
 
 Configuration file
 ------------------
+The configuration file contains parameters that control the inner game mechanism in several ways.
+More precisally, the configuration file should be named **configuration.yaml** and should be placed at the top level of the considered level folder.
+As its name indicates, its format should be YAML, which is preferred here over JSON because of its possibility of comments and efficiency.
+
+.. Hint:: The template-building script **build_new_parameters_environment.py** automatically constructs such a file, with all the mandatory parameters, with default values.
+
+Here is the list of (mandatory) parameters:
+
+:loadflow_backend:
+    backend used by the simulator to compute loadflows; can be "pypower" or "matpower"
+
+:loadflow_mode:
+
+    model of loadflow used by the backend to compute loadflow; can be "AC" (alternative current) or "dc" (direct current)
+:max_seconds_per_timestep:  maximum number of seconds allowed for the agent to produce an action at each timestep, before timeout
+:hard_overflow_coefficient:
+    percentage of thermal limit above which an overflow line is considered in hard-overflow (hard-overflow line instantly break)
+:n_timesteps_hard_overflow_is_broken:
+    number of timesteps a hard-overflowed line is broken: the line cannot be switched ON for this number of timesteps
+:n_timesteps_consecutive_soft_overflow_breaks:
+    number of consecutive timesteps at the end of which a line is overflow (but not hard-overflow) before breaking (heat built-up)
+:n_timesteps_soft_overflow_is_broken:
+    number of timesteps a soft-overflowed line is broken: the line cannot be switched ON for this number of timesteps
+:n_timesteps_horizon_maintenance:
+    number of maximum timesteps to loop up in the planned maintenance: maintenance expected at further timesteps are not taken into account in the previsions sent to the agents
+:max_number_prods_game_over:
+    maximum number of isolated productions tolerated before game over; a stricly higher number of isolated production provokes a game over
+:max_number_loads_game_over:
+    maximum number of isolated consumptions tolerated before game over; a stricly higher number of isolated loads provokes a game over
+
+Here is the default **configuration.yaml** (produced by the template-creater script):
+
+.. code-block:: yaml
+   :linenos:
+   :caption: configuration.yaml
+
+    loadflow_backend: pypower
+    #loadflow_backend: matpower
+
+    loadflow_mode: AC  # alternative current: more precise model but longer to process
+    #loadflow_mode: DC  # direct current: more simplist and faster model
+
+    max_seconds_per_timestep: 1.0  # time in seconds before player is timedout
+
+    hard_overflow_coefficient: 1.5  # % of line capacity usage above which a line will break bc of hard overflow
+    n_timesteps_hard_overflow_is_broken: 10  # number of timesteps a hard overflow broken line is broken
+
+    n_timesteps_consecutive_soft_overflow_breaks: 3  # number of consecutive timesteps for a line to be overflowed b4 break
+    n_timesteps_soft_overflow_is_broken: 5  # number of timesteps a soft overflow broken line is broken
+
+    n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for planned maintenance prevision
+
+    max_number_prods_game_over: 10  # number of tolerated isolated productions before game over
+    max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
+
 
 Reward signal file
 ------------------
