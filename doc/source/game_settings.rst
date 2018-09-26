@@ -105,7 +105,7 @@ The respective names of the associated chronic files are:
     - _N_loads_q.csv
 
 Each of these CSV files should have a header (which is not used in practice but mandatory) line of the desired number of file columns, followed by lines of ';'-separated values. Each line will correspond to one timestep, such that consecutive lines represent the injections of consecutive timesteps.
-The columns define the nominal values for each elements. For instance, if the grid is made of 5 productions, then both **_N_prods_p.csv** and **_N_prods_v.csv** should be made of 5 columns (so 4 ';' per line).
+The columns define the nominal values for each elements. For instance, if the grid is made of 5 productions and 8 loads, then both **_N_prods_p.csv** and **_N_prods_v.csv** should be made of 5 columns (so 4 ';' per line), and both **_N_loads_p.csv** and **_N_loads_q.csv** should be made of 8 columns.
 
 In practice, all of the active power values of productions are non-negative, because productions do produce active power. Sometimes, productions undergo some maintenance process (e.g. cleaning or repairing). This aspect can be controlled within the voltage magnitudes of productions (file **_N_prods_v.csv**), by setting the associated active production value to 0 (a production producing 0 effectively does not produce any electricity), or by setting the nominal value of the production to <= 0.
 Usually, productions voltage magnitudes are close to 1 (ranging from 0.94 to 1.06) in per-unit (understand: in the chronic file of production voltages). Any excessive value will almost automatically lead to a game over situation caused by a non-converging loadflow.
@@ -126,6 +126,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    prod0;prod1
    10;5
    11;6
+   12;6.4
 
 .. code-block:: typoscript
    :linenos:
@@ -133,6 +134,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    :caption: _N_prods_v.csv
 
    prod0;prod1
+   1;1
    1;1
    1;1
 
@@ -143,7 +145,8 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
 
    load0;load1
    7;8
-   9;8
+   9;8.4
+   11;7
 
 .. code-block:: typoscript
    :linenos:
@@ -153,6 +156,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    load0;load1
    -2;3
    -2;4
+   0;-1
 
 For the first timestep, the software will read the highlighted line of each files (line 2 here, because this is the first timestep) and change the corresponding P, Q, V values of productions and loads.
 
@@ -172,8 +176,107 @@ At each timestep, the software will read the next line for all the 4 realized in
     - _N_loads_p_planned.csv
     - _N_loads_q_planned.csv
 
+For illustration, given the following pair of realized/planned active power of productions, for the second timestep, the software will read the 3rd line in both files, replace the current productions P output by the read values, and carry the previsions of P values in an Observation:
+
+.. code-block:: typoscript
+   :linenos:
+   :emphasize-lines: 3
+   :caption: _N_prods_p.csv
+
+   prod0;prod1
+   10;5
+   11;6
+   12;6.4
 
 
+.. code-block:: typoscript
+   :linenos:
+   :emphasize-lines: 3
+   :caption: _N_prods_p_planned.csv
+
+   prod0;prod1
+   10.9;5.8
+   12.9;6.3
+
+In this example, the predictions, given at the first timestep, of the next timestep active power of productions are 10.9MW and 5.8MW for resp. the first production and the second production (seen on line 2 of **_N_prods_p_planned.csv**).
+In reality, at the next (second) timestep, the active power of productions inserted into the grid system are resp. 11MW and 5MW (seen on line 3 of **_N_prods_p.csv**).
+
+3. Maintenance and external hazards
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In real conditions, the power lines need to be maintained to ensure they are secure and work as intended.
+Such operations, called maintenance, involve switching power lines off for several hours, which make them unusable to ensure the safe functioning of the grid.
+The cause of maintenance are diverse (e.g. line repainting), but they are all known in advance (because they are planned by the grid manager).
+For the same reproducibility purposes as before, the maintenance are pre-computed prior to the simulation.
+
+The file **maintenance.csv** provide all the maintenance that will happen during the chronic.
+Similarly to the previous files, the maintenance file has a header (not effectively use), followed by ';'-separated data e.g.:
+
+
+.. code-block:: typoscript
+   :linenos:
+   :caption: maintenance.csv
+
+   lines0;line1;line2;line3
+   1;0;0;0
+   0;0;0;0
+   0;2;0;3
+   0;0;0;0
+
+The number of column of **maintenance.csv** should be equal to the number of power lines in the grid ( = the number of lines in the 'branch' matrix of the reference grid).
+Its number of lines should be the same as the files before, i.e. the number of timesteps of the chronic.
+
+For a given timestep and a given power line (i.e. resp. a given line and a given column), a value *d* equal to 0 indicates that there are no maintenance starting at the corresponding timestep. A value *d*>0 indicates that a maintenance starts at this timestep, and that the power line will be unavailable (to be switched ON) for *d* timesteps starting from the current timestep.
+
+Regarding maintenance, since in real life condition they are typically known, an Observation will also contain the previsions of the maintenance: given an *horizon* parameter (see later), the vecteur will contain one integer value for each power line, with a 0 value indicated no planned maintenance within the next *horizon* timestep, and a non-0 value indicating the number of timesteps before the next seen maintenance.
+
+On top of maintenance operations, power grids are naturally subjected to external events that break lines from time to time. Such events could be related to nature (thunder hitting a power line, tree falling on some power line, etc), or could come from hardware malfunctioning.
+Such hazards are an entry of the system, and should be within the **hazards.csv** file which works exactly like the maintenance file, except that hazards are unpreditable in real life so no information is given to agents regarding forthcoming hazards.
+
+4. Datetimes and IDs
+^^^^^^^^^^^^^^^^^^^^
+The datetime file, **_N_datetimes.csv** contains the date associated with each timestep. As such, there is one date per line.
+The date should have the following format: 'yyyy-mmm-dd;h:mm' with 'yyyy' the 4 digits of the year, 'mmm' the 3 first letters in lowercase of the month, 'dd' the 1 or 2 digits of the day in the month, 'h' for the 1 or 2 digits of hour (from 0 to 23) and 'mm' for the 2 digits of minutes.
+Example of datetimes file:
+
+.. code-block:: typoscript
+   :linenos:
+   :caption: _N_datetimes.csv
+
+    date;time
+    2018-jan-31;8:00
+    2018-jan-31;9:00
+    2018-jan-31;10:00
+    2018-jan-31;11:00
+
+The datetimes entirely controls the timestep used for the simulation (this is due because the game mechanism is independent of time, so essentially the chronics dictatet the speed of temporal dimension).
+In the latter example, the duration between two timesteps is 1 hour, so an agent can only perform one action per hour. Because of regex limitations, the system cannot be discretized into seconds timesteps; you can create an issue on the official repository if you need such a feature.
+
+The file **_N_simu_ids.csv** allows to bring consistency with the indexing of timesteps. This simple csv file has one column, one header line and one int or float value per timestep e.g.:
+
+.. code-block:: typoscript
+   :linenos:
+   :caption: _N_simu_ids.csv
+
+    id
+    0
+    1
+    2
+
+With both examples, the timestep of id 2 happens at precisely 31st January of 2018 at 11AM.
+
+5. Thermal limits
+^^^^^^^^^^^^^^^^^
+Finally, the last file of a chronic is the file **_N_imaps.csv** containing the nominal thermal limits of the power line: one thermal limit per line.
+The file consists in two lines: one is the header, not used (but should respect the correct number of columns), the other contain a list of ';'-separated float or int, indicating the thermal limits of each line e.g.:
+
+.. code-block:: typoscript
+   :linenos:
+   :caption: _N_imaps.csv
+
+    line0;line1;line2;line3
+    30;90;100;50
+
+.. Note:: There is one thermal limits per chronic, and not per game level, because chronics could be splitted by month, and thermal limits are technically lower during summer (higher heat), which could be emulated with lower thermal limits for the summer chronics.
 
 Configuration file
 ------------------
