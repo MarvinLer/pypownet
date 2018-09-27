@@ -98,6 +98,8 @@ class Runner(object):
 
         self.last_observation = observation
 
+        self.agent.feed_reward(action, observation, reward_aslist)
+
         self.logger.debug('action: %s' % ('[%s]' % ' '.join(list(map(lambda x: str(int(x)), action.as_array())))))
         self.logger.debug('reward: {}'.format('[' + ','.join(list(map(str, reward_aslist))) + ']'))
         self.logger.debug('done: {}'.format(done))

@@ -27,6 +27,8 @@ class Agent(object):
 
         return do_nothing_action
 
+    def feed_reward(self, action, consequent_observation, rewards_aslist):
+        pass
 
 # Examples of baselines agents
 import numpy as np
