@@ -59,8 +59,8 @@ class ActionSpace(object):
         self.lines_ex_subs_id = lines_ex_subs_id
 
         # Computes en saves the number of topological switches per substations (sum of prod + load + lines or. and ext.)
-        self._substations_n_elements = [len(self.get_topological_switches_of_substation(self.get_do_nothing_action(),
-                                                                                        sub_id)[1]) for sub_id in
+        self._substations_n_elements = [len(
+            self.get_switches_configuration_of_substation(self.get_do_nothing_action(), sub_id)[1]) for sub_id in
                                         self.substations_ids]
 
     def get_do_nothing_action(self):
@@ -137,7 +137,7 @@ class ActionSpace(object):
     def get_number_elements_of_substation(self, substation_id):
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
-    def get_topological_switches_of_substation(self, action, substation_id, do_concatenate=True):
+    def get_switches_configuration_of_substation(self, action, substation_id, do_concatenate=True):
         """ From the current action, retrieves the list of value of the switch (0 or 1) of the switches on which each
         element of the substation with input id. This function also computes the type of element associated to each
         switch value of the returned switches-value list.
@@ -179,7 +179,7 @@ class ActionSpace(object):
     def set_switches_configuration_of_substation(self, action, substation_id, new_configuration):
         new_configuration = np.asarray(new_configuration)
 
-        _, elements_type = self.get_topological_switches_of_substation(action, substation_id, do_concatenate=False)
+        _, elements_type = self.get_switches_configuration_of_substation(action, substation_id, do_concatenate=False)
         expected_configuration_size = len(elements_type)
         assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
                                                                       ' substation %d, got %d' % (
@@ -195,7 +195,7 @@ class ActionSpace(object):
         action.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_configuration[
             elements_type == ElementType.EXTREMITY_POWER_LINE]
 
-        assert np.all(self.get_topological_switches_of_substation(action, substation_id)[0] == new_configuration), \
+        assert np.all(self.get_switches_configuration_of_substation(action, substation_id)[0] == new_configuration), \
             "Should not happen"
 
     def get_lines_status_switches_of_substation(self, action, substation_id):
@@ -212,7 +212,7 @@ class ActionSpace(object):
     def set_lines_status_switches_of_substation(self, action, substation_id, new_configuration):
         new_configuration = np.asarray(new_configuration)
 
-        lines_status_switches = self.get_topological_switches_of_substation(action, substation_id)
+        lines_status_switches = self.get_switches_configuration_of_substation(action, substation_id)
         expected_configuration_size = len(lines_status_switches)
         assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
                                                                       ' substation %d, got %d' % (

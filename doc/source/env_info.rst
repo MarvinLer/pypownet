@@ -31,6 +31,7 @@ Sometimes, dispatchers can negociate with producers to change their planned prod
 Within the game, actions are managed as lists of binaries of consistent size within an environment.
 More precisally, this list is equivalent to the concatenation of two lists: one for the node switching operations, and one for the line status (ON or OFF) switching operations
 Each binary value of both lists correspond to the activation of a switch (1) or no activation of this switch (0), precisally:
+
     - a value of 1 in the line status switches subaction indicates to activate the switch of the corresponding line status of the line: if the prior line status is 0 (i.e. the line is switched OFF, or OFFLINE), then it will be put to 1 (i.e. the line is switched ON, or ONLINE) and vice versa
     - a value of 1 in the node switches subaction indicates to activate the switch of the node on which the corresponding element is *directly* connected: if the prior node on which the element is connected is 0, then this element will be connected the the node 1 (i.e. the second node of the substation of the element) and vice versa
 
@@ -124,6 +125,28 @@ For illustration, here are two agents which resp. randomly switches lines status
 
             return action_space.array_to_action(action_asarray)
 
+This first way of building actions (which is essentially building arrays), is quite simple to put in place for neural networks models ans such.
+However, it hardly exploit the grid structure (elements are decoupled regardin their substations).
+To perform more dispatchers-like action, the second way of building actions using the action space as a factory is preferred since an **ActionSpace** contains various helpers to retrieve pertinent information with the point of view of substations.
+
+Building actions with the action space
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The other way to construct actions is to consider an action as a container, which will store independent package of actions.
+The do-nothing action, which consist of an action where no switches are activated so equivalently to a list of only 0, is neutral to the environment: since no switch are activated, the whole topology of the grid stays intact, si it is as if there was no action at all.
+Based on this principle, we can replace parts of a do-nothing action with some meta-action, such as changing the configuration of a whole substation.
+For concrete usage of the action space, the the example of agents in :ref:`example_agents`.
+
+Here is the list the building methods of **pypownet.environment.ActionSpace**:
+
+:get_do_nothing_action:  return a do-nothing (neutral) action where no switch are activated.
+:array_to_action:  converts a numpy array into a proper **Action**; raises errors if the input array is not of good length, or contains non-binary values.
+:get_number_elements_of_substation:  retrieve the number of elements (productions + loads + line origins + line extremities) of a substation from its true ID.
+:get_switches_configuration_of_substation:  from a substation id, return the current switch values and type of the corresponding elements; this function returns two lists of size the number of elements of the substation from the input ID: the first one contains the binary values of the switches, while the second one returns the elementwise type of the concerned objects, which can be either ``pypownet.ElementType.PRODUCTION``, ``pypownet.ElementType.CONSUMPTION``, ``pypownet.ElementType.ORIGIN_POWER_LINE`` or ``pypownet.ElementType.EXTREMITY_POWER_LINE``.
+:set_switches_configuration_of_substation:  within the input action, replace the value of the switches configuration related to input substation id with the input new configuration; this is the operation that changes the local topology of a substation with node switches.
+:set_lines_status_switches_of_substation:  similarly to the previous one, replace the lines status of the lines of the input substation id with the input new values.
+:set_lines_status_switch_from_id:  same as before except that this function changes 1 line status based on the input line id, where lines id range from 0 to the number of lines of the grid -  1.
+:verify_action_shape:  verify that the input action or array-like container is of expected shape, and contains only binary values.
 
 Reading observations
 --------------------

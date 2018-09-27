@@ -94,7 +94,7 @@ class RandomNodeSplitting(Agent):
                                                               new_configuration=target_configuration)
 
         # Ensure changes have been done on action
-        current_configuration, _ = action_space.get_topological_switches_of_substation(action, target_substation_id)
+        current_configuration, _ = action_space.get_switches_configuration_of_substation(action, target_substation_id)
         assert np.all(current_configuration == target_configuration)
 
         # Dump best action into stored actions file

@@ -1,3 +1,5 @@
+.. _example_agents:
+
 *****************
 Example of agents
 *****************
