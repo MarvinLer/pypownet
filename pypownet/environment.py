@@ -575,8 +575,6 @@ class RunEnv(object):
                                         lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
         self.observation_space = ObservationSpace(*self.game.get_number_elements())
 
-        self.number_elements = self.game.get_number_elements()
-
         self.reward_signal = self.game.get_reward_signal_class()
 
         self.last_rewards = []
