@@ -26,6 +26,7 @@ Also, the simulator possess a runner module for easily benchmarking new controle
    :caption: Create new agents
 
    basic_agents.rst
+   example_agents.rst
 
 .. toctree::
    :maxdepth: 0

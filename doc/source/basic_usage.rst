@@ -1,3 +1,5 @@
+.. WARNING:: Currently, the sources of pypownet are mandatory to run the command line argument (if using the Docker image, they are already within the image).
+
 ***********
 Basic usage
 ***********
@@ -7,7 +9,6 @@ If you installed pypownet using the Docker image, you will first need to launch 
     sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
 
 
-.. WARNING:: Currently, the sources of pypownet are mandatory to run the command line argument (if using the Docker image, they are already within the image).
 
 In any case, pypownet comes with a command-line interface that allows to run simulations with a specific agent and control parameters. The basic usage will run a do-nothing policy with the default parameters::
 
