@@ -151,6 +151,9 @@ Here is the list the building methods of **pypownet.environment.ActionSpace**:
 Reading observations
 --------------------
 
+Class Observation
+^^^^^^^^^^^^^^^^^
+
 For their ``act`` method, the agents receive an observation which is extracted from the current state of the grid.
 Those observations are of type **pypownet.environment.Observation**, which is a class mainly acting as a container for several lists, and also contains several helpers functions juste like **ActionSpace**.
 
@@ -203,8 +206,8 @@ Precisally, an observation is composed of 1 **datetime** object (the current sim
 |            | active_flows_origin                  | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
 | origin     | reactive_flows_origin                | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
-+            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-| of line    | voltage_flows_origin                 | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
++ of line    +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | voltage_flows_origin                 | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
 |            | lines_or_nodes                       | binary    | The node on which each load is connected within their corresponding substations.                           |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
@@ -232,3 +235,78 @@ Precisally, an observation is composed of 1 **datetime** object (the current sim
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
 |            | timesteps_before_planned_maintenance | binary    | The node on which each load is connected within their corresponding substations.                           |
 +------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+
+All of these lists containers (also including the *datetime* field) can be retrieved from an **Observation** ``observation`` with ``observation.name`` where name is one of the previous names (+ ``observation.datetime``) e.g.:
+
+.. code-block:: python
+   :linenos:
+
+    import pypownet.environment
+    import pypownet.agent
+
+
+    class CustomAgent(pypownet.agent.Agent):
+        """ At each timestep, this agent selects all the even substations id, and
+        switch the node of their production if any.
+        """
+        def act(observation):
+            action_space = self.environment.action_space
+            # Build 0 action
+            action = action_space.get_do_nothing_action()
+
+            # Retrieve the substations ids
+            substations_ids = observation.substations_ids
+
+            # Loops on all substations
+            for substation_id in substations_ids:
+                # Selects even substations ids
+                if substation_id % 2 == 0:
+                    # Build new configuration: will activate switches of productions only
+                    _, elements_type = action_space.get_switches_configuration_of_substation(action, substation_id)
+                    new_configuration = np.zeros(len(elements_type))
+
+                    # Activate all switches of productions
+                    new_configuration[elements_type == pypownet.environment.ElementType.PRODUCTION] = 1
+
+                    # Set new configuration for this substation within the buffer action
+                    action_space.set_switches_configuration_of_substation(action, substation_id, new_configuration)
+
+            return action
+
+
+.. Hint:: At any moment, you can retrieve the name of the lists and their associated description available in an **Observation** with the global python dictionary ``pypownet.environment.OBSERVATION_MEANING``: ``print(pypownet.environment.OBSERVATION_MEANING)``
+
+The **pypownet.environment.Observation** class has several dispatcher-like functions as well as helper for manipulating them.
+Here is the list of functions of **Observation**:
+
+:as_dict:  returns the observation as a dictionary, with the field name as keys (str) and the lists as values (np arrays) + the ``datetime`` value as a **datetime** Python object (note that the dictionary has 37 elements for all environments).
+:as_array:  returns the observation as a numpy array: each list is concatenated (order is consistent for all environments) and returned as 1 numpy array of 1 dimension (essentially a list); note that ``datetime`` is not included in this array, and can be accesses with ``observation.datetime`` (as any other field member).
+:get_lines_capacity_usage:  helper function that computes the nominal lines capacity usage of the self observation: it performs elementwise division of the ampere flows in lines by their nominal thermal limit. A line capacity usage greater than 1 indicates an overflowed line.
+:get_nodes_of_substation:  returns the list of value of the nodes on which each element of the substation with input id. This function also computes the type of element associated to each node value of the returned nodes-value list.
+:__keys__:  returns a list of all the field name of the class as strings (list of size 37).
+:__str__:  returns a prettify version of the observation (this is what can be seen when using ``-v -vv`` CLI arguments) as condenses matrices. Note: the substations ids are not included in this string.
+:as_ac_minimalist:  see after
+:as_minimalist:  see after
+
+The ``observation.get_nodes_of_substation`` is essentially similar to the ``action_space.get_switches_configuration_of_substation``, because both their arguments returns (consitently) the **pypownet.environment.ElementType** of the elements of the substation with input substation id, and they both return the associated values of the elements. The difference is that the one in **Observation** returns the true node on which elements are connected within the self observation, whereas the one in **ActionSpace** returns the values of the *switches* in the input action.
+
+
+
+Reducing the observation space
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For an environment associated to the common grid case known as case14 (available in environment **default14/**), they are 438 values in the array return by any ``observation.as_array()``.
+Some of these values are integer, other are float, and some are binaries.
+In any case, by construction some fields of an **Observation** are fixed throughout a given environment (such as **default14/**), including for instance ``observation.substations_ids``.
+Some model approach including neural network have no precise way to naturally leverage some structure information, so reducing the observation by the fixed lists can help optimizing alorithms by shrinking *uninformative* values.
+No matter the final usage, there are two version of **Observation** which contains a subset of its fields:
+
+    - **pypownet.environment.MinimalistACObservation** contains 26 lists + ``datetime`` and represents an **Observation** without the list fixed members (mainly the IDs list fields)
+    - **pypownet.environment.MinimalistObservation** contains 14 lists + ``datetime`` and represent a **MinimalistACObservation** without the list members which are fixed in DC mode but not in AC mode (including voltages since one of the hypothesis of DC is all voltage to 1, also reactive power for similar reasons etc)
+
+You can convert an **Observation** into a **MinimalistACObservation** with ``ac_minimalist_observation = observation.as_ac_minimalist()`` and a **MinimalistACObservation** into a **MinimalistObservation** with ``minimalist_observation = ac_minimalist_observation.as_minimalist()``.
+Transitively, an **Observation** can be converted to a **MinimalistObservation** with ``minimalist_observation = observation.as_minimalist()``.
+
+Both implement the following methods, which acts the same as the one of **Observation** with the same name: ``as_array``, ``__keys__`` and ``as_dict``.
+Note that the function ``get_nodes_of_substation`` is not implemented in neither **MinimalistACObservation** or **MinimalistObservation** because those classes do not have the ids of the elements, so they are no way to find the various elements of a given substation for both these classes.
+

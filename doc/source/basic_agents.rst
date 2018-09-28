@@ -7,9 +7,13 @@ pypownet has an Environment interface, which wraps the backend game instance, an
 At each timestep, upon reception of the current observation of the game, an agent is supposed to produce an action, that will be applied onto the grid, producing the next timestep observation (along with the associated reward) which will be given to the agent to produce a new action and so on.
 The following figure represents the typical RL loop, which greatly influences pypownet approach:
 
-.. image:: rl_loop.png
+.. figure:: rl_loop.png
     :align: center
-    :scale: 15
+    :scale: 15%
+    :alt: Feedback loop RL
+
+    Typical feedback loop in Reinforcement Learning which greatly influences the mechanism of the simulator.
+    On the image, the link of the reward is equivalent to the function ``feed_reward``, while the agent block is equivalent to the function ``act`` taking an observation (or state) as input, and outpouting an action.
 
 In more details, an agent should be a python daughter class of the pypownet class **pypownet.agent.Agent** which contains two mandatory methods:
 

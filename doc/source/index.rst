@@ -14,7 +14,7 @@ Also, the simulator possess a runner module for easily benchmarking new controle
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Quick start
    
    introduction.rst
@@ -31,8 +31,10 @@ Also, the simulator possess a runner module for easily benchmarking new controle
 
 .. toctree::
    :maxdepth: 4
-   :caption: Create new environments
+   :caption: Simulator parameters
 
+   params_context.rst
+   params_default.rst
    game_settings.rst
 
 .. toctree::
