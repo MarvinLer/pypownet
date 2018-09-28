@@ -150,3 +150,85 @@ Here is the list the building methods of **pypownet.environment.ActionSpace**:
 
 Reading observations
 --------------------
+
+For their ``act`` method, the agents receive an observation which is extracted from the current state of the grid.
+Those observations are of type **pypownet.environment.Observation**, which is a class mainly acting as a container for several lists, and also contains several helpers functions juste like **ActionSpace**.
+
+Precisally, an observation is composed of 1 **datetime** object (the current simulator date) and 36 lists of fixed (but different) sizes which are:
+
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| Element    | Name                                 | Value     | Description                                                                                                |
+| type       |                                      | type      |                                                                                                            |
++============+======================================+===========+============================================================================================================+
+|            | substations_ids                      | >=0 int   | ID of the substation on which the productions (generators) are wired.                                      |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | prods_substations_ids                | >=0 int   | ID of the substation on which the productions (generators) are wired.                                      |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | active_productions                   | >=0 float | Real power produced by the generators of the grid (MW).                                                    |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | reactive_productions                 | float     | Reactive power produced by the generators of the grid (Mvar).                                              |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | voltage_productions                  | >0 float  | Voltage magnitude of the generators of the grid (per-unit V).                                              |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| production | productions_nodes                    | binary    | The node on which each production is connected within their corresponding substations.                     |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | initial_productions_nodes            | binary    | The initial (reference) node on which each load is connected within their corresponding substations.       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | planned_active_productions           | >=0 float | An array-like container of the previsions of the active power of productions fur future timestep(s).       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | planned_voltage_productions          | >0 float  | An array-like container of the previsions of the voltage of productions for future timestep(s).            |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | are_prods_cut                        | binary    | Mask whether the productors are isolated (1) from the rest of the network.                                 |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | loads_substations_ids                | >=0 int   | ID of the substation on which the loads (consumers) are wired.                                             |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | active_loads                         | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | reactive_loads                       | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | voltage_loads                        | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| load       | loads_nodes                          | binary    | The node on which each load is connected within their corresponding substations.                           |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | initial_loads_nodes                  | binary    | The initial (reference) node on which each production is connected within their corresponding substations. |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | planned_active_loads                 | >=0 float | An array-like container of the previsions of the active power of productions for future timestep(s).       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | planned_reactive_loads               | >0 float  | An array-like container of the previsions of the voltage of productions for future timestep(s).            |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | are_loads_cut                        | binary    | Mask whether the consumers are isolated (1) from the rest of the network.                                  |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | lines_or_substations_ids             | >=0 int   | ID of the substation on which the loads (consumers) are wired.                                             |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | active_flows_origin                  | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| origin     | reactive_flows_origin                | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| of line    | voltage_flows_origin                 | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | lines_or_nodes                       | binary    | The node on which each load is connected within their corresponding substations.                           |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | initial_lines_or_nodes               | binary    | The initial (reference) node on which each production is connected within their corresponding substations. |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | lines_ex_substations_ids             | >=0 int   | ID of the substation on which the loads (consumers) are wired.                                             |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | active_flows_extremity               | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| extremity  | reactive_flows_extremity             | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
++ of line    +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | voltage_flows_extremity              | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | lines_ex_nodes                       | binary    | The node on which each load is connected within their corresponding substations.                           |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | initial_lines_ex_nodes               | binary    | The initial (reference) node on which each production is connected within their corresponding substations. |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | lines_status                         | int       | ID of the substation on which the loads (consumers) are wired.                                             |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | ampere_flows                         | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+| line       | thermal_limits                       | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | timesteps_before_lines_reconnectable | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
++            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
+|            | timesteps_before_planned_maintenance | binary    | The node on which each load is connected within their corresponding substations.                           |
++------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+

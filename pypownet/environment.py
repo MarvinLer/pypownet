@@ -680,13 +680,13 @@ OBSERVATION_MEANING = {
     'initial_lines_ex_nodes': 'The initial (reference) node on which each extremity of line is connected within '
                               'their corresponding substations.',
 
-    'planned_active_loads': 'An array-like container of the previsions of the active power of loads fur future'
+    'planned_active_loads': 'An array-like container of the previsions of the active power of loads for future'
                             'timestep(s).',
-    'planned_reactive_loads': 'An array-like container of the previsions of the reactive power of loads fur future'
+    'planned_reactive_loads': 'An array-like container of the previsions of the reactive power of loads for future'
                               'timestep(s).',
-    'planned_active_productions': 'An array-like container of the previsions of the active power of productions fur '
+    'planned_active_productions': 'An array-like container of the previsions of the active power of productions for '
                                   'future timestep(s).',
-    'planned_voltage_productions': 'An array-like container of the previsions of the voltage of productions fur future'
+    'planned_voltage_productions': 'An array-like container of the previsions of the voltage of productions for future'
                                    'timestep(s).',
 
     'datetime': 'A Python datetime object containing the date of the observation.',
