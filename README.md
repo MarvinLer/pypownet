@@ -90,7 +90,7 @@ With this default14/ parameters (emulates a grid with 14 substations, 5 producti
 ## Using Docker
 You can use the command line of the image with shared display (for running the renderer):
 ```
-sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet:2.1.1 sh
+sudo docker run -it --privileged --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet:2.1.1 sh
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 

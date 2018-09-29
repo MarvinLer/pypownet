@@ -11,7 +11,7 @@ Command-line usage
 
 If you installed pypownet using the Docker image, you will first need to launch bash within the image using::
 
-    sudo docker run -it --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
+    sudo docker run -it --privileged --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet sh
 
 
 

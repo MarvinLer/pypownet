@@ -1,10 +1,10 @@
 __author__ = 'marvinler'
-from pypownet.reward_signal import RewardSignal
 import pypownet.environment
+import pypownet.reward_signal
 import numpy as np
 
 
-class CustomRewardSignal(RewardSignal):
+class CustomRewardSignal(pypownet.reward_signal.RewardSignal):
     def __init__(self):
         super().__init__()
 
@@ -111,7 +111,8 @@ class CustomRewardSignal(RewardSignal):
         lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
         return lines_capacity_usage
 
-    def __get_distance_reference_grid(self, observation):
+    @staticmethod
+    def __get_distance_reference_grid(observation):
         # Reference grid distance reward
         """ Computes the distance of the current observation with the reference grid (i.e. initial grid of the game).
         The distance is computed as the number of different nodes on which two identical elements are wired. For
