@@ -7,7 +7,10 @@ Using Docker
 Retrieve the Docker image::
 
     sudo docker pull marvinler/pypownet:2.1.1
-This docker image contains all the necessary dependencies built on top of a Linux distribution. The sources of pypownet are available under the **pypownet** folder. See Usage Example for launching the image.
+
+This docker image contains all the necessary dependencies built on top of a Linux distribution.
+The sources of pypownet are available under the **pypownet** folder.
+See :ref:`docker_launch` for launching the image.
 
 Without using Docker
 ====================
@@ -38,6 +41,7 @@ The standard procedure::
 
     sudo apt-get update
     sudo apt-get install python3.6
+
 If you have any trouble with this step, please refer to `the official webpage of Python 3.6.6 <https://www.python.org/downloads/release/python-366/>`__.
 
 Step 3: Get pypownet
@@ -46,6 +50,7 @@ In a parent folder, clone the current sources::
 
     mkdir parent_folder && cd parent_folder
     git clone https://github.com/MarvinLer/pypownet.git
+
 This should create a folder **pypownet** with the current sources.
 
 Step 4: Get Matpower
@@ -62,4 +67,5 @@ Step 5: Run the installation script of pypownet
 Finally, pypownet relies on some python packages (including e.g. numpy). Run the following command to install the current simulator (including the Python libraries dependencies)::
 
     python3.6 setup.py install
+
 After this, this simulator is available under the name pypownet (e.g. ``import pypownet``).

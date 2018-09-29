@@ -82,7 +82,7 @@ At initialization, the software will read the 4 realized files of the chronic. T
 
 For illustration, suppose a grid is made of 2 productions and 2 consumptions, with the following realized injections which correspond to 3 timesteps (because there are 3 lines of data):
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 2
    :caption: _N_prods_p.csv
@@ -92,7 +92,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    11;6
    12;6.4
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 2
    :caption: _N_prods_v.csv
@@ -102,7 +102,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    1;1
    1;1
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 2
    :caption: _N_loads_p.csv
@@ -112,7 +112,7 @@ For illustration, suppose a grid is made of 2 productions and 2 consumptions, wi
    9;8.4
    11;7
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 2
    :caption: _N_loads_q.csv
@@ -142,7 +142,7 @@ At each timestep, the software will read the next line for all the 4 realized in
 
 For illustration, given the following pair of realized/planned active power of productions, for the second timestep, the software will read the 3rd line in both files, replace the current productions P output by the read values, and carry the previsions of P values in an Observation:
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 3
    :caption: _N_prods_p.csv
@@ -153,7 +153,7 @@ For illustration, given the following pair of realized/planned active power of p
    12;6.4
 
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :emphasize-lines: 3
    :caption: _N_prods_p_planned.csv
@@ -176,7 +176,7 @@ The file **maintenance.csv** provide all the maintenance that will happen during
 Similarly to the previous files, the maintenance file has a header (not effectively use), followed by ';'-separated data e.g.:
 
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :caption: maintenance.csv
 
@@ -202,7 +202,7 @@ The datetime file, **_N_datetimes.csv** contains the date associated with each t
 The date should have the following format: 'yyyy-mmm-dd;h:mm' with 'yyyy' the 4 digits of the year, 'mmm' the 3 first letters in lowercase of the month, 'dd' the 1 or 2 digits of the day in the month, 'h' for the 1 or 2 digits of hour (from 0 to 23) and 'mm' for the 2 digits of minutes.
 Example of datetimes file:
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :caption: _N_datetimes.csv
 
@@ -217,7 +217,7 @@ In the latter example, the duration between two timesteps is 1 hour, so an agent
 
 The file **_N_simu_ids.csv** allows to bring consistency with the indexing of timesteps. This simple csv file has one column, one header line and one int or float value per timestep e.g.:
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :caption: _N_simu_ids.csv
 
@@ -233,7 +233,7 @@ With both examples, the timestep of id 2 happens at precisely 31st January of 20
 Finally, the last file of a chronic is the file **_N_imaps.csv** containing the nominal thermal limits of the power line: one thermal limit per line.
 The file consists in two lines: one is the header, not used (but should respect the correct number of columns), the other contain a list of ';'-separated float or int, indicating the thermal limits of each line e.g.:
 
-.. code-block:: resource
+.. code-block:: text
    :linenos:
    :caption: _N_imaps.csv
 
@@ -241,6 +241,8 @@ The file consists in two lines: one is the header, not used (but should respect 
     30;90;100;50
 
 .. Note:: There is one thermal limits per chronic, and not per game level, because chronics could be splitted by month, and thermal limits are technically lower during summer (higher heat), which could be emulated with lower thermal limits for the summer chronics.
+
+.. _config_file:
 
 Configuration file
 ------------------
@@ -301,5 +303,201 @@ Here is the default **configuration.yaml** (produced by the template-creater scr
 
 
 .. _reward_signal:
+
 Reward signal file
 ------------------
+The reward signal is the function that computes the reward which will be fed to the models at each timestep, after they perform an action given an observation.
+This is the typical reward function that feeds reinforcement learning models.
+pypownet is able to handle custom reward signals, as there is not yet particular reward functions that seem to drive the optimisation of useful dispatchers-like controlers.
+For a given environment, if not explicit reward signal is given, the simulator will use the default reward signal which always outputs 0: this implies no learning for models.
+
+Formally, the reward signal should be a class ``CustomRewardSignal`` daughter class of ``RewardSignal`` (default reward signal), placed within each environment folder (e.g. in **default14/**).
+The python file containing this class should be named **reward_signal.py**, otherwise it won't be taken into account by the simulator.
+Here is the default reward signal:
+
+.. code-block:: python
+    :linenos:
+    :caption: `pypownet/pypownet/reward_signal.py
+              <https://github.com/MarvinLer/pypownet/blob/master/pypownet/reward_signal.py>`_
+
+    class RewardSignal(object):
+    """ This is the basic template for the reward signal class that should at least implement a compute_reward
+    method with an observation of pypownet.environment.Observation, an action of pypownet.environment.Action and a flag
+    which is an exception of the environment package.
+    """
+    def __init__(self):
+        pass
+
+    def compute_reward(self, observation, action, flag):
+        """ Effectively computes a reward given the current observation, the action taken (some actions are penalized)
+        as well as the flag reward, which contains information regarding the latter game step, including the game
+        over exceptions raised or illegal line reconnections.
+
+        :param observation: an instance of pypownet.environment.Observation
+        :param action: an instance of pypownet.game.Action
+        :param flag: an exception either of pypownet.environment.DivergingLoadflowException,
+        pypownet.environment.IllegalActionException, pypownet.environment.TooManyProductionsCut or
+        pypownet.environment.TooManyConsumptionsCut
+        :return: a list of subrewards as floats or int (potentially a list with only one value)
+        """
+        return [0.]
+
+``CustomRewardSignal`` should at least implement a function ``CustomRewardSignal.compute_reward`` which takes as input:
+
+    (i) the current observation of the simulated grid system
+    (ii) the last action played by the player (which lead to the above observation)
+    (iii) the simulator flag, which is an instance of a customized Exception of pypownet indicating game over triggers if any (i.e. if the last action lead to a game over)
+
+The current observation is an instance of **pypownet.environment.Observation**, see :ref:`reading_obs` for further information about observations.
+The last action is an instance of **pypownet.game.Action**.
+The simulator flag is either None if the last step did not lead to a game over.
+However, if the last step lead to a game over, the input flag will be of either type, representing various types of pypownet exceptions.
+*flag* will be an instance of either exceptions:
+
+    (a) **pypownet.environment.DivergingLoadflowException**: game over provocked by a non-converging grid; might happend when the grid is not connexe, or in too poor shape such that flows diverge
+    (b) **pypownet.environment.TooManyProductionsCut**: the number of isolated productions has exceeded the maximum number of tolerated isolated productions; see :ref:`config_file`
+    (c) **pypownet.environment.TooManyConsumptionsCut**: the number of isolated consumptions has exceeded the maximum number of tolerated isolated consumptions; see :ref:`config_file`
+    (d) **pypownet.environment.IllegalActionException**: at least one illegal action (such as reconnecting unavailable broken lines) has been performed
+
+Among those exceptions, **pypownet.environment.IllegalActionException** is special: this is the only one which does not mean that there wxas a game over.
+Actually, if some lines status are attempted to be switched while the associated lines are broken, the simulator will simply change the action such that the switch is deactivated, without any cost; for practical justifications, we could imagine an automatous mechanism that checks whether a line is available before switching its status.
+
+Here is a concrete example of a custom reward signal used in the environment **default14/** (for more insight about this class, see :ref:`param_default`):
+
+.. code-block:: python
+    :linenos:
+    :caption: `pypownet/parameters/default14/reward_signal.py
+              <https://github.com/MarvinLer/pypownet/blob/master/parameters/default14/reward_signal.py>`_
+
+    import pypownet.environment
+    import pypownet.reward_signal
+    import numpy as np
+
+
+    class CustomRewardSignal(pypownet.reward_signal.RewardSignal):
+        def __init__(self):
+            super().__init__()
+
+            constant = 14
+
+            # Hyper-parameters for the subrewards
+            # Mult factor for line capacity usage subreward
+            self.multiplicative_factor_line_usage_reward = -1.
+            # Multiplicative factor for total number of differed nodes in the grid and reference grid
+            self.multiplicative_factor_distance_initial_grid = -.02
+            # Multiplicative factor total number of isolated prods and loads in the grid
+            self.multiplicative_factor_number_loads_cut = -constant / 5.
+            self.multiplicative_factor_number_prods_cut = -constant / 10.
+
+            # Reward when the grid is not connexe (at least two islands)
+            self.connexity_exception_reward = -constant
+            # Reward in case of loadflow software error (e.g. 0 line ON)
+            self.loadflow_exception_reward = -constant
+
+            # Multiplicative factor for the total number of illegal lines reconnections
+            self.multiplicative_factor_number_illegal_lines_reconnection = -constant / 100.
+
+            # Reward when the maximum number of isolated loads or prods are exceeded
+            self.too_many_productions_cut = -constant
+            self.too_many_consumptions_cut = -constant
+
+            # Action cost reward hyperparameters
+            self.multiplicative_factor_number_line_switches = -.2  # equivalent to - cost of line switch
+            self.multiplicative_factor_number_node_switches = -.1  # equivalent to - cost of node switch
+
+        def compute_reward(self, observation, action, flag):
+            # First, check for flag raised during step, as they indicate errors from grid computations (usually game over)
+            if flag is not None:
+                if isinstance(flag, pypownet.environment.DivergingLoadflowException):
+                    reward_aslist = [0., 0., -self.__get_action_cost(action), self.loadflow_exception_reward, 0.]
+                elif isinstance(flag, pypownet.environment.IllegalActionException):
+                    # If some broken lines are attempted to be switched on, put the switches to 0, and add penalty to
+                    # the reward consequent to the newly submitted action
+                    reward_aslist = self.compute_reward(observation, action, flag=None)
+                    n_illegal_reconnections = np.sum(flag.illegal_lines_reconnections)
+                    illegal_reconnections_subreward = self.multiplicative_factor_number_illegal_lines_reconnection * \
+                                                      n_illegal_reconnections
+                    reward_aslist[2] += illegal_reconnections_subreward
+                elif isinstance(flag, pypownet.environment.TooManyProductionsCut):
+                    reward_aslist = [0., self.too_many_productions_cut, 0., 0., 0.]
+                elif isinstance(flag, pypownet.environment.TooManyConsumptionsCut):
+                    reward_aslist = [self.too_many_consumptions_cut, 0., 0., 0., 0.]
+                else:  # Should not happen
+                    raise flag
+            else:
+                # Load cut reward
+                number_cut_loads = sum(observation.are_loads_cut)
+                load_cut_reward = self.multiplicative_factor_number_loads_cut * number_cut_loads
+
+                # Prod cut reward
+                number_cut_prods = sum(observation.are_productions_cut)
+                prod_cut_reward = self.multiplicative_factor_number_prods_cut * number_cut_prods
+
+                # Reference grid distance reward
+                reference_grid_distance = self.__get_distance_reference_grid(observation)
+                reference_grid_distance_reward = self.multiplicative_factor_distance_initial_grid * reference_grid_distance
+
+                # Action cost reward: compute the number of line switches, node switches, and return the associated reward
+                action_cost_reward = -self.__get_action_cost(action)
+
+                # The line usage subreward is the sum of the square of the lines capacity usage
+                lines_capacity_usage = self.__get_lines_capacity_usage(observation)
+                line_usage_reward = self.multiplicative_factor_line_usage_reward * np.sum(np.square(lines_capacity_usage))
+
+                # Format reward
+                reward_aslist = [load_cut_reward, prod_cut_reward, action_cost_reward, reference_grid_distance_reward,
+                                 line_usage_reward]
+
+            return reward_aslist
+
+        def __get_action_cost(self, action):
+            # Action cost reward: compute the number of line switches, node switches, and return the associated reward
+            """ Compute the >=0 cost of an action. We define the cost of an action as the sum of the cost of node-splitting
+            and the cost of lines status switches. In short, the function sums the number of 1 in the action vector, since
+            they represent activation of switches. The two parameters self.cost_node_switch and self.cost_line_switch
+            control resp the cost of 1 node switch activation and 1 line status switch activation.
+
+            :param action: an instance of Action or a binary numpy array of length self.action_space.n
+            :return: a >=0 float of the cost of the action
+            """
+            # Computes the number of activated switches of the action
+            number_line_switches = np.sum(action.get_lines_status_subaction())
+
+            number_prod_nodes_switches = np.sum(action.get_prods_switches_subaction())
+            number_load_nodes_switches = np.sum(action.get_loads_switches_subaction())
+            number_line_or_nodes_switches = np.sum(action.get_lines_or_switches_subaction())
+            number_line_ex_nodes_switches = np.sum(action.get_lines_ex_switches_subaction())
+            number_node_switches = number_prod_nodes_switches + number_load_nodes_switches + \
+                                   number_line_or_nodes_switches + number_line_ex_nodes_switches
+
+            action_cost = self.multiplicative_factor_number_node_switches * number_node_switches + \
+                          self.multiplicative_factor_number_line_switches * number_line_switches
+            return action_cost
+
+        @staticmethod
+        def __get_lines_capacity_usage(observation):
+            ampere_flows = observation.ampere_flows
+            thermal_limits = observation.thermal_limits
+            lines_capacity_usage = np.divide(ampere_flows, thermal_limits)
+            return lines_capacity_usage
+
+        @staticmethod
+        def __get_distance_reference_grid(observation):
+            # Reference grid distance reward
+            """ Computes the distance of the current observation with the reference grid (i.e. initial grid of the game).
+            The distance is computed as the number of different nodes on which two identical elements are wired. For
+            instance, if the production of first current substation is wired on the node 1, and the one of the first initial
+            substation is wired on the node 0, then their is a distance of 1 (there are different) between the current and
+            reference grid (for this production). The total distance is the sum of those values (0 or 1) for all the
+            elements of the grid (productions, loads, origin of lines, extremity of lines).
+
+            :return: the number of different nodes between the current topology and the initial one
+            """
+            #initial_topology = np.asarray(self.game.get_initial_topology())
+            initial_topology = np.concatenate((observation.initial_productions_nodes, observation.initial_loads_nodes,
+                                               observation.initial_lines_or_nodes, observation.initial_lines_ex_nodes))
+            current_topology = np.concatenate((observation.productions_nodes, observation.loads_nodes,
+                                               observation.lines_or_nodes, observation.lines_ex_nodes))
+
+            return np.sum((initial_topology != current_topology))  # Sum of nodes that are different
+

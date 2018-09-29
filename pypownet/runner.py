@@ -85,11 +85,6 @@ class Runner(object):
             observation = self.environment.reset()
         elif info:
             self.logger.warn(info.text)
-        # self.logger.error(observation.as_array().shape)
-        # self.logger.error(observation.as_ac_minimalist().as_array().shape)
-        # self.logger.error(observation.as_minimalist().as_array().shape)
-        # self.logger.error('\n'.join(observation.as_dict().keys()))
-        # exit()
 
         reward = sum(reward_aslist)
 

@@ -131,6 +131,9 @@ class Renderer(object):
 
         self.boolean_dynamic_arrows = True
 
+        # Keep data to track changes timestepwise
+        self.data = None
+
     def draw_surface_nodes_headers(self, scenario_id, date, cascading_result_frame):
         surface = self.nodes_surface
 
@@ -411,10 +414,35 @@ class Renderer(object):
 
         string_offset = 65
         value_offset = 10
+
+        up = '^'
+        up_offset = -11
+        if self.data is not None:
+            old_number_loads_cut, old_number_prods_cut, old_number_nodes_splitting, old_number_lines_switches, \
+            old_distance_initial_grid, old_usage, old_n_offlines_lines, old_number_unavailable_lines, \
+            old_max_number_isolated_loads, old_max_number_isolated_prods = \
+                self.data['number_loads_cut'], self.data['number_prods_cut'], \
+                self.data['number_nodes_splitting'], self.data['number_lines_switches'], \
+                self.data['distance_initial_grid'], self.data['usage'], \
+                self.data['n_offlines_lines'], self.data['number_unavailable_lines'], \
+                self.data['max_number_isolated_loads'], self.data['max_number_isolated_prods']
+        else:
+            old_number_loads_cut, old_number_prods_cut, old_number_nodes_splitting, old_number_lines_switches, \
+            old_distance_initial_grid, old_usage, old_n_offlines_lines, \
+            old_number_unavailable_lines, old_max_number_isolated_loads, \
+            old_max_number_isolated_prods = [0] * 10
+
+        def print_variation(old_val, new_val, h):
+            if new_val > old_val:
+                plt.text(up_offset + 2, height - h - 7, up, fontdict={'size': 12}, color=(1., .5, .5))
+            elif new_val < old_val:
+                plt.text(up_offset, height - h + 7, up, fontdict={'size': 12}, color=(.5, 1., .5), rotation=180.)
+
         plt.text(string_offset, height - 60, '# of isolated loads', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 61, '%d' % number_loads_cut,
                  fontdict={'size': 8.5},
                  color=(1., 0.3, 0.3) if number_loads_cut > max_number_isolated_loads else value_color)
+        print_variation(old_number_loads_cut, number_loads_cut, 61)
         plt.text(value_offset, height - 60, '   / %d' % max_number_isolated_loads,
                  fontdict={'size': 8.5}, color=value_color)
         plt.text(string_offset, height - 80, '# of isolated productions', fontdict={'size': 8.5}, color=string_color)
@@ -423,25 +451,32 @@ class Renderer(object):
                  color=(1., 0.3, 0.3) if number_prods_cut > max_number_isolated_prods else value_color)
         plt.text(value_offset, height - 80, '   / %d' % max_number_isolated_prods,
                  fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_number_prods_cut, number_prods_cut, 81)
 
         plt.text(string_offset, height - 110, '# of node switches of last action', fontdict={'size': 8.5},
                  color=string_color)
         plt.text(value_offset, height - 110, '%d' % number_nodes_splitting, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_number_nodes_splitting, number_nodes_splitting, 110)
         plt.text(string_offset, height - 130, '# of line switches of last action', fontdict={'size': 8.5},
                  color=string_color)
         plt.text(value_offset, height - 130, '%d' % number_lines_switches, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_number_lines_switches, number_lines_switches, 130)
 
         plt.text(string_offset, height - 160, 'average line capacity usage', fontdict={'size': 8.5}, color=string_color)
         usage = 100. * np.mean(line_capacity_usage)
-        plt.text(value_offset, height - 160, '%d%%' % usage if usage < 5000 else '∞', fontdict={'size': 8.5},
+        plt.text(value_offset, height - 160, '%.1f%%' % usage if usage < 5000 else '∞', fontdict={'size': 8.5},
                  color=value_color)
+        print_variation(old_usage, usage, 160)
         plt.text(string_offset, height - 180, '# of OFF lines', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 180, '%d' % n_offlines_lines, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_n_offlines_lines, n_offlines_lines, 180)
         plt.text(string_offset, height - 200, '# of unavailable lines', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 200, '%d' % number_unavailable_lines, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_number_unavailable_lines, number_unavailable_lines, 200)
 
         plt.text(string_offset, height - 230, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 230, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_distance_initial_grid, distance_initial_grid, 230)
 
         fig.tight_layout()
 
@@ -464,13 +499,23 @@ class Renderer(object):
         gfxdraw.vline(last_rewards_surface, 0, last_rewards_surface_shape[1] - 1, 0, (64, 64, 64))
         gfxdraw.vline(last_rewards_surface, last_rewards_surface_shape[0], 0, last_rewards_surface_shape[1] - 1,
                       (64, 64, 64))
+
+        # Keep current data for next data differences
+        self.data = {'number_loads_cut': number_loads_cut, 'number_prods_cut': number_prods_cut,
+                     'number_nodes_splitting': number_nodes_splitting, 'number_lines_switches': number_lines_switches,
+                     'distance_initial_grid': distance_initial_grid, 'usage': usage,
+                     'n_offlines_lines': n_offlines_lines, 'number_unavailable_lines': number_unavailable_lines,
+                     'max_number_isolated_loads': max_number_isolated_loads,
+                     'max_number_isolated_prods': max_number_isolated_prods}
+
         return last_rewards_surface
 
     def draw_surface_loads_curves(self):
         # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
         # at top and bottom of latter surface
-        img_loads_curve_week = self.create_plot_loads_curve(n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds),
-                                                            left_xlabel=' 7 days ago  ')
+        img_loads_curve_week = self.create_plot_loads_curve(
+            n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds),
+            left_xlabel=' 7 days ago  ')
         img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=int(24 * 3600 // self.timestep_duration_seconds),
                                                            left_xlabel='24 hours ago')
         loads_curve_surface = pygame.Surface(
@@ -764,10 +809,12 @@ class Renderer(object):
         loads_curve_surface = self.draw_surface_loads_curves()
 
         # Relative thermal limits curves
-        rtl_curves_surface = self.draw_surface_relative_thermal_limits(n_timesteps=int(24 * 3600 // self.timestep_duration_seconds))
+        rtl_curves_surface = self.draw_surface_relative_thermal_limits(
+            n_timesteps=int(24 * 3600 // self.timestep_duration_seconds))
 
         # Number of overflowed lines curves
-        n_overflows_surface = self.draw_surface_n_overflows(n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds))
+        n_overflows_surface = self.draw_surface_n_overflows(
+            n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds))
 
         gfxdraw.vline(self.left_menu, self.left_menu_shape[0] - 1, 0, self.left_menu_shape[1], (128, 128, 128))
         #self.left_menu.blit(last_rewards_surface, (0, 50))
@@ -820,8 +867,8 @@ class Renderer(object):
         self.draw_surface_nodes_headers(scenario_id, date, cascading_result_frame=cascading_frame_id)
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
-        self.topology_layout.blit(self.last_rewards_surface, (690, 1))
-        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height()))
+        self.topology_layout.blit(self.last_rewards_surface, (690, 11))
+        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height() + 110))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost

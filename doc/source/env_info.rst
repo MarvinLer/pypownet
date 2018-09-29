@@ -148,6 +148,8 @@ Here is the list the building methods of **pypownet.environment.ActionSpace**:
 :set_lines_status_switch_from_id:  same as before except that this function changes 1 line status based on the input line id, where lines id range from 0 to the number of lines of the grid -  1.
 :verify_action_shape:  verify that the input action or array-like container is of expected shape, and contains only binary values.
 
+.. _reading_obs:
+
 Reading observations
 --------------------
 
