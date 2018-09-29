@@ -298,5 +298,6 @@ Here is the default **configuration.yaml** (produced by the template-creater scr
     max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
 
 
+.. _reward_signal:
 Reward signal file
 ------------------

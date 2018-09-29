@@ -1,6 +1,6 @@
-=======
-Context
-=======
+=====================
+Parameters management
+=====================
 
 Some mechanisms and inputs of the game are parameterizable to ensure that the users of the package have some control with respect to the simulations to be run. New simulations environments can be created with any virtual grid (provinding an initial grid case) and an associated set of grid timestep entries to be injected.
 
