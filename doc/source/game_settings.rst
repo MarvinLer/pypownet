@@ -1,3 +1,5 @@
+.. _game_settings:
+
 Creating new environment parameters
 ===================================
 

@@ -3,18 +3,19 @@ Default environments
 
 pypownet comes with 4 sets of paremeters of environment which are named according to their top folder:
 
-    - default14/
-    - default30/
-    - default118/
-    - custom14/
+    - default14/: https://github.com/MarvinLer/pypownet/tree/master/parameters/default14
+    - default30/: https://github.com/MarvinLer/pypownet/tree/master/parameters/default30
+    - default118/: https://github.com/MarvinLer/pypownet/tree/master/parameters/default118
+    - custom14/: https://github.com/MarvinLer/pypownet/tree/master/parameters/custom14
 
 Both environments suse the official IEEE case format associated with the int in their name (e.g. default14/ uses the official case14.m reference grid).
 Each has one **level0/** level folder, and has 12 sets of chronics (one per month, starting by january).
-The values of the parameters of the **configuration.yaml** file are printing at each start of pypownet.
+All of the chronics are discretized into 1 hour timestep: this can be seen within the **datetimes.csv** of each chronic folder.
+The values of the parameters of the **configuration.yaml** file are printing at each start of pypownet: they slightly differ among these environments, notably the maximum number of prods and loads isolated.
 
 The reward signal of the custom14/ is rather simple: if the timestep lead to a game over, then return -1, otherwise return 1. This reward signal is not very representative of the factors to optimize for real conditions grid conduct, but illustrates that the reward signal can be designed very simply.
 
-For the *default* environments above, the reward signal has the same mechanism (in fact, they are the same except for hyperparameters which scale with the size of the grid).
+For the *defaultXX* environments above, the reward signal has the same mechanism (in fact, they are the same except for hyperparameters which scale with the size of the grid).
 More precisally, their reward signal is made of 5 subrewards (the output is then a list of 5 values; the input is still the new observation form the application of the action, as well as the action and a flag indicating game overs, see :ref:`reward_signal`):
 
 :subreward proportional to the number of (topologically) isolated productions:
@@ -45,3 +46,12 @@ More precisally, their reward signal is made of 5 subrewards (the output is then
     Another positive point of this subreward is that it discriminizes well two grid situations with the same number of overflows, since it takes into account the capacity usage information of all lines.
     For instance, one grid with 1 overflow and all other lines at 99% capacity usage should have a worse reward than one with 1 overflow and 10% usage for other lines.
 
+The values of the scaling factors for each of the environment can be seen in their ``reward_signal.CustomRewardSignal.__init__``.
+
+Besides, the **CustomRewardSignal** of the *defaultXX* default environments manage the flag of game over returned by th step function ``pypownet.environment.RunEnv.step(action)``; see :ref:`reward_signal` for more information on this flag.
+For all the kinds of pypownet's exceptions contained within the flag, the model will output a specific (constant) reward whose values can be viewed in the ``__init__`` file.
+The ``compute_reward`` function of their custom reward will output rewards with the values at specific places within the output list: for instance, if too many loads are cut (see :ref:`config_file`), then the first value of the ouptut list (relative to loads cut subreward by design) will be of value the generic value for game over caused by too many cut loads, and 0 for the other values; the sum of this list equals the effective nominal value for too many loads isolated.
+
+Overall, the design of the *defaultXX* default environments reward signal involves security (grid and individuals), economical and convenience aspects, which should approximate the ultimate score function for the goal of creating controlers supporting dispatchers for the everyday task of conducting power grid of nationwide scale.
+
+See the next section :ref:`game_settings` for creating new environments.

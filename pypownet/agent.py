@@ -21,11 +21,7 @@ class Agent(object):
         Takes as argument an observation of the current state, and returns the chosen action."""
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
-
-        print(observation.as_array().shape)
-        print(observation.as_ac_minimalist().as_array().shape)
-        print(observation.as_minimalist().as_array().shape)
-        exit()
+        
         # Implement your policy here.
         do_nothing_action = self.environment.action_space.get_do_nothing_action()
 
