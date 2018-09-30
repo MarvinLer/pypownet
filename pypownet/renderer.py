@@ -868,7 +868,7 @@ class Renderer(object):
 
         #self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (690, 11))
-        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height() + 110))
+        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height() + (110 if self.grid_case != 118 else 30)))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost

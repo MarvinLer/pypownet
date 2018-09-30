@@ -10,6 +10,11 @@ The simulator is able to emulate a power grid (of any size or characteristics) s
 The simulator comes with an Reinforcement Learning-focused environment, which implements states (observations), actions (reduced to node-splitting and line status switches) as well as a reward signal.
 Finally, a renderer is available, such that the observations of the network can be plotted in real-time (synchronized with the game time).
 
+.. figure:: default118.gif
+    :align: center
+
+    Illustration of the renderer with the *default118/* environment; note that the renderer drastically slows the performance of pypownet: the corresponding environment takes ~100 seconds to compute 1000 timesteps (~40s for *default14/* without renderer mode).
+
 Background
 **********
 
