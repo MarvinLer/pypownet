@@ -4,7 +4,9 @@ pypownet stands for Python Power Network, which is a simulator for power (electr
 The simulator is able to emulate a power grid (of any size or characteristics) subject to a set of temporal injections (productions and consumptions) for discretized timesteps. Loadflow computations relies on Matpower and can be run under the AC or DC models. The simulator is able to simulate cascading failures, where successively overflowed lines are switched off and a loadflow is computed on the subsequent grid.
 
 ![Video capture of the renderer of the simulator in action](https://github.com/MarvinLer/pypownet/blob/master/doc/source/default14.gif)
-*Illustration of the renderer with the *default14/* environment; note that the renderer drastically slows the performance of pypownet: it takes ~40s to compute 1000 timesteps without renderer mode.*
+
+*Illustration of a running power grid with our renderer on the default IEEE14 grid environment.
+NB: the renderer drastically slows the performance of pypownet: it takes ~40s to compute 1000 timesteps without renderer mode with this environment.*
 
 The simulator comes with an Reinforcement Learning-focused environment, which implements states (observations), actions (reduced to node-splitting and line status switches) as well as a reward signal. Finally, a renderer is available, such that the observations of the network can be plotted in real-time (synchronized with the game time).
 
