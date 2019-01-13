@@ -94,41 +94,45 @@ class Action(object):
 
     def __setitem__(self, item, value):
         item %= len(self)
+
         if item < self._prods_switches_length:
-            self.prods_switches_subaction.__setitem__(item, value)
-        elif item < self._prods_switches_length + self._loads_switches_length:
-            self.loads_switches_subaction.__setitem__(item % self._prods_switches_length, value)
-        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length:
-            self.lines_or_switches_subaction.__setitem__(
-                item % (self._prods_switches_length + self._loads_switches_length), value)
-        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length + \
-                self._lines_ex_switches_length:
-            self.lines_ex_switches_subaction.__setitem__(item % (self._prods_switches_length +
-                                                                 self._loads_switches_length +
-                                                                 self._lines_or_switches_length),
-                                                         value)
-        else:
-            self.lines_status_subaction.__setitem__(
-                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length +
-                        self._lines_ex_switches_length), value)
+            return self.prods_switches_subaction.__setitem__(item, value)
+        item -= self._prods_switches_length
+
+        if item < self._loads_switches_length:
+            return self.loads_switches_subaction.__setitem__(item, value)
+        item -= self._loads_switches_length
+
+        if item < self._lines_or_switches_length:
+            return self.lines_or_switches_subaction.__setitem__(item, value)
+        item -= self._lines_or_switches_length
+
+        if item < self._lines_ex_switches_length:
+            return self.lines_ex_switches_subaction.__setitem__(item, value)
+        item -= self._lines_ex_switches_length
+
+        return self.lines_status_subaction.__setitem__(item, value)
 
     def __getitem__(self, item):
         item %= len(self)
+
         if item < self._prods_switches_length:
-            self.prods_switches_subaction.__getitem__(item)
-        elif item < self._prods_switches_length + self._loads_switches_length:
-            self.loads_switches_subaction.__getitem__(item % self._prods_switches_length)
-        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length:
-            self.lines_or_switches_subaction.__getitem__(
-                item % (self._prods_switches_length + self._loads_switches_length))
-        elif item < self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length + \
-                self._lines_ex_switches_length:
-            self.lines_ex_switches_subaction.__getitem__(
-                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length))
-        else:
-            self.lines_status_subaction.__getitem__(
-                item % (self._prods_switches_length + self._loads_switches_length + self._lines_or_switches_length +
-                        self._lines_ex_switches_length))
+            return self.prods_switches_subaction.__getitem__(item)
+        item -= self._prods_switches_length
+
+        if item < self._loads_switches_length:
+            return self.loads_switches_subaction.__getitem__(item)
+        item -= self._loads_switches_length
+
+        if item < self._lines_or_switches_length:
+            return self.lines_or_switches_subaction.__getitem__(item)
+        item -= self._lines_or_switches_length
+
+        if item < self._lines_ex_switches_length:
+            return self.lines_ex_switches_subaction.__getitem__(item)
+        item -= self._lines_ex_switches_length
+
+        return self.lines_status_subaction.__getitem__(item)
 
 
 class Game(object):
