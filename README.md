@@ -113,12 +113,12 @@ pypownet is a power grid simulator, that emulates a power grid that is subject t
 * handles node-splitting (at the moment only max 2 nodes per substation) and lines switches off for topology management
 
 # Generate the documentation
-A copy of the documentation can be assess within the file [doc/build](doc/build/index.html).
-If you want to compute the latest updated documentation, you will need Sphinx, a Documentation building tool, and a nice-looking custom [Sphinx theme similar to the one of readthedocs.io](https://sphinx-rtd-theme.readthedocs.io/en/latest/):
+The stable official documentation is available at https://pypownet.readthedocs.io/.
+Alternatively, a copy of the master documentation can be computed: you will need Sphinx, a Documentation building tool, and a nice-looking custom [Sphinx theme similar to the one of readthedocs.io](https://sphinx-rtd-theme.readthedocs.io/en/latest/):
 ```
 pip install sphinx sphinx_rtd_theme
 ```
-Then:
+This installs both the Sphinx package and the custom template. Then:
 ```
 cd doc
 sphinx-build -b html ./source ./build
