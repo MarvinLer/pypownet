@@ -266,7 +266,7 @@ class ChronicLooper(object):
             raise FileNotFoundError('Chronic folder %s does not exist' % self.chronics_folder)
 
         if looping_mode not in ['natural', 'random', 'fixed']:
-            raise ValueError('Either natural "mode" (loops in the order of chronics ids), "random" (loops randomly) or'
+            raise ValueError('Either "natural" mode (loops in the order of chronics ids), "random" (loops randomly) or'
                              '"fixed" (plays the same chronic)')
         self.looping_mode = looping_mode
 

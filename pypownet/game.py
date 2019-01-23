@@ -338,15 +338,18 @@ class Game(object):
         :return: :raise ValueError: raised in the case where they are no more scenarios available
         """
         timesteps_ids = self.__chronic.get_timestep_ids()
-        # If there are no more timestep to be played, loads next chronic
-        if self.current_timestep_id == timesteps_ids[-1]:
+        # If there are no more timestep to be played, loads next chronic except if this is called during a simulation
+        if self.current_timestep_id == timesteps_ids[-1] and not is_simulation:
             self.__chronic = self.get_next_chronic()
 
         # If no timestep injections has been loaded so far, loads the first one
         if self.current_timestep_id is None:
             next_timestep_id = timesteps_ids[0]
-        else:  # Otherwise loads the next one in the list of timesteps injections
-            next_timestep_id = timesteps_ids[timesteps_ids.index(self.current_timestep_id) + 1]
+        # Otherwise loads the next one in the list of timesteps injections; note the use of min to generalize to the
+        # case of is_simulation=True which will load the last timstep indefinitely until a real timestep is played
+        else:
+            next_timestep_id = timesteps_ids[
+                min(timesteps_ids.index(self.current_timestep_id) + 1, len(timesteps_ids) - 1)]
 
         # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
         if not is_simulation:
