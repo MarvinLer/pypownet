@@ -57,10 +57,9 @@ sudo apt-get install python3.6
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
 #### (Step 3 if not already done: Get pypownet)
-In a parent folder, clone the current sources:
+Clone the current sources:
 ```
-mkdir parent_folder && cd parent_folder
-git clone https://github.com/MarvinLer/pypownet
+git clone https://github.com/MarvinLer/pypownet pypownet
 ```
 This should create a folder pypownet with the current sources.
 
@@ -75,6 +74,7 @@ In any case, you can update the path of matpower download folder within the ```m
 #### Step 5: Run the installation script of PyPowNet
 Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
 ```
+cd pypownet/
 python3.6 setup.py install
 ```
 After this, this simulator is available under the name pypownet (e.g. ```import pypownet```).
