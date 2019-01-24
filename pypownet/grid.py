@@ -27,7 +27,6 @@ class GridNotConnexeException(Exception):
 
 
 def compute_flows_a(active, reactive, voltage, are_lines_on):
-    # TODO: verify that the formula is correct
     assert len(active) == len(reactive) == len(voltage) == len(are_lines_on)
     flows_a = np.zeros(len(active))
     for i, (p, q, v, is_on) in enumerate(zip(active, reactive, voltage, are_lines_on)):
@@ -216,7 +215,7 @@ class Grid(object):
             function = self.pypower_api.rundcpf if self.dc_loadflow else self.pypower_api.runpf
             try:
                 output, loadflow_success = function(self.mpc, self.loadflow_options, pprint, fname)
-            except (RuntimeError, RuntimeWarning):
+            except (RuntimeError, RuntimeWarning, IndexError):
                 raise DivergingLoadflowException(None, 'The grid is not connexe')
         elif self.loadflow_backend == 'matpower':
             function = self.octave.rundcpf if self.dc_loadflow else self.octave.runpf
@@ -242,7 +241,7 @@ class Grid(object):
         self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
         try:
             output, loadflow_success = self.__vanilla_loadflow_backend_callback(fname_end=fname_end)
-        except DivergingLoadflowException as e:  # Propagates error if one was raised
+        except DivergingLoadflowException as e:  # Propagates error
             raise e
 
         # Save the loadflow output as current grid
