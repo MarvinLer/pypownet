@@ -19,7 +19,12 @@ class Agent(object):
         """Produces an action given an observation of the environment.
 
         Takes as argument an observation of the current state, and returns the chosen action."""
-        # Sanity check: an observation is a structured object defined in the environment file.
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file or a numpy array
         assert isinstance(observation, pypownet.environment.Observation)
 
         # Implement your policy here.
@@ -46,6 +51,11 @@ class RandomLineSwitch(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
 
     def act(self, observation):
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
@@ -76,6 +86,11 @@ class RandomNodeSplitting(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_RandomNodeSplitting.csv')
 
     def act(self, observation):
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
@@ -114,6 +129,11 @@ class TreeSearchLineServiceStatus(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_TreeSearchLineServiceStatus.csv')
 
     def act(self, observation):
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
@@ -180,6 +200,11 @@ class GreedySearch(Agent):
     def act(self, observation):
         import itertools
 
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space

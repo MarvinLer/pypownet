@@ -4,15 +4,15 @@ __author__ = 'marvinler'
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
 from enum import Enum
+from collections import OrderedDict
+from gym.spaces import MultiBinary, Box, Dict, Discrete
 
 import pypownet.game
 
 
-class IllegalActionException(Exception):
+class IllegalActionException(pypownet.game.IllegalActionException):
     def __init__(self, text, illegal_lines_reconnections, *args):
-        super(IllegalActionException, self).__init__(*args)
-        self.text = text
-        self.illegal_lines_reconnections = illegal_lines_reconnections
+        super(IllegalActionException, self).__init__(text, illegal_lines_reconnections, *args)
 
 
 # Wrappers for the exceptions of the game module
@@ -38,27 +38,26 @@ class ElementType(Enum):
     EXTREMITY_POWER_LINE = "extremity of power line"
 
 
-class ActionSpace(object):
-    def __init__(self, number_generators, number_consumers, number_power_lines, substations_ids, prods_subs_ids,
-                 loads_subs_ids, lines_or_subs_id, lines_ex_subs_id):
+# class ActionSpace(object):
+class ActionSpace(MultiBinary):
+    # def __init__(self, number_generators, number_consumers, number_power_lines, substations_ids, prods_subs_ids,
+    #              loads_subs_ids, lines_or_subs_id, lines_ex_subs_id):
+    def __init__(self, number_generators, number_consumers, number_power_lines, number_substations, substations_ids,
+                 prods_subs_ids, loads_subs_ids, lines_or_subs_id, lines_ex_subs_id):
         self.prods_switches_subaction_length = number_generators
         self.loads_switches_subaction_length = number_consumers
         self.lines_or_switches_subaction_length = number_power_lines
         self.lines_ex_switches_subaction_length = number_power_lines
         self.lines_status_subaction_length = number_power_lines
-
-        # In an environment, the actions have fixed shape: self.action_length is expected action list size
         self.action_length = self.prods_switches_subaction_length + self.loads_switches_subaction_length + \
                              self.lines_or_switches_subaction_length + self.lines_ex_switches_subaction_length + \
                              self.lines_status_subaction_length
-
+        super().__init__(self.action_length)
         self.substations_ids = substations_ids
         self.prods_subs_ids = prods_subs_ids
         self.loads_subs_ids = loads_subs_ids
         self.lines_or_subs_id = lines_or_subs_id
         self.lines_ex_subs_id = lines_ex_subs_id
-
-        # Computes en saves the number of topological switches per substations (sum of prod + load + lines or. and ext.)
         self._substations_n_elements = [len(
             self.get_switches_configuration_of_substation(self.get_do_nothing_action(), sub_id)[1]) for sub_id in
                                         self.substations_ids]
@@ -204,7 +203,7 @@ class ActionSpace(object):
         lines_status_switches = action.lines_status_subaction[
             np.where(np.logical_or((self.lines_or_subs_id == substation_id, self.lines_ex_subs_id == substation_id)))]
 
-        assert len(lines_status_switches) == len(self.lines_ex_subs_id == substation_id) + len(
+        assert len(lines_status_switches) == sum(self.lines_ex_subs_id == substation_id) + sum(
             self.lines_or_subs_id == substation_id)
 
         return lines_status_switches
@@ -234,29 +233,142 @@ class ActionSpace(object):
         action.lines_status_subaction[line_id] = new_switch_value
 
 
-class ObservationSpace(object):
-    def __init__(self, number_generators, number_consumers, number_power_lines):
+class ObservationSpace(Dict):
+    def __init__(self, number_generators, number_consumers, number_power_lines, number_substations,
+                 n_timesteps_horizon_maintenance):
         self.number_productions = number_generators
         self.number_loads = number_consumers
         self.number_power_lines = number_power_lines
-
+        self.number_substations = number_substations
+        self.n_timesteps_horizon_maintenance = n_timesteps_horizon_maintenance
         self.grid_number_of_elements = self.number_productions + self.number_loads + 2 * self.number_power_lines
+
+        dict_spaces = OrderedDict([
+            ('MinimalistACObservation', Dict(OrderedDict([
+                ('MinimalistObservation', Dict(OrderedDict([
+                    ('active_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,), dtype=np.float32)),
+                    ('are_loads_cut', MultiBinary(n=number_consumers)),
+                    ('planned_active_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers, ),
+                                                 dtype=np.float32)),
+                    ('loads_nodes', Box(-np.inf, np.inf, (number_consumers,), np.int32)),
+
+                    ('active_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,), dtype=np.float32)),
+                    ('are_productions_cut', MultiBinary(n=number_generators)),
+                    ('planned_active_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators, ),
+                                                       dtype=np.float32)),
+                    ('productions_nodes', Box(-np.inf, np.inf, (number_generators,), np.int32)),
+
+                    ('lines_or_nodes', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+                    ('lines_ex_nodes', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+
+                    ('ampere_flows', Box(0, np.inf, (number_power_lines,), np.float32)),
+                    ('lines_status', MultiBinary(n=number_power_lines)),
+                    ('timesteps_before_lines_reconnectable', Box(0, np.inf, (number_power_lines,), np.int32)),
+                    ('timesteps_before_planned_maintenance', Box(0, np.inf, (number_power_lines,), np.int32)),
+
+                    ('date_year', Discrete(3000)),
+                    ('date_month', Discrete(12)),
+                    ('date_day', Discrete(32)),
+                    ('date_hour', Discrete(24)),
+                    ('date_minute', Discrete(60)),
+                    ('date_second', Discrete(60)),
+                ]))),
+
+                ('reactive_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,), dtype=np.float32)),
+                ('voltage_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,), dtype=np.float32)),
+
+                ('reactive_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,), dtype=np.float32)),
+                ('voltage_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,), dtype=np.float32)),
+
+                ('active_flows_origin', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,), dtype=np.float32)),
+                ('reactive_flows_origin', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,), dtype=np.float32)),
+                ('voltage_flows_origin', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,), dtype=np.float32)),
+
+                ('active_flows_extremity', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,),
+                                               dtype=np.float32)),
+                ('reactive_flows_extremity', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,),
+                                                 dtype=np.float32)),
+                ('voltage_flows_extremity', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,),
+                                                dtype=np.float32)),
+
+                ('planned_reactive_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers, ), dtype=np.float32)),
+                ('planned_voltage_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators, ),
+                                                    dtype=np.float32)),
+            ]))),
+
+            ('substations_ids', Box(-np.inf, np.inf, (number_substations,), np.int32)),
+            ('loads_substations_ids', Box(-np.inf, np.inf, (number_consumers,), np.int32)),
+            ('productions_substations_ids', Box(-np.inf, np.inf, (number_generators,), np.int32)),
+            ('lines_or_substations_ids', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+            ('lines_ex_substations_ids', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+            ('thermal_limits', Box(0, np.inf, (number_power_lines,), np.int32)),
+            ('initial_productions_nodes', Box(-np.inf, np.inf, (number_generators,), np.int32)),
+            ('initial_loads_nodes', Box(-np.inf, np.inf, (number_consumers,), np.int32)),
+            ('initial_lines_or_nodes', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+            ('initial_lines_ex_nodes', Box(-np.inf, np.inf, (number_power_lines,), np.int32)),
+        ])
+
+        super().__init__(dict_spaces)
+
+        def seek_shapes(gym_dict, shape):
+            # loop through all dicts first
+            for k, v in gym_dict.spaces.items():
+                if isinstance(v, Dict) or isinstance(v, OrderedDict):
+                    shape = seek_shapes(v, shape)
+            # then save shapes
+            for k, v in gym_dict.spaces.items():
+                if not (isinstance(v, Dict) or isinstance(v, OrderedDict)):
+                    shape += (v.shape,) if not isinstance(v, Discrete) else ((1,),)
+
+            return shape
+
+        self.shape = seek_shapes(self, ())
+
+    def array_to_observation(self, array):
+        """ Converts and returns an pypownet.game.Observation from a array-object (e.g. list, numpy arrays).
+
+        :param array: array-style object
+        :return: an instance of pypownet.game.Action equivalent to input action
+        :raise ValueError: the input array is not of the same length than the expected action (self.action_length)
+        """
+        expected_length = sum(list(map(sum, self.shape)))
+        if len(array) != expected_length:
+            raise ValueError('Expected observation array of length %d, got %d' % (expected_length, len(array)))
+
+        def transform_array(gym_dict, input_array, res):
+            # loop through all dicts first
+            for k, v in gym_dict.spaces.items():
+                if isinstance(v, Dict) or isinstance(v, OrderedDict):
+                    input_array, res = transform_array(v, input_array, res)
+            # then save shapes
+            for k, v in gym_dict.spaces.items():
+                if not (isinstance(v, Dict) or isinstance(v, OrderedDict)):
+                    print('1', k, v.shape)
+                    n_elements = np.prod(v.shape) if not isinstance(v, Discrete) else 1  # prod because some containers are flattened
+                    res[k] = input_array[:n_elements]
+                    input_array = input_array[n_elements:]  # shift arrato discard just selected values
+
+            return input_array, res
+
+        _, subobservations = transform_array(self, array, {})
+        return Observation(**subobservations)
 
 
 class MinimalistObservation(object):
-    def __init__(self, active_loads, active_productions, ampere_flows, lines_status, are_isolated_loads,
-                 are_isolated_prods, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
-                 planned_active_loads, planned_active_productions, date, prods_nodes, loads_nodes,
+    def __init__(self, active_loads, active_productions, ampere_flows, lines_status, are_loads_cut,
+                 are_productions_cut, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                 planned_active_loads, planned_active_productions, date_year, date_month, date_day, date_hour,
+                 date_minute, date_second, productions_nodes, loads_nodes,
                  lines_or_nodes, lines_ex_nodes):
         # Loads related state values
         self.active_loads = active_loads
-        self.are_loads_cut = are_isolated_loads
+        self.are_loads_cut = are_loads_cut
         self.loads_nodes = loads_nodes
 
         # Productions related state values
         self.active_productions = active_productions
-        self.are_productions_cut = are_isolated_prods
-        self.productions_nodes = prods_nodes
+        self.are_productions_cut = are_productions_cut
+        self.productions_nodes = productions_nodes
 
         # Origin flows related state values
         self.lines_or_nodes = lines_or_nodes
@@ -276,7 +388,12 @@ class MinimalistObservation(object):
         self.planned_active_loads = planned_active_loads
         self.planned_active_productions = planned_active_productions
 
-        self.datetime = date
+        self.date_year = date_year
+        self.date_month = date_month
+        self.date_day = date_day
+        self.date_hour = date_hour
+        self.date_minute = date_minute
+        self.date_second = date_second
 
     def as_array(self):
         return np.concatenate((
@@ -288,7 +405,11 @@ class MinimalistObservation(object):
             self.lines_or_nodes, self.lines_ex_nodes,
 
             self.ampere_flows, self.lines_status, self.timesteps_before_lines_reconnectable,
-            self.timesteps_before_planned_maintenance,))
+            self.timesteps_before_planned_maintenance,
+
+            np.asarray([self.date_year, self.date_month, self.date_day, self.date_hour, self.date_minute,
+                        self.date_second]).flatten(),
+        ))
 
     @staticmethod
     def __keys__():
@@ -305,14 +426,16 @@ class MinimalistACObservation(MinimalistObservation):
     def __init__(self, active_loads, reactive_loads, voltage_loads, active_productions, reactive_productions,
                  voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                  active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows, lines_status,
-                 are_isolated_loads, are_isolated_prods, timesteps_before_lines_reconnectable,
+                 are_loads_cut, are_productions_cut, timesteps_before_lines_reconnectable,
                  timesteps_before_planned_maintenance, planned_active_loads, planned_reactive_loads,
-                 planned_active_productions, planned_voltage_productions, date, prods_nodes, loads_nodes,
+                 planned_active_productions, planned_voltage_productions, date_year, date_month, date_day, date_hour,
+                 date_minute, date_second, productions_nodes, loads_nodes,
                  lines_or_nodes, lines_ex_nodes):
-        super().__init__(active_loads, active_productions, ampere_flows, lines_status, are_isolated_loads,
-                         are_isolated_prods, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
-                         planned_active_loads, planned_active_productions, date, prods_nodes, loads_nodes,
-                         lines_or_nodes, lines_ex_nodes)
+        super().__init__(active_loads, active_productions, ampere_flows, lines_status, are_loads_cut,
+                         are_productions_cut, timesteps_before_lines_reconnectable,
+                         timesteps_before_planned_maintenance, planned_active_loads, planned_active_productions,
+                         date_year, date_month, date_day, date_hour, date_minute, date_second, productions_nodes,
+                         loads_nodes, lines_or_nodes, lines_ex_nodes)
         self.reactive_loads = reactive_loads
         self.voltage_loads = voltage_loads
 
@@ -360,28 +483,31 @@ class Observation(MinimalistACObservation):
     lines as well as the lines capacity usage
     * The exhaustive topology of the grid, as a stacked vector of one-hot vectors
     """
+
     def __init__(self, substations_ids, active_loads, reactive_loads, voltage_loads, active_productions,
                  reactive_productions, voltage_productions, active_flows_origin, reactive_flows_origin,
                  voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
-                 ampere_flows, thermal_limits, lines_status, are_isolated_loads, are_isolated_prods,
-                 loads_substations_ids, prods_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
+                 ampere_flows, thermal_limits, lines_status, are_loads_cut, are_productions_cut,
+                 loads_substations_ids, productions_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
                  timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
-                 planned_reactive_loads, planned_active_productions, planned_voltage_productions, date, prods_nodes,
+                 planned_reactive_loads, planned_active_productions, planned_voltage_productions, date_year,
+                 date_month, date_day, date_hour, date_minute, date_second, productions_nodes,
                  loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes, initial_loads_nodes,
                  initial_lines_or_nodes, initial_lines_ex_nodes):
         super(Observation, self).__init__(active_loads, reactive_loads, voltage_loads, active_productions,
                                           reactive_productions, voltage_productions, active_flows_origin,
                                           reactive_flows_origin, voltage_flows_origin, active_flows_extremity,
                                           reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
-                                          lines_status, are_isolated_loads, are_isolated_prods,
+                                          lines_status, are_loads_cut, are_productions_cut,
                                           timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
                                           planned_active_loads, planned_reactive_loads, planned_active_productions,
-                                          planned_voltage_productions, date, prods_nodes, loads_nodes,
+                                          planned_voltage_productions, date_year, date_month, date_day, date_hour,
+                                          date_minute, date_second, productions_nodes, loads_nodes,
                                           lines_or_nodes, lines_ex_nodes)
         # Fixed ids of elements: substations, loads, prods, lines or and lines ex
         self.substations_ids = substations_ids
         self.loads_substations_ids = loads_substations_ids
-        self.productions_substations_ids = prods_substations_ids
+        self.productions_substations_ids = productions_substations_ids
         self.lines_or_substations_ids = lines_or_substations_ids
         self.lines_ex_substations_ids = lines_ex_substations_ids
 
@@ -398,11 +524,17 @@ class Observation(MinimalistACObservation):
 
     def as_array(self):
         return np.concatenate((super(Observation, self).as_array(),
+                               self.substations_ids,
                                self.loads_substations_ids,
                                self.productions_substations_ids,
                                self.lines_or_substations_ids,
                                self.lines_ex_substations_ids,
-                               self.thermal_limits,))
+                               self.thermal_limits,
+                               self.initial_productions_nodes,
+                               self.initial_loads_nodes,
+                               self.initial_lines_or_nodes,
+                               self.initial_lines_ex_nodes,
+        ))
 
     def as_ac_minimalist(self):
         return super(Observation, self)
@@ -451,7 +583,8 @@ class Observation(MinimalistACObservation):
         return np.divide(self.ampere_flows, self.thermal_limits)
 
     def __str__(self):
-        date_str = 'date:' + self.datetime.strftime("%Y-%m-%d %H:%M")
+        date_str = 'date: %d of %d of %d at %dh%dm%ds' % (self.date_year, self.date_month, self.date_day,
+                                                          self.date_hour, self.date_minute, self.date_second)
 
         def _tabular_prettifier(matrix, formats, column_widths):
             """ Used for printing well shaped tables within terminal and log files
@@ -566,14 +699,16 @@ class RunEnv(object):
         self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
                                        chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
                                        game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
-        print('\n' + self.game.parameters_environment_tostring() + '\n')
+
         self.action_space = ActionSpace(*self.game.get_number_elements(),
                                         substations_ids=self.game.get_substations_ids(),
                                         prods_subs_ids=self.game.get_substations_ids_prods(),
                                         loads_subs_ids=self.game.get_substations_ids_loads(),
                                         lines_or_subs_id=self.game.get_substations_ids_lines_or(),
                                         lines_ex_subs_id=self.game.get_substations_ids_lines_ex())
-        self.observation_space = ObservationSpace(*self.game.get_number_elements())
+        n_prods, n_loads, n_lines, n_substations = self.game.get_number_elements()
+        self.observation_space = ObservationSpace(n_prods, n_loads, n_lines, n_substations,
+                                                  self.game.n_timesteps_horizon_maintenance)
 
         self.reward_signal = self.game.get_reward_signal_class()
 
@@ -623,7 +758,8 @@ class RunEnv(object):
     def render(self, game_over=False):
         self.game.render(self.last_rewards, game_over=game_over)
 
-    def __wrap_exception(self, flag):
+    @staticmethod
+    def __wrap_exception(flag):
         if isinstance(flag, pypownet.game.DivergingLoadflowException):
             return DivergingLoadflowException(flag.last_observation, flag.text)
         elif isinstance(flag, pypownet.game.TooManyConsumptionsCut):
@@ -692,10 +828,8 @@ OBSERVATION_MEANING = {
     'datetime': 'A Python datetime object containing the date of the observation.',
 }
 
-
 MINIMALISTACOBSERVATION_MEANING = {k: v for k, v in OBSERVATION_MEANING.items()
                                    if k in MinimalistACObservation.__keys__()}
 
-
 MINIMALISTOBSERVATION_MEANING = {k: v for k, v in OBSERVATION_MEANING.items()
-                                   if k in MinimalistObservation.__keys__()}
+                                 if k in MinimalistObservation.__keys__()}

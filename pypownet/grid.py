@@ -512,8 +512,9 @@ class Grid(object):
                                                 timesteps_before_planned_maintenance=None,
                                                 planned_active_loads=None,
                                                 planned_reactive_loads=None, planned_active_productions=None,
-                                                planned_voltage_productions=None, date=None,
-                                                prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                                planned_voltage_productions=None, date_year=None, date_month=None,
+                                                date_day=None, date_hour=None, date_minute=None, date_second=None,
+                                                productions_nodes=prods_nodes, loads_nodes=loads_nodes,
                                                 lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
                                                 initial_productions_nodes=None, initial_loads_nodes=None,
                                                 initial_lines_or_nodes=None, initial_lines_ex_nodes=None)

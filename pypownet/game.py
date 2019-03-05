@@ -8,7 +8,6 @@ from time import sleep
 import copy
 import numpy as np
 import pypownet.grid
-import pypownet.environment
 from pypownet.chronic import Chronic, ChronicLooper
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 from pypownet.parameters import Parameters
@@ -17,6 +16,13 @@ from pypownet.parameters import Parameters
 # Exception to be risen when no more scenarios are available to be played (i.e. every scenario has been played)
 class NoMoreScenarios(Exception):
     pass
+
+
+class IllegalActionException(Exception):
+    def __init__(self, text, illegal_lines_reconnections, *args):
+        super(IllegalActionException, self).__init__(*args)
+        self.text = text
+        self.illegal_lines_reconnections = illegal_lines_reconnections
 
 
 class DivergingLoadflowException(pypownet.grid.DivergingLoadflowException):
@@ -207,7 +213,8 @@ class Game(object):
         return self.__parameters.get_max_seconds_per_timestep()
 
     def get_number_elements(self):
-        return self.grid.get_number_elements()
+        n_prods, n_loads, n_lines = self.grid.get_number_elements()
+        return n_prods, n_loads, n_lines, len(self.get_substations_ids())
 
     def get_reward_signal_class(self):
         return self.get_reward_signal_class
@@ -466,10 +473,9 @@ class Game(object):
             if number_invalid_reconnections > 1:
                 timesteps_to_wait_as_str = 'resp. ' + timesteps_to_wait_as_str
 
-            raise pypownet.environment.IllegalActionException(
-                'Trying to reconnect broken line%s %s, must wait %s timesteps. ' % (
-                    's' if number_invalid_reconnections > 1 else '',
-                    non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
+            raise IllegalActionException('Trying to reconnect broken line%s %s, must wait %s timesteps. ' % (
+                's' if number_invalid_reconnections > 1 else '',
+                non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
 
         # Compute the destination nodes of all elements + the lines service finale values: actions are switches
         prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
@@ -538,7 +544,7 @@ class Game(object):
             self.apply_action(action)
             if self.renderer is not None:
                 self.render(None, cascading_frame_id=-1)
-        except pypownet.environment.IllegalActionException as e:
+        except IllegalActionException as e:
             e.text += ' Ignoring action switches of broken lines.'
             # If broken lines are attempted to be switched on, put the switches to 0
             illegal_lines_reconnections = e.illegal_lines_reconnections
@@ -643,7 +649,12 @@ class Game(object):
         observation.initial_lines_or_nodes = initial_topology[2]
         observation.initial_lines_ex_nodes = initial_topology[3]
 
-        observation.datetime = self.current_date
+        observation.date_year = self.current_date.year
+        observation.date_month = self.current_date.month
+        observation.date_day = self.current_date.day
+        observation.date_hour = self.current_date.hour
+        observation.date_minute = self.current_date.minute
+        observation.date_second = self.current_date.second
 
         return observation
 
@@ -736,9 +747,9 @@ class Game(object):
                              number_loads_cut=sum(are_isolated_loads),
                              number_prods_cut=sum(are_isolated_prods),
                              number_nodes_splitting=sum(self.last_action.get_node_splitting_subaction())
-                                        if self.last_action is not None else 0,
+                             if self.last_action is not None else 0,
                              number_lines_switches=sum(self.last_action.get_lines_status_subaction())
-                                        if self.last_action is not None else 0,
+                             if self.last_action is not None else 0,
                              distance_initial_grid=distance_ref_grid,
                              number_off_lines=sum(self.grid.get_lines_status() == 0),
                              number_unavailable_lines=number_unavailable_lines,
