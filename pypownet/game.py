@@ -91,7 +91,7 @@ class Action(object):
         return np.concatenate((self.get_node_splitting_subaction(), self.get_lines_status_subaction(),))
 
     def __str__(self):
-        return ', '.join(list(map(str, self.as_array())))
+        return self.as_array().__str__()
 
     def __len__(self, do_sum=True):
         length_aslist = (self._prods_switches_length, self._loads_switches_length, self._lines_or_switches_length,
@@ -553,8 +553,7 @@ class Game(object):
 
             # Resubmit step with modified valid action and return either exception of new step, or this exception
             obs, correct_step, done = self.step(action, _is_simulation=_is_simulation)
-            return obs, correct_step if correct_step else e, done  # Return done and not False because step might
-            # diverge
+            return obs, correct_step if correct_step else e, done  # Return done, not False, because step might diverge
 
         try:
             # Load next timestep entries, compute one loadflow, then potentially cascading failure

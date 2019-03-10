@@ -58,21 +58,21 @@ class ActionSpace(MultiBinary):
         self.loads_subs_ids = loads_subs_ids
         self.lines_or_subs_id = lines_or_subs_id
         self.lines_ex_subs_id = lines_ex_subs_id
-        self._substations_n_elements = [len(
-            self.get_switches_configuration_of_substation(self.get_do_nothing_action(), sub_id)[1]) for sub_id in
-                                        self.substations_ids]
+        self._substations_n_elements = [len(self.get_switches_configuration_of_substation(
+            self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for sub_id in self.substations_ids]
 
-    def get_do_nothing_action(self):
+    def get_do_nothing_action(self, as_class_Action=False):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
         not activated.
 
         :return: an instance of pypownet.game.Action that is equivalent to an action doing nothing
         """
-        return pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
-                                    loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
-                                    lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
-                                    lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
-                                    lines_status_subaction=np.zeros(self.lines_status_subaction_length))
+        action = pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
+                                      loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
+                                      lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
+                                      lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
+                                      lines_status_subaction=np.zeros(self.lines_status_subaction_length))
+        return action if as_class_Action else action.as_array()
 
     def array_to_action(self, array):
         """ Converts and returns an pypownet.game.Action from a array-object (e.g. list, numpy arrays).
@@ -82,7 +82,8 @@ class ActionSpace(MultiBinary):
         :raise ValueError: the input array is not of the same length than the expected action (self.action_length)
         """
         if len(array) != self.action_length:
-            raise ValueError('Expected binary array of length %d, got %d' % (self.action_length, len(array)))
+            raise ValueError('Expected action as a binary array of length %d, '
+                             'got %d' % (self.action_length, len(array)))
 
         offset = 0
         prods_switches_subaction = array[:self.prods_switches_subaction_length]
@@ -100,7 +101,7 @@ class ActionSpace(MultiBinary):
                                     lines_ex_switches_subaction=lines_ex_switches_subaction,
                                     lines_status_subaction=lines_status_subaction)
 
-    def verify_action_shape(self, action):
+    def _verify_action_shape(self, action):
         if action is None:
             raise ValueError('Expected binary array of length %d, got None' % self.action_length)
 
@@ -248,13 +249,13 @@ class ObservationSpace(Dict):
                 ('MinimalistObservation', Dict(OrderedDict([
                     ('active_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,), dtype=np.float32)),
                     ('are_loads_cut', MultiBinary(n=number_consumers)),
-                    ('planned_active_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers, ),
+                    ('planned_active_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,),
                                                  dtype=np.float32)),
                     ('loads_nodes', Box(-np.inf, np.inf, (number_consumers,), np.int32)),
 
                     ('active_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,), dtype=np.float32)),
                     ('are_productions_cut', MultiBinary(n=number_generators)),
-                    ('planned_active_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators, ),
+                    ('planned_active_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,),
                                                        dtype=np.float32)),
                     ('productions_nodes', Box(-np.inf, np.inf, (number_generators,), np.int32)),
 
@@ -291,8 +292,8 @@ class ObservationSpace(Dict):
                 ('voltage_flows_extremity', Box(low=-np.inf, high=np.inf, shape=(number_power_lines,),
                                                 dtype=np.float32)),
 
-                ('planned_reactive_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers, ), dtype=np.float32)),
-                ('planned_voltage_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators, ),
+                ('planned_reactive_loads', Box(low=-np.inf, high=np.inf, shape=(number_consumers,), dtype=np.float32)),
+                ('planned_voltage_productions', Box(low=-np.inf, high=np.inf, shape=(number_generators,),
                                                     dtype=np.float32)),
             ]))),
 
@@ -343,8 +344,8 @@ class ObservationSpace(Dict):
             # then save shapes
             for k, v in gym_dict.spaces.items():
                 if not (isinstance(v, Dict) or isinstance(v, OrderedDict)):
-                    print('1', k, v.shape)
-                    n_elements = np.prod(v.shape) if not isinstance(v, Discrete) else 1  # prod because some containers are flattened
+                    n_elements = np.prod(v.shape) if not isinstance(v,
+                                                                    Discrete) else 1  # prod because some containers are flattened
                     res[k] = input_array[:n_elements]
                     input_array = input_array[n_elements:]  # shift arrato discard just selected values
 
@@ -534,7 +535,7 @@ class Observation(MinimalistACObservation):
                                self.initial_loads_nodes,
                                self.initial_lines_or_nodes,
                                self.initial_lines_ex_nodes,
-        ))
+                               ))
 
     def as_ac_minimalist(self):
         return super(Observation, self)
@@ -613,7 +614,7 @@ class Observation(MinimalistACObservation):
         column_widths = [8, 8, 5, 8, 7, 7, 8, 7]
         prods_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 13) // 2) + 'PRODUCTIONS' + ' ' * (
-                           (n_symbols - 12) // 2) + '|' + '\n' + \
+                               (n_symbols - 12) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
         prods_header += ' |                 | is  |         Current        | Previsions t+1 |\n'
         prods_header += ' |' + ' |'.join(
@@ -723,37 +724,40 @@ class RunEnv(object):
         """
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
-            submitted_action = self.action_space.verify_action_shape(action)
+            submitted_action = self.action_space._verify_action_shape(action)
         except IllegalActionException as e:
             raise e
 
         observation, reward_flag, done = self.game.step(submitted_action)
         reward_flag = self.__wrap_exception(reward_flag)
 
-        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
+        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=submitted_action,
+                                                          flag=reward_flag)
         self.last_rewards = reward_aslist
 
-        return observation, sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
+        return observation.as_array() if observation is not None else observation, \
+               sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
     def simulate(self, action, do_sum=True):
         """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
-            to_simulate_action = self.action_space.verify_action_shape(action)
+            to_simulate_action = self.action_space._verify_action_shape(action)
         except IllegalActionException as e:
             raise e
 
         observation, reward_flag, done = self.game.simulate(to_simulate_action)
         reward_flag = self.__wrap_exception(reward_flag)
 
-        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=action, flag=reward_flag)
+        reward_aslist = self.reward_signal.compute_reward(observation=observation, action=to_simulate_action,
+                                                          flag=reward_flag)
         self.last_rewards = reward_aslist
 
         return sum(reward_aslist) if do_sum else reward_aslist
 
     def reset(self):
         self.game.reset()
-        return self._get_obs()
+        return self._get_obs().as_array()
 
     def render(self, game_over=False):
         self.game.render(self.last_rewards, game_over=game_over)
@@ -766,6 +770,8 @@ class RunEnv(object):
             return TooManyConsumptionsCut(flag.text)
         elif isinstance(flag, pypownet.game.TooManyProductionsCut):
             return TooManyProductionsCut(flag.text)
+        elif isinstance(flag, pypownet.game.IllegalActionException):
+            return IllegalActionException(flag.text, flag.illegal_lines_reconnections)
         else:
             return flag
 
