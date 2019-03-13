@@ -62,7 +62,7 @@ class Parameters(object):
             sys.path.append(os.path.dirname(reward_signal_expected_path))
             try:
                 self.reward_signal_class = getattr(importlib.import_module('reward_signal'), 'CustomRewardSignal')
-                self.logger.warn('Using custom reward signal CustomRewardSignal of file %s' %
+                self.logger.warning('Using custom reward signal CustomRewardSignal of file %s' %
                                  reward_signal_expected_path)
             except ImportError:
                 self.logger.error('/!\ Using default reward signal, as reward_signal.py file is not found')
@@ -124,6 +124,18 @@ class Parameters(object):
 
     def get_max_number_loads_game_over(self):
         return self.simulator_configuration['max_number_loads_game_over']
+
+    def get_n_timesteps_actionned_line_reactionable(self):
+        return self.simulator_configuration['n_timesteps_actionned_line_reactionable']
+
+    def get_n_timesteps_actionned_node_reactionable(self):
+        return self.simulator_configuration['n_timesteps_actionned_node_reactionable']
+
+    def get_n_timesteps_pending_line_reactionable_when_overflowed(self):
+        return self.simulator_configuration['n_timesteps_pending_line_reactionable_when_overflowed']
+
+    def get_n_timesteps_pending_node_reactionable_when_overflowed(self):
+        return self.simulator_configuration['n_timesteps_pending_node_reactionable_when_overflowed']
 
     def __str__(self):
         params_str = ['    ' + k + ': ' + str(v) for k, v in self.simulator_configuration.items()]

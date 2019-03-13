@@ -509,6 +509,8 @@ class Grid(object):
                                                 substations_ids_loads, substations_ids_prods,
                                                 substations_ids_lines_or,
                                                 substations_ids_lines_ex, timesteps_before_lines_reconnectable=None,
+                                                timesteps_before_lines_reactionable=None,
+                                                timesteps_before_nodes_reactionable=None,
                                                 timesteps_before_planned_maintenance=None,
                                                 planned_active_loads=None,
                                                 planned_reactive_loads=None, planned_active_productions=None,

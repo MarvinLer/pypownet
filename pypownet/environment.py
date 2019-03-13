@@ -265,6 +265,8 @@ class ObservationSpace(Dict):
                     ('ampere_flows', Box(0, np.inf, (number_power_lines,), np.float32)),
                     ('lines_status', MultiBinary(n=number_power_lines)),
                     ('timesteps_before_lines_reconnectable', Box(0, np.inf, (number_power_lines,), np.int32)),
+                    ('timesteps_before_lines_reactionable', Box(0, np.inf, (number_power_lines,), np.int32)),
+                    ('timesteps_before_nodes_reactionable', Box(0, np.inf, (self.grid_number_of_elements,), np.int32)),
                     ('timesteps_before_planned_maintenance', Box(0, np.inf, (number_power_lines,), np.int32)),
 
                     ('date_year', Discrete(3000)),
@@ -357,10 +359,10 @@ class ObservationSpace(Dict):
 
 class MinimalistObservation(object):
     def __init__(self, active_loads, active_productions, ampere_flows, lines_status, are_loads_cut,
-                 are_productions_cut, timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
-                 planned_active_loads, planned_active_productions, date_year, date_month, date_day, date_hour,
-                 date_minute, date_second, productions_nodes, loads_nodes,
-                 lines_or_nodes, lines_ex_nodes):
+                 are_productions_cut, timesteps_before_lines_reconnectable, timesteps_before_lines_reactionable,
+                 timesteps_before_nodes_reactionable, timesteps_before_planned_maintenance, planned_active_loads,
+                 planned_active_productions, date_year, date_month, date_day, date_hour, date_minute, date_second,
+                 productions_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes):
         # Loads related state values
         self.active_loads = active_loads
         self.are_loads_cut = are_loads_cut
@@ -384,6 +386,10 @@ class MinimalistObservation(object):
         # random hazards, or shut down for maintenance (e.g. painting)
         self.timesteps_before_lines_reconnectable = timesteps_before_lines_reconnectable
         self.timesteps_before_planned_maintenance = timesteps_before_planned_maintenance
+        # Per-line/per-gridelement timesteps to wait before it can be actionable, ie there is a 1 for the corresponding
+        # element in the action
+        self.timesteps_before_lines_reactionable = timesteps_before_lines_reactionable
+        self.timesteps_before_nodes_reactionable = timesteps_before_nodes_reactionable
 
         # Planned injections for the next timestep
         self.planned_active_loads = planned_active_loads
@@ -406,6 +412,7 @@ class MinimalistObservation(object):
             self.lines_or_nodes, self.lines_ex_nodes,
 
             self.ampere_flows, self.lines_status, self.timesteps_before_lines_reconnectable,
+            self.timesteps_before_lines_reactionable, self.timesteps_before_nodes_reactionable,
             self.timesteps_before_planned_maintenance,
 
             np.asarray([self.date_year, self.date_month, self.date_day, self.date_hour, self.date_minute,
@@ -416,7 +423,8 @@ class MinimalistObservation(object):
     def __keys__():
         return ['active_loads', 'are_loads_cut', 'loads_nodes', 'active_productions', 'are_productions_cut',
                 'productions_nodes', 'lines_or_nodes', 'lines_ex_nodes', 'ampere_flows', 'lines_status',
-                'timesteps_before_lines_reconnectable', 'timesteps_before_planned_maintenance', 'planned_active_loads',
+                'timesteps_before_lines_reconnectable', 'timesteps_before_lines_reactionable',
+                'timesteps_before_nodes_reactionable', 'timesteps_before_planned_maintenance', 'planned_active_loads',
                 'planned_active_productions', 'datetime']
 
     def as_dict(self):
@@ -428,15 +436,16 @@ class MinimalistACObservation(MinimalistObservation):
                  voltage_productions, active_flows_origin, reactive_flows_origin, voltage_flows_origin,
                  active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity, ampere_flows, lines_status,
                  are_loads_cut, are_productions_cut, timesteps_before_lines_reconnectable,
+                 timesteps_before_lines_reactionable, timesteps_before_nodes_reactionable,
                  timesteps_before_planned_maintenance, planned_active_loads, planned_reactive_loads,
                  planned_active_productions, planned_voltage_productions, date_year, date_month, date_day, date_hour,
                  date_minute, date_second, productions_nodes, loads_nodes,
                  lines_or_nodes, lines_ex_nodes):
         super().__init__(active_loads, active_productions, ampere_flows, lines_status, are_loads_cut,
-                         are_productions_cut, timesteps_before_lines_reconnectable,
-                         timesteps_before_planned_maintenance, planned_active_loads, planned_active_productions,
-                         date_year, date_month, date_day, date_hour, date_minute, date_second, productions_nodes,
-                         loads_nodes, lines_or_nodes, lines_ex_nodes)
+                         are_productions_cut, timesteps_before_lines_reconnectable, timesteps_before_lines_reactionable,
+                         timesteps_before_nodes_reactionable, timesteps_before_planned_maintenance,
+                         planned_active_loads, planned_active_productions, date_year, date_month, date_day, date_hour,
+                         date_minute, date_second, productions_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes)
         self.reactive_loads = reactive_loads
         self.voltage_loads = voltage_loads
 
@@ -490,7 +499,8 @@ class Observation(MinimalistACObservation):
                  voltage_flows_origin, active_flows_extremity, reactive_flows_extremity, voltage_flows_extremity,
                  ampere_flows, thermal_limits, lines_status, are_loads_cut, are_productions_cut,
                  loads_substations_ids, productions_substations_ids, lines_or_substations_ids, lines_ex_substations_ids,
-                 timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance, planned_active_loads,
+                 timesteps_before_lines_reconnectable, timesteps_before_lines_reactionable,
+                 timesteps_before_nodes_reactionable, timesteps_before_planned_maintenance, planned_active_loads,
                  planned_reactive_loads, planned_active_productions, planned_voltage_productions, date_year,
                  date_month, date_day, date_hour, date_minute, date_second, productions_nodes,
                  loads_nodes, lines_or_nodes, lines_ex_nodes, initial_productions_nodes, initial_loads_nodes,
@@ -500,7 +510,8 @@ class Observation(MinimalistACObservation):
                                           reactive_flows_origin, voltage_flows_origin, active_flows_extremity,
                                           reactive_flows_extremity, voltage_flows_extremity, ampere_flows,
                                           lines_status, are_loads_cut, are_productions_cut,
-                                          timesteps_before_lines_reconnectable, timesteps_before_planned_maintenance,
+                                          timesteps_before_lines_reconnectable, timesteps_before_lines_reactionable,
+                                          timesteps_before_nodes_reactionable, timesteps_before_planned_maintenance,
                                           planned_active_loads, planned_reactive_loads, planned_active_productions,
                                           planned_voltage_productions, date_year, date_month, date_day, date_hour,
                                           date_minute, date_second, productions_nodes, loads_nodes,
@@ -534,8 +545,7 @@ class Observation(MinimalistACObservation):
                                self.initial_productions_nodes,
                                self.initial_loads_nodes,
                                self.initial_lines_or_nodes,
-                               self.initial_lines_ex_nodes,
-                               ))
+                               self.initial_lines_ex_nodes,))
 
     def as_ac_minimalist(self):
         return super(Observation, self)
@@ -805,6 +815,10 @@ OBSERVATION_MEANING = {
 
     'lines_status': 'Mask whether the lines are switched ON (1) or switched OFF (0).',
     'timesteps_before_lines_reconnectable': 'Number of timesteps to wait before a line is switchable ON.',
+    'timesteps_before_lines_reactionable': 'Number of timesteps to wait before a recently actioned line can be used '
+                                           'again.',
+    'timesteps_before_nodes_reactionable': 'Number of timesteps to wait before a recently actioned node can be used '
+                                           'again.',
     'timesteps_before_planned_maintenance': 'Number of timesteps to wait before a line will be switched OFF for'
                                             'maintenance',
 

@@ -48,7 +48,7 @@ def main():
                       param_envs + ['matpower_path.config'] if os.path.isfile(rel_path) and not '__pycache__' in rel_path])
 
     setup(name='pypownet',
-          version='2.0.4',
+          version='2.2.0',
           description='A Gym/keras-rl compatible environment simulating large-scale power grids.',
           author='Marvin Lerousseau',
           author_email='marvin.lerousseau@gmail.com',

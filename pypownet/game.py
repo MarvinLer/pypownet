@@ -149,17 +149,28 @@ class Game(object):
         self.logger = logging.getLogger('pypownet.' + __name__)
 
         # Read parameters
+        # backend
         self.__parameters = Parameters(parameters_folder, game_level)
         loadflow_backend = self.__parameters.get_loadflow_backend()
         self.is_mode_dc = self.__parameters.is_dc_mode()
+        # overflows
         self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
         self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()
+        self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
         self.n_timesteps_consecutive_soft_overflow_breaks = \
             self.__parameters.get_n_timesteps_consecutive_soft_overflow_breaks()
-        self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
+        # maintenance
         self.n_timesteps_horizon_maintenance = self.__parameters.get_n_timesteps_horizon_maintenance()
+        # game over
         self.max_number_prods_game_over = self.__parameters.get_max_number_prods_game_over()
         self.max_number_loads_game_over = self.__parameters.get_max_number_loads_game_over()
+        # illegal action
+        self.n_timesteps_actionned_line_reactionable = self.__parameters.get_n_timesteps_actionned_line_reactionable()
+        self.n_timesteps_actionned_node_reactionable = self.__parameters.get_n_timesteps_actionned_node_reactionable()
+        self.n_timesteps_pending_line_reactionable_when_overflowed = \
+            self.__parameters.get_n_timesteps_pending_line_reactionable_when_overflowed()
+        self.n_timesteps_pending_node_reactionable_when_overflowed = \
+            self.__parameters.get_n_timesteps_pending_node_reactionable_when_overflowed()
 
         # Seek and load chronic
         self.__chronic_looper = ChronicLooper(chronics_folder=self.__parameters.get_chronics_path(),
@@ -193,8 +204,10 @@ class Game(object):
 
         self.substations_ids = self.grid.mpc['bus'][:self.grid.n_nodes // 2, 0]
 
-        # Instantiate the counter of timesteps before lines can be reconnected (one value per line)
+        # Instantiate the counter of timesteps before lines can be reconnected (one value per line) or activated
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
+        self.timesteps_before_lines_reactionable = np.zeros((self.grid.n_lines,))
+        self.timesteps_before_nodes_reactionable = np.zeros((len(self.substations_ids),))
 
         # Renderer params
         self.renderer = None
@@ -361,6 +374,8 @@ class Game(object):
         # If the method is not simulate, decrement the actual timesteps to wait for the crashed lines (real step call)
         if not is_simulation:
             self.timesteps_before_lines_reconnectable[self.timesteps_before_lines_reconnectable > 0] -= 1
+            self.timesteps_before_lines_reactionable[self.timesteps_before_lines_reactionable > 0] -= 1
+            self.timesteps_before_nodes_reactionable[self.timesteps_before_nodes_reactionable > 0] -= 1
 
         self.load_entries_from_timestep_id(next_timestep_id, is_simulation)
 
@@ -457,7 +472,6 @@ class Game(object):
         to_be_switched_lines = np.equal(action_lines_service, 1)
         broken_lines = self.timesteps_before_lines_reconnectable > 0  # Mask of broken lines
         illegal_lines_reconnections = np.logical_and(to_be_switched_lines, broken_lines)
-
         # Raises an exception if there is some attempt to reconnect broken lines; Game.step should manage what to do in
         # such a case
         if np.any(illegal_lines_reconnections):
@@ -466,7 +480,7 @@ class Game(object):
 
             # Creates strings for log printing
             non_reconnectable_lines_as_str = ', '.join(
-                list(map(str, np.arange(self.grid.n_lines)[illegal_lines_reconnections])))
+                list(map(str, np.arange(len(illegal_lines_reconnections))[illegal_lines_reconnections])))
             timesteps_to_wait_as_str = ', '.join(list(map(lambda x: str(int(x)), timesteps_to_wait)))
 
             number_invalid_reconnections = np.sum(illegal_lines_reconnections)
@@ -476,6 +490,50 @@ class Game(object):
             raise IllegalActionException('Trying to reconnect broken line%s %s, must wait %s timesteps. ' % (
                 's' if number_invalid_reconnections > 1 else '',
                 non_reconnectable_lines_as_str, timesteps_to_wait_as_str), illegal_lines_reconnections)
+
+        # Verify that the player is not trying to switch lines or nodes topologies that are pending for reusage after
+        # being used within the tolerated timeframe before another action can be operated on a line or a node
+        # lines
+        lines_subaction = action.get_lines_status_subaction()
+        activating_lines = lines_subaction == 1
+        unactionnable_lines = self.timesteps_before_lines_reactionable > 0
+        illegal_activating_lines = np.logical_and(activating_lines, unactionnable_lines)
+        if np.any(illegal_activating_lines):
+            timesteps_to_wait = self.timesteps_before_lines_reactionable[illegal_activating_lines]
+            assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
+
+            # Creates strings for log printing
+            non_actionnable_lines_as_str = ', '.join(
+                list(map(str, np.arange(len(illegal_activating_lines))[illegal_activating_lines])))
+            timesteps_to_wait_as_str = ', '.join(list(map(lambda x: str(int(x)), timesteps_to_wait)))
+
+            number_invalid_activations = np.sum(illegal_activating_lines)
+            if number_invalid_activations > 1:
+                timesteps_to_wait_as_str = 'resp. ' + timesteps_to_wait_as_str
+
+            raise IllegalActionException('Trying to action unactionnable line%s %s, must wait %s timesteps. ' % (
+                's' if number_invalid_activations > 1 else '',
+                non_actionnable_lines_as_str, timesteps_to_wait_as_str), illegal_activating_lines)
+        # nodes
+        activating_nodes = self.get_changed_substations(action)
+        unactionnable_nodes = self.timesteps_before_nodes_reactionable > 0
+        illegal_activating_nodes = np.logical_and(activating_nodes, unactionnable_nodes)
+        if np.any(illegal_activating_nodes):
+            timesteps_to_wait = self.timesteps_before_nodes_reactionable[illegal_activating_nodes]
+            assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
+
+            # Creates strings for log printing
+            non_actionnable_nodes_as_str = ', '.join(
+                list(map(str, np.arange(len(illegal_activating_nodes))[illegal_activating_nodes])))
+            timesteps_to_wait_as_str = ', '.join(list(map(lambda x: str(int(x)), timesteps_to_wait)))
+
+            number_invalid_activations = np.sum(illegal_activating_nodes)
+            if number_invalid_activations > 1:
+                timesteps_to_wait_as_str = 'resp. ' + timesteps_to_wait_as_str
+
+            raise IllegalActionException('Trying to action unactionnable node%s %s, must wait %s timesteps. ' % (
+                's' if number_invalid_activations > 1 else '',
+                non_actionnable_nodes_as_str, timesteps_to_wait_as_str), illegal_activating_nodes)
 
         # Compute the destination nodes of all elements + the lines service finale values: actions are switches
         prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
@@ -493,9 +551,12 @@ class Game(object):
         # Apply the newly computed destination topology to the grid
         self.grid.set_lines_status(new_lines_service)
 
-        # import pypower.api
-        # import os
-        # pypower.api.savecase(os.path.join('tmp', self.grid.filename[:-2]+'.py'), self.grid.mpc)
+        # Put activated lines as unactivable for predetermined timestep
+        has_lines_been_changed = action_lines_service == 1
+        self.timesteps_before_lines_reactionable[has_lines_been_changed] = self.n_timesteps_actionned_line_reactionable
+        # Compute and put activated nodes as unactivable for predetermined timestep
+        has_nodes_been_changed = self.get_changed_substations(action)
+        self.timesteps_before_nodes_reactionable[has_nodes_been_changed] = self.n_timesteps_actionned_node_reactionable
 
     def reset(self):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
@@ -520,19 +581,18 @@ class Game(object):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).
         """
         self.timesteps_before_lines_reconnectable = np.zeros((self.grid.n_lines,))
+        self.timesteps_before_lines_reactionable = np.zeros((self.grid.n_lines,))
+        self.timesteps_before_nodes_reactionable = np.zeros((len(self.substations_ids),))
 
         self.grid.apply_topology(self.initial_topology)
         self.grid.mpc['gen'][:, 7] = 1  # Put all prods status to 1 (ON)
         self.grid.set_lines_status(self.initial_lines_service)  # Reset lines status
-        #self.grid.discard_flows()  # Discard flows: not mandatory
 
         # Reset voltage magnitude and angles: they change when using AC mode
         self.grid.set_voltage_angles(self.initial_voltage_angles)
         self.grid.set_voltage_magnitudes(self.initial_voltage_magnitudes)
 
         self.grid.mpc = {k: v for k, v in self.grid.mpc.items() if k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}
-
-        #self.grid.set_flows_to_0()
 
     def step(self, action, _is_simulation=False):
         if _is_simulation:
@@ -545,7 +605,7 @@ class Game(object):
             if self.renderer is not None:
                 self.render(None, cascading_frame_id=-1)
         except IllegalActionException as e:
-            e.text += ' Ignoring action switches of broken lines.'
+            e.text += ' Ignoring action switches of broken/unactionable lines.'
             # If broken lines are attempted to be switched on, put the switches to 0
             illegal_lines_reconnections = e.illegal_lines_reconnections
             action.lines_status_subaction[illegal_lines_reconnections] = 0
@@ -593,6 +653,8 @@ class Game(object):
         before_topology = copy.deepcopy(self.grid.get_topology())
         before_n_timesteps_overflowed_lines = self.n_timesteps_soft_overflowed_lines
         before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
+        before_timesteps_before_lines_reactionable = self.timesteps_before_lines_reactionable
+        before_timesteps_before_nodes_reactionable = self.timesteps_before_nodes_reactionable
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
@@ -604,6 +666,8 @@ class Game(object):
             self.load_entries_from_timestep_id(before_timestep_id, silence=True)
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
+            self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
+            self.timesteps_before_nodes_reactionable = before_timesteps_before_nodes_reactionable
             return
 
         # Step the action
@@ -632,6 +696,8 @@ class Game(object):
         observation = self.grid.export_to_observation()
         # Fill additional parameters: starts with substations ids of all elements
         observation.timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
+        observation.timesteps_before_lines_reactionable = self.timesteps_before_lines_reactionable
+        observation.timesteps_before_nodes_reactionable = self.timesteps_before_nodes_reactionable
         observation.timesteps_before_planned_maintenance = self._get_planned_maintenance()
 
         current_timestep_entries = self.current_timestep_entries
@@ -719,18 +785,15 @@ class Game(object):
         substations_ids = self.grid.mpc['bus'][self.grid.n_nodes // 2:]
         # Based on the action, determine if substations has been touched (i.e. there was a topological change involved
         # in the associated substation)
-        has_been_changed = np.zeros((len(substations_ids),))
         if self.last_action is not None and cascading_frame_id is not None:
-            last_action = self.grid.get_topology().mapping_permutation(
-                self.last_action.as_array()[:-self.last_action.__len__(False)[-1]])
-            n_elements_substations = self.grid.number_elements_per_substations
-            offset = 0
-            for i, (substation_id, n_elements) in enumerate(zip(substations_ids, n_elements_substations)):
-                has_been_changed[i] = np.any([l != 0 for l in last_action[offset:offset + n_elements]])
-                offset += n_elements
+            has_been_changed = self.get_changed_substations(self.last_action)
+        else:
+            has_been_changed = np.zeros((len(substations_ids),))
 
         are_isolated_loads, are_isolated_prods, _ = self.grid._count_isolated_loads(self.grid.mpc, self.grid.are_loads)
-        number_unavailable_lines = sum(self.timesteps_before_lines_reconnectable > 0)
+        number_unavailable_lines = sum(self.timesteps_before_lines_reconnectable > 0) + \
+                                   sum(self.timesteps_before_lines_reactionable > 0)
+        number_unavailable_nodes = sum(self.timesteps_before_nodes_reactionable > 0)
 
         initial_topo = self.initial_topology
         current_topo = self.grid.get_topology()
@@ -752,12 +815,27 @@ class Game(object):
                              distance_initial_grid=distance_ref_grid,
                              number_off_lines=sum(self.grid.get_lines_status() == 0),
                              number_unavailable_lines=number_unavailable_lines,
+                             number_unactionable_nodes=number_unavailable_nodes,
                              max_number_isolated_loads=max_number_isolated_loads,
                              max_number_isolated_prods=max_number_isolated_prods,
                              game_over=game_over, cascading_frame_id=cascading_frame_id)
 
         if self.latency:
             sleep(self.latency)
+
+    def get_changed_substations(self, action):
+        """ Computes the boolean array of changed substations from an Action.
+        """
+        assert isinstance(action, Action), 'Should not happen'
+        has_been_changed = np.zeros((len(self.substations_ids),))
+        reordered_action = self.grid.get_topology().mapping_permutation(action.as_array()[:-action.__len__(False)[-1]])
+        n_elements_substations = self.grid.number_elements_per_substations
+        offset = 0
+        for i, (substation_id, n_elements) in enumerate(zip(self.substations_ids, n_elements_substations)):
+            has_been_changed[i] = np.any([l != 0 for l in reordered_action[offset:offset + n_elements]])
+            offset += n_elements
+
+        return has_been_changed.astype(bool)
 
     def parameters_environment_tostring(self):
         return self.__parameters.__str__()
