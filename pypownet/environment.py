@@ -59,7 +59,8 @@ class ActionSpace(MultiBinary):
         self.lines_or_subs_id = lines_or_subs_id
         self.lines_ex_subs_id = lines_ex_subs_id
         self._substations_n_elements = [len(
-            self.get_substation_switches(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for sub_id in self.substations_ids]
+            self.get_substation_switches(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for sub_id in
+                                        self.substations_ids]
 
     def get_do_nothing_action(self, as_class_Action=False):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
@@ -208,9 +209,9 @@ class ActionSpace(MultiBinary):
         _, elements_type = self.get_substation_switches(action, substation_id, do_concatenate=False)
         expected_configuration_size = len(elements_type)
         assert expected_configuration_size == len(new_values), 'Expected configuration of size %d for' \
-                                                                      ' substation %d, got %d' % (
-                                                                          expected_configuration_size, substation_id,
-                                                                          len(new_values))
+                                                               ' substation %d, got %d' % (
+                                                                   expected_configuration_size, substation_id,
+                                                                   len(new_values))
 
         action.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_values[
             elements_type == ElementType.PRODUCTION]
@@ -339,6 +340,12 @@ class ObservationSpace(Dict):
 
         def seek_shapes(gym_dict, shape):
             # loop through all dicts first
+            """ Computes and returns the shape of self ie the set of all its attributes shapes as a tuple of tuples.
+
+            :param gym_dict: an instance of gym Spaces
+            :param shape: a container that is recursively filled with res
+            :return: a tuple of tuples
+            """
             for k, v in gym_dict.spaces.items():
                 if isinstance(v, Dict) or isinstance(v, OrderedDict):
                     shape = seek_shapes(v, shape)
@@ -561,7 +568,7 @@ class Observation(MinimalistACObservation):
                                self.initial_loads_nodes,
                                self.initial_lines_or_nodes,
                                self.initial_lines_ex_nodes,
-                               ))
+        ))
 
     def as_ac_minimalist(self):
         return super(Observation, self)
@@ -580,7 +587,9 @@ class Observation(MinimalistACObservation):
         also returns a ElementType list of same size, where each value indicates the type of element associated to
         each first-returned list values.
         """
-        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+        assert substation_id in self.substations_ids, \
+            'Substation with id {} does not exist; available substations: {}'.format(substation_id,
+                                                                                     self.substations_ids)
 
         # Save the type of each elements in the returned nodes list
         elements_type = []
@@ -605,6 +614,40 @@ class Observation(MinimalistACObservation):
             lines_extremities_nodes), "Mistmatch lengths for elements type and nodes-value list; should not happen"
 
         return np.concatenate((prod_nodes, load_nodes, lines_origin_nodes, lines_extremities_nodes)), elements_type
+
+    def get_lines_status_of_substation(self, substation_id):
+        """ From the current observation, retrieves the list of lines status (binary) from lines connected to the input
+        substations. This function also computes and retrieve the list of ifs of ids at the other end of each
+        corresponding lines.
+
+        :param substation_id: an integer of the id of the substation to retrieve the nodes on which its elements are
+        wired
+        :return: (consistently fixed-order list of binary (0 or 1) values, list of ids of other end substations)
+        """
+        assert substation_id in self.substations_ids, \
+            'Substation with id {} does not exist; available substations: {}'.format(substation_id,
+                                                                                     self.substations_ids)
+
+        lines_status = self.lines_status
+        lines_origin_substations_ids = self.lines_or_substations_ids
+        lines_extremity_substations_ids = self.lines_ex_substations_ids
+
+        # get lines with origin or extremity at input substation
+        ori_subs_ids = lines_origin_substations_ids == substation_id
+        ext_subs_ids = lines_extremity_substations_ids == substation_id
+        are_concerned_lines = np.logical_or(ori_subs_ids, ext_subs_ids)
+        concerned_lines_status = lines_status[are_concerned_lines]
+
+        # compute output array with respected order independently of origin or extremity
+        other_end_subs_ids = []
+        for i, (ori_sub_id, ext_sub_id) in enumerate(zip(ori_subs_ids, ext_subs_ids)):
+            if ori_sub_id:
+                other_end_subs_ids.append(lines_extremity_substations_ids[i])
+            elif ext_sub_id:
+                other_end_subs_ids.append(lines_origin_substations_ids[i])
+        assert len(other_end_subs_ids) == len(concerned_lines_status)
+
+        return concerned_lines_status, list(map(int, other_end_subs_ids))
 
     def get_lines_capacity_usage(self):
         return np.divide(self.ampere_flows, self.thermal_limits)
@@ -640,7 +683,7 @@ class Observation(MinimalistACObservation):
         column_widths = [8, 8, 5, 8, 7, 7, 8, 7]
         prods_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 13) // 2) + 'PRODUCTIONS' + ' ' * (
-                               (n_symbols - 12) // 2) + '|' + '\n' + \
+                           (n_symbols - 12) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
         prods_header += ' |                 | is  |         Current        | Previsions t+1 |\n'
         prods_header += ' |' + ' |'.join(
