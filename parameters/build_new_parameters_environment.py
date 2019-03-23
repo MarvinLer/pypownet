@@ -74,7 +74,7 @@ for i in range(n_levels):
     open(os.path.join(level_path, 'configuration.yaml'), 'w').write(configuration_file_template)
     os.makedirs(os.path.join(level_path, 'chronics/'))
     if i == 0:
-        of = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.m'))
+        of, mpc = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.m'))
     else:
         shutil.copy(of, os.path.join(level_path, 'reference_grid.m'))
 

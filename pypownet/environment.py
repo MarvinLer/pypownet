@@ -11,8 +11,11 @@ import pypownet.game
 
 
 class IllegalActionException(pypownet.game.IllegalActionException):
-    def __init__(self, text, illegal_lines_reconnections, *args):
-        super(IllegalActionException, self).__init__(text, illegal_lines_reconnections, *args)
+    def __init__(self, text, illegal_lines_reconnections, illegal_unavailable_lines_switches,
+                 illegal_oncoolown_substations_switches, *args):
+        super(IllegalActionException, self).__init__(text, illegal_lines_reconnections,
+                                                     illegal_unavailable_lines_switches,
+                                                     illegal_oncoolown_substations_switches, *args)
 
 
 # Wrappers for the exceptions of the game module
@@ -266,7 +269,7 @@ class ObservationSpace(Dict):
                     ('lines_status', MultiBinary(n=number_power_lines)),
                     ('timesteps_before_lines_reconnectable', Box(0, np.inf, (number_power_lines,), np.int32)),
                     ('timesteps_before_lines_reactionable', Box(0, np.inf, (number_power_lines,), np.int32)),
-                    ('timesteps_before_nodes_reactionable', Box(0, np.inf, (self.grid_number_of_elements,), np.int32)),
+                    ('timesteps_before_nodes_reactionable', Box(0, np.inf, (self.number_substations,), np.int32)),
                     ('timesteps_before_planned_maintenance', Box(0, np.inf, (number_power_lines,), np.int32)),
 
                     ('date_year', Discrete(3000)),
@@ -314,6 +317,10 @@ class ObservationSpace(Dict):
         super().__init__(dict_spaces)
 
         def seek_shapes(gym_dict, shape):
+            """
+            Recursively finds Spaces shape within input dictionary and stored res in input shape container
+            :return: flatten shape ie list of tuples
+            """
             # loop through all dicts first
             for k, v in gym_dict.spaces.items():
                 if isinstance(v, Dict) or isinstance(v, OrderedDict):
@@ -321,6 +328,7 @@ class ObservationSpace(Dict):
             # then save shapes
             for k, v in gym_dict.spaces.items():
                 if not (isinstance(v, Dict) or isinstance(v, OrderedDict)):
+                    print(k, (v.shape,))
                     shape += (v.shape,) if not isinstance(v, Discrete) else ((1,),)
 
             return shape
@@ -781,7 +789,9 @@ class RunEnv(object):
         elif isinstance(flag, pypownet.game.TooManyProductionsCut):
             return TooManyProductionsCut(flag.text)
         elif isinstance(flag, pypownet.game.IllegalActionException):
-            return IllegalActionException(flag.text, flag.illegal_lines_reconnections)
+            return IllegalActionException(flag.text, flag.illegal_broken_lines_reconnections,
+                                          flag.illegal_oncooldown_lines_switches,
+                                          flag.get_illegal_oncoolown_substations_switches)
         else:
             return flag
 

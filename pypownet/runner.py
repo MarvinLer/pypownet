@@ -63,7 +63,7 @@ class Runner(object):
         :param observation: input observation to be given to the agent
         :return: (new observation, action taken, reward received)
         """
-        self.logger.debug('observation: ' + str(observation))
+        self.logger.debug('observation: ' + str(self.environment.observation_space.array_to_observation(observation)))
         action = self.agent.act(observation)
 
         # Update the environment with the chosen action

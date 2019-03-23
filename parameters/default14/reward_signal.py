@@ -44,7 +44,7 @@ class CustomRewardSignal(pypownet.reward_signal.RewardSignal):
                 # If some broken lines are attempted to be switched on, put the switches to 0, and add penalty to
                 # the reward consequent to the newly submitted action
                 reward_aslist = self.compute_reward(observation, action, flag=None)
-                n_illegal_reconnections = np.sum(flag.illegal_lines_reconnections)
+                n_illegal_reconnections = np.sum(flag.illegal_broken_lines_reconnections)
                 illegal_reconnections_subreward = self.multiplicative_factor_number_illegal_lines_reconnection * \
                                                   n_illegal_reconnections
                 reward_aslist[2] += illegal_reconnections_subreward

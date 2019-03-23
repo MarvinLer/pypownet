@@ -39,6 +39,25 @@ class Agent(object):
 import numpy as np
 
 
+class TMP(Agent):
+    """
+    An example of a baseline controler that produce random actions (ie random line switches and random node switches.
+    """
+
+    def __init__(self, environment):
+        super().__init__(environment)
+
+        self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
+
+    def act(self, observation):
+        action = self.environment.action_space.get_do_nothing_action(True)
+        self.environment.action_space.set_lines_status_switch_from_id(action, 0, 1)
+        # # or
+        # action_length = self.environment.action_space.n
+        # action = np.random.choice([0, 1], action_length)
+        return action
+
+
 class RandomAction(Agent):
     """
     An example of a baseline controler that produce random actions (ie random line switches and random node switches.

@@ -23,6 +23,8 @@ def main(grid_path, output_file=None):
     mpc['branch'][:, 0] = [np.where(substations_ids == sub_id)[0][0] + 1 for sub_id in mpc['branch'][:, 0]]
     mpc['branch'][:, 1] = [np.where(substations_ids == sub_id)[0][0] + 1 for sub_id in mpc['branch'][:, 1]]
 
+    preartificial_mpc = copy.deepcopy(mpc)
+
     # Add artificial nodes
     artificial_buses = copy.deepcopy(mpc['bus'])
     artificial_buses[:, 0] = list(map(float,
@@ -45,11 +47,12 @@ def main(grid_path, output_file=None):
 
     output_file = os.path.join(os.path.dirname(input_file), 'reference_grid.m') if output_file is None else output_file
     octave.savecase(output_file, mpc)
-    return output_file
+    return output_file, preartificial_mpc
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('usage: python -m pypownet.%s caseZZZ.m' % os.path.basename(__file__)[:-3])
     input_file = sys.argv[1]
-    output_file = main(input_file)
+    output_file, mpc = main(input_file)
     print('created file', output_file)
