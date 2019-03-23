@@ -3,10 +3,11 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import pypownet.environment
+from abc import ABC, abstractmethod
 
 
-class Agent(object):
-    """ The template to be used to create an agent: any controler of the power grid is expected to be a daughter of this
+class Agent(ABC):
+    """ The template to be used to create an agent: any controller of the power grid is expected to be a daughter of this
     class.
     """
 
@@ -15,25 +16,23 @@ class Agent(object):
         assert isinstance(environment, pypownet.environment.RunEnv)
         self.environment = environment
 
+    @abstractmethod
     def act(self, observation):
         """Produces an action given an observation of the environment.
 
-        Takes as argument an observation of the current state, and returns the chosen action."""
-        if not isinstance(observation, pypownet.environment.Observation):
-            try:
-                observation = self.environment.observation_space.array_to_observation(observation)
-            except Exception as e:
-                raise e
-        # Sanity check: an observation is a structured object defined in the environment file or a numpy array
-        assert isinstance(observation, pypownet.environment.Observation)
-
-        # Implement your policy here.
-        do_nothing_action = self.environment.action_space.get_do_nothing_action()
-
-        return do_nothing_action
+        Takes as argument an observation of the current state, and returns the chosen action of class Action or np
+        array."""
+        pass
 
     def feed_reward(self, action, consequent_observation, rewards_aslist):
         pass
+
+
+class DoNothing(Agent):
+    def act(self, observation):
+        action_length = self.environment.action_space.action_length
+        return np.zeros(action_length)
+
 
 # Examples of baselines agents
 import numpy as np
@@ -102,7 +101,8 @@ class RandomLineSwitch(Agent):
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
         action_space.set_lines_status_switch_from_id(action=action,
-                                                     line_id=np.random.randint(action_space.lines_status_subaction_length),
+                                                     line_id=np.random.randint(
+                                                         action_space.lines_status_subaction_length),
                                                      new_switch_value=1)
 
         # Dump best action into stored actions file
@@ -358,7 +358,7 @@ class ActIOnManager(object):
 
     def dump(self, action):
         with open(self.destination_path, 'a') as f:
-            f.write(','.join([str(int(switch)) for switch in action.as_array()]) + '\n')
+            f.write('{}\n'.format(action))
 
     @staticmethod
     def load(filepath):
