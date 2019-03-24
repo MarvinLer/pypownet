@@ -59,7 +59,8 @@ class ActionSpace(MultiBinary):
         self.lines_or_subs_id = lines_or_subs_id
         self.lines_ex_subs_id = lines_ex_subs_id
         self._substations_n_elements = [len(
-            self.get_substation_switches(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for sub_id in
+            self.get_substation_switches_in_action(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for
+                                        sub_id in
                                         self.substations_ids]
 
     def get_do_nothing_action(self, as_class_Action=False):
@@ -68,11 +69,13 @@ class ActionSpace(MultiBinary):
 
         :return: an instance of pypownet.game.Action that is equivalent to an action doing nothing
         """
-        action = pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
-                                      loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
-                                      lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
-                                      lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
-                                      lines_status_subaction=np.zeros(self.lines_status_subaction_length))
+        action = pypownet.game.Action(np.zeros(self.prods_switches_subaction_length),
+                                      np.zeros(self.loads_switches_subaction_length),
+                                      np.zeros(self.lines_or_switches_subaction_length),
+                                      np.zeros(self.lines_ex_switches_subaction_length),
+                                      np.zeros(self.lines_status_subaction_length), self.substations_ids,
+                                      self.prods_subs_ids, self.loads_subs_ids, self.lines_or_subs_id,
+                                      self.lines_ex_subs_id, ElementType)
         return action if as_class_Action else action.as_array()
 
     def array_to_action(self, array):
@@ -82,6 +85,9 @@ class ActionSpace(MultiBinary):
         :return: an instance of pypownet.game.Action equivalent to input action
         :raise ValueError: the input array is not of the same length than the expected action (self.action_length)
         """
+        if isinstance(array, pypownet.game.Action):
+            return array
+
         if len(array) != self.action_length:
             raise ValueError('Expected action as a binary array of length %d, '
                              'got %d' % (self.action_length, len(array)))
@@ -96,11 +102,11 @@ class ActionSpace(MultiBinary):
         lines_ex_switches_subaction = array[offset:offset + self.lines_ex_switches_subaction_length]
         lines_status_subaction = array[-self.lines_status_subaction_length:]
 
-        return pypownet.game.Action(prods_switches_subaction=prods_switches_subaction,
-                                    loads_switches_subaction=loads_switches_subaction,
-                                    lines_or_switches_subaction=lines_or_switches_subaction,
-                                    lines_ex_switches_subaction=lines_ex_switches_subaction,
-                                    lines_status_subaction=lines_status_subaction)
+        return pypownet.game.Action(prods_switches_subaction, loads_switches_subaction,
+                                    lines_or_switches_subaction, lines_ex_switches_subaction,
+                                    lines_status_subaction, self.substations_ids,
+                                    self.prods_subs_ids, self.loads_subs_ids, self.lines_or_subs_id,
+                                    self.lines_ex_subs_id, ElementType)
 
     def _verify_action_shape(self, action):
         if action is None:
@@ -138,7 +144,7 @@ class ActionSpace(MultiBinary):
     def get_number_elements_of_substation(self, substation_id):
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
-    def get_substation_switches(self, action, substation_id, do_concatenate=True):
+    def get_substation_switches_in_action(self, action, substation_id, concatenated_output=True):
         """ From the input action, retrieves the list of value of the switch (0 or 1) of the switches on which each
         element of the substation with input id. This function also computes the type of element associated to each
         switch value of the returned switches-value list.
@@ -146,6 +152,7 @@ class ActionSpace(MultiBinary):
         :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
         input action.
+        :param concatenated_output: False to return an array per elementype, True to return a single concatenated array
         :return: a switch-values list (binary list) in the order: production (<=1), loads (<=1), lines origins, lines
         extremities; also returns a ElementType list of same size, where each value indicates the type of element
         associated to each first-returned list values.
@@ -181,12 +188,14 @@ class ActionSpace(MultiBinary):
             lines_extremities_switches), "Mistmatch lengths for elements type and switches-value list; should not happen"
 
         return np.concatenate((prod_switches, load_switches, lines_origins_switches,
-                               lines_extremities_switches)) if do_concatenate else \
+                               lines_extremities_switches)) if concatenated_output else \
                    (prod_switches, load_switches, lines_origins_switches, lines_extremities_switches), \
                np.asarray(elements_type)
 
-    def set_substation_switches(self, action, substation_id, new_values):
-        """ Replaces the switches (binary) values of the input substation in the input action with the new specified
+    def set_substation_switches_in_action(self, action, substation_id, new_values):
+        """
+
+        Replaces the switches (binary) values of the input substation in the input action with the new specified
         values. Note that the  mapping between the new values and the elements of the considered substation are the
         same as the one retrieved by the opposite function self.get_substation_switches. Consequently, the length of the
         array new_values is len(self.get_substation_switches(action, substation_id)[1]).
@@ -194,9 +203,8 @@ class ActionSpace(MultiBinary):
         :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
         input action
-        :return: a switch-values list (binary list) in the order: production (<=1), loads (<=1), lines origins, lines
-        extremities; also returns a ElementType list of same size, where each value indicates the type of element
-        associated to each first-returned list values.
+        :return: the modified action; /!\ WARNING /!\: the input action is not modified in place if of array type: ensure that
+        you catch the returned action as the modified action.
         """
         if not isinstance(action, pypownet.game.Action):
             try:
@@ -206,10 +214,10 @@ class ActionSpace(MultiBinary):
 
         new_values = np.asarray(new_values)
 
-        _, elements_type = self.get_substation_switches(action, substation_id, do_concatenate=False)
+        _, elements_type = self.get_substation_switches_in_action(action, substation_id, concatenated_output=False)
         expected_configuration_size = len(elements_type)
-        assert expected_configuration_size == len(new_values), 'Expected configuration of size %d for' \
-                                                               ' substation %d, got %d' % (
+        assert expected_configuration_size == len(new_values), 'Expected new_values of size %d for' \
+                                                               ' substation %d, got size %d' % (
                                                                    expected_configuration_size, substation_id,
                                                                    len(new_values))
 
@@ -222,8 +230,7 @@ class ActionSpace(MultiBinary):
         action.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_values[
             elements_type == ElementType.EXTREMITY_POWER_LINE]
 
-        assert np.all(self.get_substation_switches(action, substation_id)[0] == new_values), \
-            "Should not happen"
+        return action
 
     def get_lines_status_switches_of_substation(self, action, substation_id):
         assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
@@ -239,7 +246,7 @@ class ActionSpace(MultiBinary):
     def set_lines_status_switches_of_substation(self, action, substation_id, new_configuration):
         new_configuration = np.asarray(new_configuration)
 
-        lines_status_switches = self.get_substation_switches(action, substation_id)
+        lines_status_switches = self.get_substation_switches_in_action(action, substation_id)
         expected_configuration_size = len(lines_status_switches)
         assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
                                                                       ' substation %d, got %d' % (

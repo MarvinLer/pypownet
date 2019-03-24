@@ -145,11 +145,11 @@ class RandomNodeSplitting(Agent):
         # Choses a new switch configuration (binary array)
         target_configuration = np.random.choice([0, 1], size=(expected_target_configuration_size,))
 
-        action_space.set_substation_switches(action=action, substation_id=target_substation_id,
-                                             new_values=target_configuration)
+        action_space.set_substation_switches_in_action(action=action, substation_id=target_substation_id,
+                                                       new_values=target_configuration)
 
         # Ensure changes have been done on action
-        current_configuration, _ = action_space.get_substation_switches(action, target_substation_id)
+        current_configuration, _ = action_space.get_substation_switches_in_action(action, target_substation_id)
         assert np.all(current_configuration == target_configuration)
 
         # Dump best action into stored actions file
@@ -296,8 +296,8 @@ class GreedySearch(Agent):
                             substation_id, repr(new_configuration)), end='')
                     # Construct action
                     action = action_space.get_do_nothing_action(as_class_Action=True)
-                    action_space.set_substation_switches(action=action, substation_id=substation_id,
-                                                         new_values=new_configuration)
+                    action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
+                                                                   new_values=new_configuration)
                     reward_aslist = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
