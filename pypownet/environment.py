@@ -61,8 +61,10 @@ class ActionSpace(MultiBinary):
         self.loads_subs_ids = loads_subs_ids
         self.lines_or_subs_id = lines_or_subs_id
         self.lines_ex_subs_id = lines_ex_subs_id
-        self._substations_n_elements = [len(self.get_switches_configuration_of_substation(
-            self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for sub_id in self.substations_ids]
+        self._substations_n_elements = [len(
+            self.get_substation_switches_in_action(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for
+                                        sub_id in
+                                        self.substations_ids]
 
     def get_do_nothing_action(self, as_class_Action=False):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
@@ -70,11 +72,13 @@ class ActionSpace(MultiBinary):
 
         :return: an instance of pypownet.game.Action that is equivalent to an action doing nothing
         """
-        action = pypownet.game.Action(prods_switches_subaction=np.zeros(self.prods_switches_subaction_length),
-                                      loads_switches_subaction=np.zeros(self.loads_switches_subaction_length),
-                                      lines_or_switches_subaction=np.zeros(self.lines_or_switches_subaction_length),
-                                      lines_ex_switches_subaction=np.zeros(self.lines_ex_switches_subaction_length),
-                                      lines_status_subaction=np.zeros(self.lines_status_subaction_length))
+        action = pypownet.game.Action(np.zeros(self.prods_switches_subaction_length),
+                                      np.zeros(self.loads_switches_subaction_length),
+                                      np.zeros(self.lines_or_switches_subaction_length),
+                                      np.zeros(self.lines_ex_switches_subaction_length),
+                                      np.zeros(self.lines_status_subaction_length), self.substations_ids,
+                                      self.prods_subs_ids, self.loads_subs_ids, self.lines_or_subs_id,
+                                      self.lines_ex_subs_id, ElementType)
         return action if as_class_Action else action.as_array()
 
     def array_to_action(self, array):
@@ -84,6 +88,9 @@ class ActionSpace(MultiBinary):
         :return: an instance of pypownet.game.Action equivalent to input action
         :raise ValueError: the input array is not of the same length than the expected action (self.action_length)
         """
+        if isinstance(array, pypownet.game.Action):
+            return array
+
         if len(array) != self.action_length:
             raise ValueError('Expected action as a binary array of length %d, '
                              'got %d' % (self.action_length, len(array)))
@@ -98,11 +105,11 @@ class ActionSpace(MultiBinary):
         lines_ex_switches_subaction = array[offset:offset + self.lines_ex_switches_subaction_length]
         lines_status_subaction = array[-self.lines_status_subaction_length:]
 
-        return pypownet.game.Action(prods_switches_subaction=prods_switches_subaction,
-                                    loads_switches_subaction=loads_switches_subaction,
-                                    lines_or_switches_subaction=lines_or_switches_subaction,
-                                    lines_ex_switches_subaction=lines_ex_switches_subaction,
-                                    lines_status_subaction=lines_status_subaction)
+        return pypownet.game.Action(prods_switches_subaction, loads_switches_subaction,
+                                    lines_or_switches_subaction, lines_ex_switches_subaction,
+                                    lines_status_subaction, self.substations_ids,
+                                    self.prods_subs_ids, self.loads_subs_ids, self.lines_or_subs_id,
+                                    self.lines_ex_subs_id, ElementType)
 
     def _verify_action_shape(self, action):
         if action is None:
@@ -140,18 +147,27 @@ class ActionSpace(MultiBinary):
     def get_number_elements_of_substation(self, substation_id):
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
-    def get_switches_configuration_of_substation(self, action, substation_id, do_concatenate=True):
-        """ From the current action, retrieves the list of value of the switch (0 or 1) of the switches on which each
+    def get_substation_switches_in_action(self, action, substation_id, concatenated_output=True):
+        """ From the input action, retrieves the list of value of the switch (0 or 1) of the switches on which each
         element of the substation with input id. This function also computes the type of element associated to each
         switch value of the returned switches-value list.
 
+        :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
-        input action
+        input action.
+        :param concatenated_output: False to return an array per elementype, True to return a single concatenated array
         :return: a switch-values list (binary list) in the order: production (<=1), loads (<=1), lines origins, lines
         extremities; also returns a ElementType list of same size, where each value indicates the type of element
         associated to each first-returned list values.
         """
+        if not isinstance(action, pypownet.game.Action):
+            try:
+                action = self.array_to_action(action)
+            except ValueError as e:
+                raise e
+
         assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
 
         # Save the type of each elements in the returned switches list
         elements_type = []
@@ -175,31 +191,49 @@ class ActionSpace(MultiBinary):
             lines_extremities_switches), "Mistmatch lengths for elements type and switches-value list; should not happen"
 
         return np.concatenate((prod_switches, load_switches, lines_origins_switches,
-                               lines_extremities_switches)) if do_concatenate else \
+                               lines_extremities_switches)) if concatenated_output else \
                    (prod_switches, load_switches, lines_origins_switches, lines_extremities_switches), \
                np.asarray(elements_type)
 
-    def set_switches_configuration_of_substation(self, action, substation_id, new_configuration):
-        new_configuration = np.asarray(new_configuration)
+    def set_substation_switches_in_action(self, action, substation_id, new_values):
+        """
 
-        _, elements_type = self.get_switches_configuration_of_substation(action, substation_id, do_concatenate=False)
+        Replaces the switches (binary) values of the input substation in the input action with the new specified
+        values. Note that the  mapping between the new values and the elements of the considered substation are the
+        same as the one retrieved by the opposite function self.get_substation_switches. Consequently, the length of the
+        array new_values is len(self.get_substation_switches(action, substation_id)[1]).
+
+        :param action: input action whether a numpy array or an element of class pypownet.game.Action.
+        :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
+        input action
+        :return: the modified action; /!\ WARNING /!\: the input action is not modified in place if of array type: ensure that
+        you catch the returned action as the modified action.
+        """
+        if not isinstance(action, pypownet.game.Action):
+            try:
+                action = self.array_to_action(action)
+            except ValueError as e:
+                raise e
+
+        new_values = np.asarray(new_values)
+
+        _, elements_type = self.get_substation_switches_in_action(action, substation_id, concatenated_output=False)
         expected_configuration_size = len(elements_type)
-        assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
-                                                                      ' substation %d, got %d' % (
-                                                                          expected_configuration_size, substation_id,
-                                                                          len(new_configuration))
+        assert expected_configuration_size == len(new_values), 'Expected new_values of size %d for' \
+                                                               ' substation %d, got size %d' % (
+                                                                   expected_configuration_size, substation_id,
+                                                                   len(new_values))
 
-        action.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_configuration[
+        action.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_values[
             elements_type == ElementType.PRODUCTION]
-        action.loads_switches_subaction[self.loads_subs_ids == substation_id] = new_configuration[
+        action.loads_switches_subaction[self.loads_subs_ids == substation_id] = new_values[
             elements_type == ElementType.CONSUMPTION]
-        action.lines_or_switches_subaction[self.lines_or_subs_id == substation_id] = new_configuration[
+        action.lines_or_switches_subaction[self.lines_or_subs_id == substation_id] = new_values[
             elements_type == ElementType.ORIGIN_POWER_LINE]
-        action.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_configuration[
+        action.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_values[
             elements_type == ElementType.EXTREMITY_POWER_LINE]
 
-        assert np.all(self.get_switches_configuration_of_substation(action, substation_id)[0] == new_configuration), \
-            "Should not happen"
+        return action
 
     def get_lines_status_switches_of_substation(self, action, substation_id):
         assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
@@ -215,7 +249,7 @@ class ActionSpace(MultiBinary):
     def set_lines_status_switches_of_substation(self, action, substation_id, new_configuration):
         new_configuration = np.asarray(new_configuration)
 
-        lines_status_switches = self.get_switches_configuration_of_substation(action, substation_id)
+        lines_status_switches = self.get_substation_switches_in_action(action, substation_id)
         expected_configuration_size = len(lines_status_switches)
         assert expected_configuration_size == len(new_configuration), 'Expected configuration of size %d for' \
                                                                       ' substation %d, got %d' % (
@@ -322,6 +356,12 @@ class ObservationSpace(Dict):
             :return: flatten shape ie list of tuples
             """
             # loop through all dicts first
+            """ Computes and returns the shape of self ie the set of all its attributes shapes as a tuple of tuples.
+
+            :param gym_dict: an instance of gym Spaces
+            :param shape: a container that is recursively filled with res
+            :return: a tuple of tuples
+            """
             for k, v in gym_dict.spaces.items():
                 if isinstance(v, Dict) or isinstance(v, OrderedDict):
                     shape = seek_shapes(v, shape)
@@ -553,7 +593,8 @@ class Observation(MinimalistACObservation):
                                self.initial_productions_nodes,
                                self.initial_loads_nodes,
                                self.initial_lines_or_nodes,
-                               self.initial_lines_ex_nodes,))
+                               self.initial_lines_ex_nodes,
+        ))
 
     def as_ac_minimalist(self):
         return super(Observation, self)
@@ -572,7 +613,9 @@ class Observation(MinimalistACObservation):
         also returns a ElementType list of same size, where each value indicates the type of element associated to
         each first-returned list values.
         """
-        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+        assert substation_id in self.substations_ids, \
+            'Substation with id {} does not exist; available substations: {}'.format(substation_id,
+                                                                                     self.substations_ids)
 
         # Save the type of each elements in the returned nodes list
         elements_type = []
@@ -597,6 +640,40 @@ class Observation(MinimalistACObservation):
             lines_extremities_nodes), "Mistmatch lengths for elements type and nodes-value list; should not happen"
 
         return np.concatenate((prod_nodes, load_nodes, lines_origin_nodes, lines_extremities_nodes)), elements_type
+
+    def get_lines_status_of_substation(self, substation_id):
+        """ From the current observation, retrieves the list of lines status (binary) from lines connected to the input
+        substations. This function also computes and retrieve the list of ifs of ids at the other end of each
+        corresponding lines.
+
+        :param substation_id: an integer of the id of the substation to retrieve the nodes on which its elements are
+        wired
+        :return: (consistently fixed-order list of binary (0 or 1) values, list of ids of other end substations)
+        """
+        assert substation_id in self.substations_ids, \
+            'Substation with id {} does not exist; available substations: {}'.format(substation_id,
+                                                                                     self.substations_ids)
+
+        lines_status = self.lines_status
+        lines_origin_substations_ids = self.lines_or_substations_ids
+        lines_extremity_substations_ids = self.lines_ex_substations_ids
+
+        # get lines with origin or extremity at input substation
+        ori_subs_ids = lines_origin_substations_ids == substation_id
+        ext_subs_ids = lines_extremity_substations_ids == substation_id
+        are_concerned_lines = np.logical_or(ori_subs_ids, ext_subs_ids)
+        concerned_lines_status = lines_status[are_concerned_lines]
+
+        # compute output array with respected order independently of origin or extremity
+        other_end_subs_ids = []
+        for i, (ori_sub_id, ext_sub_id) in enumerate(zip(ori_subs_ids, ext_subs_ids)):
+            if ori_sub_id:
+                other_end_subs_ids.append(lines_extremity_substations_ids[i])
+            elif ext_sub_id:
+                other_end_subs_ids.append(lines_origin_substations_ids[i])
+        assert len(other_end_subs_ids) == len(concerned_lines_status)
+
+        return concerned_lines_status, list(map(int, other_end_subs_ids))
 
     def get_lines_capacity_usage(self):
         return np.divide(self.ampere_flows, self.thermal_limits)
@@ -632,7 +709,7 @@ class Observation(MinimalistACObservation):
         column_widths = [8, 8, 5, 8, 7, 7, 8, 7]
         prods_header = ' ' + '=' * n_symbols + '\n' + \
                        ' |' + ' ' * ((n_symbols - 13) // 2) + 'PRODUCTIONS' + ' ' * (
-                               (n_symbols - 12) // 2) + '|' + '\n' + \
+                           (n_symbols - 12) // 2) + '|' + '\n' + \
                        ' ' + '=' * n_symbols + '\n'
         prods_header += ' |                 | is  |         Current        | Previsions t+1 |\n'
         prods_header += ' |' + ' |'.join(

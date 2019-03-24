@@ -70,7 +70,9 @@ class ListExceptions(Exception):
 
 class Action(object):
     def __init__(self, prods_switches_subaction, loads_switches_subaction,
-                 lines_or_switches_subaction, lines_ex_switches_subaction, lines_status_subaction):
+                 lines_or_switches_subaction, lines_ex_switches_subaction, lines_status_subaction,
+                 substations_ids, prods_subs_ids, loads_subs_ids, lines_or_subs_id, lines_ex_subs_id,
+                 elementtype):
         if prods_switches_subaction is None:
             raise ValueError('Expected prods_switches_subaction to be array, got None')
         if loads_switches_subaction is None:
@@ -93,6 +95,13 @@ class Action(object):
         self._lines_or_switches_length = len(self.lines_or_switches_subaction)
         self._lines_ex_switches_length = len(self.lines_ex_switches_subaction)
         self._lines_status_length = len(self.lines_status_subaction)
+
+        self.substations_ids = substations_ids
+        self.prods_subs_ids = prods_subs_ids
+        self.loads_subs_ids = loads_subs_ids
+        self.lines_or_subs_id = lines_or_subs_id
+        self.lines_ex_subs_id = lines_ex_subs_id
+        self.elementtype = elementtype  # should be class enumerating the types of elements
 
     def get_prods_switches_subaction(self):
         return self.prods_switches_subaction
@@ -125,6 +134,56 @@ class Action(object):
 
     def get_lines_status_subaction(self):
         return self.lines_status_subaction
+
+    def get_substation_switches(self, substation_id, concatenated_output=True):
+        assert substation_id in self.substations_ids, 'Substation with id %d does not exist' % substation_id
+
+        # Save the type of each elements in the returned switches list
+        elements_type = []
+
+        # Retrieve switches associated with resp. production (max 1 per substation), consumptions (max 1 per substation),
+        # origins of lines, extremities of lines; also saves each type inserted within the switches-values list
+        prod_switches = self.prods_switches_subaction[
+            np.where(self.prods_subs_ids == substation_id)] if substation_id in self.prods_subs_ids else []
+        elements_type.extend([self.elementtype.PRODUCTION] * len(prod_switches))
+        load_switches = self.loads_switches_subaction[
+            np.where(self.loads_subs_ids == substation_id)] if substation_id in self.loads_subs_ids else []
+        elements_type.extend([self.elementtype.CONSUMPTION] * len(load_switches))
+        lines_origins_switches = self.lines_or_switches_subaction[
+            np.where(self.lines_or_subs_id == substation_id)] if substation_id in self.lines_or_subs_id else []
+        elements_type.extend([self.elementtype.ORIGIN_POWER_LINE] * len(lines_origins_switches))
+        lines_extremities_switches = self.lines_ex_switches_subaction[
+            np.where(self.lines_ex_subs_id == substation_id)] if substation_id in self.lines_ex_subs_id else []
+        elements_type.extend([self.elementtype.EXTREMITY_POWER_LINE] * len(lines_extremities_switches))
+
+        assert len(elements_type) == len(prod_switches) + len(load_switches) + len(lines_origins_switches) + len(
+            lines_extremities_switches), "Mistmatch lengths for elements type and switches-value list; should not happen"
+
+        return np.concatenate((prod_switches, load_switches, lines_origins_switches,
+                               lines_extremities_switches)) if concatenated_output else \
+                   (prod_switches, load_switches, lines_origins_switches, lines_extremities_switches), \
+               np.asarray(elements_type)
+
+    def set_substation_switches(self, substation_id, new_values):
+        new_values = np.asarray(new_values)
+
+        _, elements_type = self.get_substation_switches(substation_id, concatenated_output=False)
+        expected_configuration_size = len(elements_type)
+        assert expected_configuration_size == len(new_values), 'Expected new_values of size %d for' \
+                                                               ' substation %d, got size %d' % (
+                                                                   expected_configuration_size, substation_id,
+                                                                   len(new_values))
+
+        self.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_values[
+            elements_type == self.elementtype.PRODUCTION]
+        self.loads_switches_subaction[self.loads_subs_ids == substation_id] = new_values[
+            elements_type == self.elementtype.CONSUMPTION]
+        self.lines_or_switches_subaction[self.lines_or_subs_id == substation_id] = new_values[
+            elements_type == self.elementtype.ORIGIN_POWER_LINE]
+        self.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_values[
+            elements_type == self.elementtype.EXTREMITY_POWER_LINE]
+
+        return self
 
     def as_array(self):
         return np.concatenate((self.get_node_splitting_subaction(), self.get_lines_status_subaction(),))
