@@ -25,7 +25,9 @@ class CustomRewardSignal(RewardSignal):
         self.loadflow_exception_reward = -constant
 
         # Multiplicative factor for the total number of illegal lines reconnections
-        self.multiplicative_factor_number_illegal_lines_reconnection = -constant / 100.
+        self.multiplicative_factor_number_illegal_broken_line_switch = -constant / 100.
+        self.multiplicative_factor_number_illegal_oncooldown_line_switch = -constant / 100.
+        self.multiplicative_factor_number_illegal_oncooldown_substation_switch = -constant / 100.
 
         # Reward when the maximum number of isolated loads or prods are exceeded
         self.too_many_productions_cut = -constant
@@ -41,13 +43,38 @@ class CustomRewardSignal(RewardSignal):
             if isinstance(flag, pypownet.environment.DivergingLoadflowException):
                 reward_aslist = [0., 0., -self.__get_action_cost(action), self.loadflow_exception_reward, 0.]
             elif isinstance(flag, pypownet.environment.IllegalActionException):
-                # If some broken lines are attempted to be switched on, put the switches to 0, and add penalty to
-                # the reward consequent to the newly submitted action
+                # If some broken lines are attempted to be switched on, first recall this function with flag None to get
+                # the list of rewards, then add penalty for each illegal moves of the input flag
                 reward_aslist = self.compute_reward(observation, action, flag=None)
-                n_illegal_reconnections = np.sum(flag.illegal_broken_lines_reconnections)
-                illegal_reconnections_subreward = self.multiplicative_factor_number_illegal_lines_reconnection * \
-                                                  n_illegal_reconnections
-                reward_aslist[2] += illegal_reconnections_subreward
+
+                # illegal broken/maintenance lines reconnexions
+                if flag.get_illegal_broken_lines_reconnections() is not None:
+                    n_illegal_lines_reconnexions = np.sum(flag.get_illegal_broken_lines_reconnections())
+                    illegal_lines_reconnexions_subreward = \
+                        self.multiplicative_factor_number_illegal_broken_line_switch * n_illegal_lines_reconnexions
+                else:
+                    illegal_lines_reconnexions_subreward = 0
+                # illegal on-cooldown lines switches
+                if flag.get_illegal_oncoolown_lines_switches() is not None:
+                    n_illegal_oncooldown_lines_switches = np.sum(flag.get_illegal_oncoolown_lines_switches())
+                    illegal_oncooldown_lines_switches_subreward = \
+                        self.multiplicative_factor_number_illegal_oncooldown_line_switch * n_illegal_oncooldown_lines_switches
+                else:
+                    illegal_oncooldown_lines_switches_subreward = 0
+                # illegal on-cooldown substations switches
+                if flag.get_illegal_oncoolown_substations_switches() is not None:
+                    n_illegal_oncooldown_substations_switches = np.sum(
+                        flag.get_illegal_oncoolown_substations_switches())
+                    illegal_oncooldown_substations_switches_subreward = \
+                        self.multiplicative_factor_number_illegal_oncooldown_substation_switch * n_illegal_oncooldown_substations_switches
+                else:
+                    illegal_oncooldown_substations_switches_subreward = 0
+
+                # Sum all illegal moves subrewards
+                illegal_moves_subreward = illegal_lines_reconnexions_subreward + \
+                                          illegal_oncooldown_lines_switches_subreward + \
+                                          illegal_oncooldown_substations_switches_subreward
+                reward_aslist[2] += illegal_moves_subreward
             elif isinstance(flag, pypownet.environment.TooManyProductionsCut):
                 reward_aslist = [0., self.too_many_productions_cut, 0., 0., 0.]
             elif isinstance(flag, pypownet.environment.TooManyConsumptionsCut):

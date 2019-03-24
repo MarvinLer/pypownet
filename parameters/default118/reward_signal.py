@@ -66,9 +66,6 @@ class CustomRewardSignal(RewardSignal):
                 if flag.get_illegal_oncoolown_substations_switches() is not None:
                     n_illegal_oncooldown_substations_switches = np.sum(
                         flag.get_illegal_oncoolown_substations_switches())
-                    print(flag.get_illegal_oncoolown_substations_switches()())
-                    print(n_illegal_oncooldown_substations_switches)
-                    print(self.multiplicative_factor_number_illegal_oncooldown_substation_switch)
                     illegal_oncooldown_substations_switches_subreward = \
                         self.multiplicative_factor_number_illegal_oncooldown_substation_switch * n_illegal_oncooldown_substations_switches
                 else:

@@ -351,24 +351,19 @@ class ObservationSpace(Dict):
         super().__init__(dict_spaces)
 
         def seek_shapes(gym_dict, shape):
-            """
-            Recursively finds Spaces shape within input dictionary and stored res in input shape container
-            :return: flatten shape ie list of tuples
-            """
-            # loop through all dicts first
             """ Computes and returns the shape of self ie the set of all its attributes shapes as a tuple of tuples.
 
             :param gym_dict: an instance of gym Spaces
             :param shape: a container that is recursively filled with res
             :return: a tuple of tuples
             """
+            # loop through all dicts first
             for k, v in gym_dict.spaces.items():
                 if isinstance(v, Dict) or isinstance(v, OrderedDict):
                     shape = seek_shapes(v, shape)
             # then save shapes
             for k, v in gym_dict.spaces.items():
                 if not (isinstance(v, Dict) or isinstance(v, OrderedDict)):
-                    print(k, (v.shape,))
                     shape += (v.shape,) if not isinstance(v, Discrete) else ((1,),)
 
             return shape
@@ -868,7 +863,7 @@ class RunEnv(object):
         elif isinstance(flag, pypownet.game.IllegalActionException):
             return IllegalActionException(flag.text, flag.illegal_broken_lines_reconnections,
                                           flag.illegal_oncooldown_lines_switches,
-                                          flag.get_illegal_oncoolown_substations_switches)
+                                          flag.illegal_oncoolown_substations_switches)
         else:
             return flag
 

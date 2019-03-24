@@ -38,28 +38,9 @@ class DoNothing(Agent):
 import numpy as np
 
 
-class TMP(Agent):
-    """
-    An example of a baseline controler that produce random actions (ie random line switches and random node switches.
-    """
-
-    def __init__(self, environment):
-        super().__init__(environment)
-
-        self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
-
-    def act(self, observation):
-        action = self.environment.action_space.get_do_nothing_action(True)
-        self.environment.action_space.set_switches_configuration_of_substation(action, 1, [0, 0, 0, 1])
-        # # or
-        # action_length = self.environment.action_space.n
-        # action = np.random.choice([0, 1], action_length)
-        return action
-
-
 class RandomAction(Agent):
     """
-    An example of a baseline controler that produce random actions (ie random line switches and random node switches.
+    An example of a baseline controller that produce random actions (ie random line switches and random node switches.
     """
 
     def __init__(self, environment):
@@ -77,7 +58,7 @@ class RandomAction(Agent):
 
 class RandomPointAction(Agent):
     """
-    An example of a baseline controler that produce 1 random activation (ie an array with all 0 but one 1).
+    An example of a baseline controller that produce 1 random activation (ie an array with all 0 but one 1).
     """
 
     def __init__(self, environment):
@@ -96,7 +77,7 @@ class RandomPointAction(Agent):
 
 class RandomLineSwitch(Agent):
     """
-    An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
+    An example of a baseline controller that randomly switches the status of one random power line per timestep (if the
     random line is previously online, switch it off, otherwise switch it on).
     """
 
@@ -133,7 +114,7 @@ class RandomLineSwitch(Agent):
 
 
 class RandomNodeSplitting(Agent):
-    """ Implements a "random node-splitting" agent: at each timestep, this controler will select a random substation
+    """ Implements a "random node-splitting" agent: at each timestep, this controller will select a random substation
     (id), then select a random switch configuration such that switched elements of the selected substations change the
     node within the substation on which they are directly wired.
     """
@@ -242,7 +223,7 @@ class TreeSearchLineServiceStatus(Agent):
 
 class GreedySearch(Agent):
     """ This agent is a tree-search model of depth 1, that is constrained to modifiying at most 1 substation
-    configuration or at most 1 line status. This controler used the simulate method of the environment, by testing
+    configuration or at most 1 line status. This controller used the simulate method of the environment, by testing
     every 1-line status switch action, every new configuration for substations with at least 4 elements, as well as
     the do-nothing action. Then, it will seek for the best reward and return the associated action, expecting
     the maximum reward for the action pool it can reach.
