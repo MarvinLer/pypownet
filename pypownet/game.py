@@ -125,6 +125,27 @@ class Action(object):
                    (prod_switches, load_switches, lines_origins_switches, lines_extremities_switches), \
                np.asarray(elements_type)
 
+    def set_substation_switches(self, substation_id, new_values):
+        new_values = np.asarray(new_values)
+
+        _, elements_type = self.get_substation_switches(substation_id, concatenated_output=False)
+        expected_configuration_size = len(elements_type)
+        assert expected_configuration_size == len(new_values), 'Expected new_values of size %d for' \
+                                                               ' substation %d, got size %d' % (
+                                                                   expected_configuration_size, substation_id,
+                                                                   len(new_values))
+
+        self.prods_switches_subaction[self.prods_subs_ids == substation_id] = new_values[
+            elements_type == self.elementtype.PRODUCTION]
+        self.loads_switches_subaction[self.loads_subs_ids == substation_id] = new_values[
+            elements_type == self.elementtype.CONSUMPTION]
+        self.lines_or_switches_subaction[self.lines_or_subs_id == substation_id] = new_values[
+            elements_type == self.elementtype.ORIGIN_POWER_LINE]
+        self.lines_ex_switches_subaction[self.lines_ex_subs_id == substation_id] = new_values[
+            elements_type == self.elementtype.EXTREMITY_POWER_LINE]
+
+        return self
+
     def as_array(self):
         return np.concatenate((self.get_node_splitting_subaction(), self.get_lines_status_subaction(),))
 
