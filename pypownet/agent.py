@@ -51,7 +51,7 @@ class TMP(Agent):
 
     def act(self, observation):
         action = self.environment.action_space.get_do_nothing_action(True)
-        self.environment.action_space.set_lines_status_switch_from_id(action, 0, 1)
+        self.environment.action_space.set_switches_configuration_of_substation(action, 1, [0, 0, 0, 1])
         # # or
         # action_length = self.environment.action_space.n
         # action = np.random.choice([0, 1], action_length)

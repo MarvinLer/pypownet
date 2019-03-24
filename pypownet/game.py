@@ -539,10 +539,8 @@ class Game(object):
         # being used within the tolerated timeframe before another action can be operated on a line or a node
         # lines
         lines_subaction = action.get_lines_status_subaction()
-        print('lines_subaction', lines_subaction)
         activating_lines = lines_subaction == 1
         unactionnable_lines = self.timesteps_before_lines_reactionable > 0
-        print('self.timesteps_before_lines_reactionable', self.timesteps_before_lines_reactionable)
         illegal_activating_lines = np.logical_and(activating_lines, unactionnable_lines)
         if np.any(illegal_activating_lines):
             timesteps_to_wait = self.timesteps_before_lines_reactionable[illegal_activating_lines]
@@ -566,6 +564,8 @@ class Game(object):
         activating_nodes = self.get_changed_substations(action)
         unactionnable_nodes = self.timesteps_before_nodes_reactionable > 0
         illegal_activating_nodes = np.logical_and(activating_nodes, unactionnable_nodes)
+        print('action', action)
+        print('np.any(illegal_activating_nodes)', np.any(illegal_activating_nodes))
         if np.any(illegal_activating_nodes):
             timesteps_to_wait = self.timesteps_before_nodes_reactionable[illegal_activating_nodes]
             assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
@@ -583,10 +583,11 @@ class Game(object):
             to_be_raised_exception.text += 'Trying to action unactionnable node%s %s, must wait %s timesteps. ' % (
                 's' if number_invalid_activations > 1 else '',
                 non_actionnable_nodes_as_str, timesteps_to_wait_as_str)
-            print('illegal_activating_nodes', illegal_activating_nodes)
-            to_be_raised_exception.get_illegal_oncoolown_substations_switches = illegal_activating_nodes
+            to_be_raised_exception.illegal_oncoolown_substations_switches = illegal_activating_nodes
 
-        print(to_be_raised_exception.get_illegal_oncoolown_lines_switches())
+        print('action.get_node_splitting_subaction()[:10]', action.get_node_splitting_subaction()[:10])
+        print('to_be_raised_exception.get_illegal_oncoolown_substations_switches()',
+              to_be_raised_exception.get_illegal_oncoolown_substations_switches())
         # If illegal moves has been caught, raise exception
         if not to_be_raised_exception.is_empty:
             print('LALLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLALLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLALLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLALLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL')
@@ -686,6 +687,7 @@ class Game(object):
             if illegal_oncooldown_nodes_switches is not None:
                 substations_changed = self.substations_ids[illegal_oncooldown_nodes_switches]
                 if sum(illegal_oncooldown_nodes_switches) > 0:
+                    action.set_node_splitting_subaction()
                     self.cancel_action_from_has_been_changed(action, illegal_oncooldown_nodes_switches)  # cancel illegal moves
                     e.text += ' Ignoring node switches of on-cooldown substations: %s.' % \
                               ', '.join(list(map(str, np.where(substations_changed)[0])))
@@ -938,7 +940,7 @@ class Game(object):
         print('action before set', action.get_node_splitting_subaction())
         action.set_node_splitting_subaction(node_splitting_subaction)
         print('action after set', action.get_node_splitting_subaction())
-        assert action.get_node_splitting_subaction() == node_splitting_subaction
+        assert np.all(action.get_node_splitting_subaction() == node_splitting_subaction)
 
     def parameters_environment_tostring(self):
         return self.__parameters.__str__()
