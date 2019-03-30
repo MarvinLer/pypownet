@@ -40,7 +40,7 @@ class Grid(object):
     def __init__(self, loadflow_backend, src_filename, dc_loadflow, new_imaps):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
 
