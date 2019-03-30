@@ -40,7 +40,7 @@ class Grid(object):
     def __init__(self, loadflow_backend, src_filename, dc_loadflow, new_imaps):
         self.filename = src_filename
         self.dc_loadflow = dc_loadflow  # true to compute loadflow with Direct Current model, False for Alternative Cur.
-        self.save_io = False  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
+        self.save_io = True  # True to save files (one pretty-print file and one IEEE) for each matpower loadflow comp.
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
 
@@ -487,9 +487,12 @@ class Grid(object):
 
         # Loads data
         loads_buses = bus[self.are_loads, :]  # Select lines of loads buses
-        active_loads = to_array(loads_buses[:, 2])
-        reactive_loads = to_array(loads_buses[:, 3])
-        voltage_loads = to_array(loads_buses[:, 7])
+        loads_buses_substations = to_array(nodes_to_substations(loads_buses[:, 0]))
+        consistent_ordering_loads = lambda values: values[np.argsort(loads_buses_substations)]
+        reorder_loads_buses = consistent_ordering_loads(loads_buses)
+        active_loads = to_array(reorder_loads_buses[:, 2])
+        reactive_loads = to_array(reorder_loads_buses[:, 3])
+        voltage_loads = to_array(reorder_loads_buses[:, 7])
         substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads])).astype(int)
 
         # Retrieve isolated buses
