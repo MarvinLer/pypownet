@@ -493,7 +493,8 @@ class Grid(object):
         active_loads = to_array(reorder_loads_buses[:, 2])
         reactive_loads = to_array(reorder_loads_buses[:, 3])
         voltage_loads = to_array(reorder_loads_buses[:, 7])
-        substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads])).astype(int)
+        #substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads])).astype(int)
+        substations_ids_loads = to_array(consistent_ordering_loads(loads_buses_substations)).astype(int)
 
         # Retrieve isolated buses
         are_isolated_loads, are_isolated_prods, are_isolated_buses = self._count_isolated_loads(mpc,
