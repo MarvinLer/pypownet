@@ -916,7 +916,7 @@ class Game(object):
         lines_capacity_usage = self.grid.export_lines_capacity_usage(safe_mode=True)
 
         prods_values = self.grid.mpc['gen'][:, 1]
-        loads_values = self.grid.mpc['bus'][self.grid.are_loads, 2]
+        loads_values = self.grid._consistent_ordering_loads()(self.grid.mpc['bus'][self.grid.are_loads, 2])
         lines_por_values = self.grid.mpc['branch'][:, 13]
         lines_service_status = self.grid.mpc['branch'][:, 10]
 
