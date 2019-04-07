@@ -272,7 +272,7 @@ class ChronicLooper(object):
 
         # Seeks all available chronics (sorts alphabetically)
         self.chronics = sorted([os.path.join(self.chronics_folder, d) for d in os.listdir(self.chronics_folder)
-                                if not os.path.isfile(d)])
+                                if not os.path.isfile(os.path.join(self.chronics_folder, d))])
         self.logger.info('Found %d chronics of game level %s; looping with mode %s starting with chronic %s' % (
             len(self.chronics), os.path.basename(self.chronics_folder), self.looping_mode,
             os.path.basename(self.chronics[start_id])))
