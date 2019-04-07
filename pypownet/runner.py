@@ -12,6 +12,8 @@ from pypownet.environment import RunEnv
 from pypownet.agent import Agent
 import logging
 import logging.handlers
+import csv
+import datetime
 
 LOG_FILENAME = 'runner.log'
 
@@ -21,13 +23,25 @@ class TimestepTimeout(Exception):
 
 
 class Runner(object):
-    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, log_filepath='runner.log'):
+    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, parameters=None, level=None,
+                 max_iter=None, log_filepath='runner.log', machinelog_filepath='machine_logs.csv'):
         # Sanity checks: both environment and agent should inherit resp. RunEnv and Agent
         assert isinstance(environment, RunEnv)
         assert isinstance(agent, Agent)
 
-        # Loggger part
+        # Logger part
         self.logger = logging.getLogger('pypownet')
+        if machinelog_filepath is not None:
+            self.csv_writer = csv.writer(open(machinelog_filepath, 'w'), delimiter=';')
+            self.csv_writer.writerow(['param_env_name', 'level', 'chronic_name', 'max_iter',
+                                      'timestep', 'time', 'game_over', 'timestep_reward_aslist', 'timestep_reward',
+                                      'cumulated_reward'])
+            self.parameters = parameters
+            self.level = level
+            self.max_iter = max_iter
+        else:
+            self.csv_writer = None
+            self.parameters, self.level, self.max_iter = None, None, None
 
         # Always create a log file for runners
         fh = logging.FileHandler(filename=log_filepath, mode='w+')
@@ -86,7 +100,7 @@ class Runner(object):
         self.logger.debug('done: {}'.format(done))
         self.logger.debug('info: {}'.format(info if not info else info.text))
 
-        return observation, action, reward
+        return observation, action, reward, reward_aslist, done
 
     def loop(self, iterations, episodes=1):
         """
@@ -99,9 +113,28 @@ class Runner(object):
         for i_episode in range(episodes):
             observation = self.environment.reset()
             for i in range(1, iterations + 1):
-                (observation, action, reward) = self.step(observation)
+                (observation, action, reward, reward_aslist, done) = self.step(observation)
                 cumul_rew += reward
                 self.logger.info("step %d/%d - reward: %.2f; cumulative reward: %.2f" %
                                  (i, iterations, reward, cumul_rew))
+                self.dump_machinelogs(i, done, reward, reward_aslist, cumul_rew, self.environment.get_current_datetime())
 
         return cumul_rew
+
+    def dump_machinelogs(self, timestep_id, done, reward, reward_aslist, cumul_rew, datetime):
+        if self.csv_writer is None:
+            return
+
+        param_env_name = self.parameters
+        level = self.level
+        chronic_name = self.environment.get_current_chronic_name()
+        max_iter = self.max_iter
+        timestep = timestep_id
+        time = datetime.strftime("%Y-%m-%d %H:%M")
+        game_over = done
+        timestep_reward_aslist = reward_aslist
+        timestep_reward = reward
+        cumulated_reward = cumul_rew
+
+        self.csv_writer.writerow([param_env_name, level, chronic_name, max_iter, timestep, time, game_over,
+                                  timestep_reward_aslist, timestep_reward, cumulated_reward])

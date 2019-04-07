@@ -378,6 +378,9 @@ class Game(object):
         self.current_timestep_id = 0
         return chronic
 
+    def get_current_chronic_name(self):
+        return self.__chronic_looper.get_current_chronic_name()
+
     def load_entries_from_timestep_id(self, timestep_id, is_simulation=False, silence=False):
         # Retrieve the Scenario object associated to the desired id
         timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
@@ -860,6 +863,9 @@ class Game(object):
         observation.date_second = self.current_date.second
 
         return observation
+
+    def get_current_datetime(self):
+        return self.current_date
 
     def render(self, rewards, game_over=False, cascading_frame_id=None, date=None, timestep_id=None):
         """ Initializes the renderer if not already done, then compute the necessary values to be carried to the

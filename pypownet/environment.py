@@ -867,6 +867,13 @@ class RunEnv(object):
         else:
             return flag
 
+    ##### HELPERS FOR LOGGING
+    def get_current_chronic_name(self):
+        return self.game.get_current_chronic_name()
+
+    def get_current_datetime(self):
+        return self.game.get_current_datetime()
+
 
 OBSERVATION_MEANING = {
     'active_productions': 'Real power produced by the generators of the grid (MW).',

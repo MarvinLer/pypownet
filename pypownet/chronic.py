@@ -278,9 +278,11 @@ class ChronicLooper(object):
             os.path.basename(self.chronics[start_id])))
 
         self.next_chronic_id = start_id
+        self.current_chronic_name = None
 
     def get_next_chronic_folder(self):
         res_chronic = self.chronics[self.next_chronic_id]
+        self.current_chronic_name = os.path.basename(res_chronic)
         if self.looping_mode == 'natural':
             self.next_chronic_id = (self.next_chronic_id + 1) % len(self.chronics)
         elif self.looping_mode == 'random':
@@ -288,3 +290,6 @@ class ChronicLooper(object):
         elif self.looping_mode == 'fixed':
             self.next_chronic_id = self.next_chronic_id
         return res_chronic
+
+    def get_current_chronic_name(self):
+        return self.current_chronic_name
