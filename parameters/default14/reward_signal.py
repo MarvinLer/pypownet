@@ -42,7 +42,7 @@ class CustomRewardSignal(pypownet.reward_signal.RewardSignal):
         # First, check for flag raised during step, as they indicate errors from grid computations (usually game over)
         if flag is not None:
             if isinstance(flag, pypownet.environment.DivergingLoadflowException):
-                reward_aslist = [0., 0., -self.__get_action_cost(action), self.loadflow_exception_reward, 0.]
+                reward_aslist = [0., 0., self.__get_action_cost(action), self.loadflow_exception_reward, 0.]
             elif isinstance(flag, pypownet.environment.IllegalActionException):
                 # If some broken lines are attempted to be switched on, first recall this function with flag None to get
                 # the list of rewards, then add penalty for each illegal moves of the input flag
@@ -96,7 +96,7 @@ class CustomRewardSignal(pypownet.reward_signal.RewardSignal):
             reference_grid_distance_reward = self.multiplicative_factor_distance_initial_grid * reference_grid_distance
 
             # Action cost reward: compute the number of line switches, node switches, and return the associated reward
-            action_cost_reward = -self.__get_action_cost(action)
+            action_cost_reward = self.__get_action_cost(action)
 
             # The line usage subreward is the sum of the square of the lines capacity usage
             lines_capacity_usage = self.__get_lines_capacity_usage(observation)
