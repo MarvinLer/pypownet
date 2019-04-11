@@ -10,9 +10,10 @@ NB: the renderer drastically slows the performance of pypownet: it takes ~40s to
 
 The simulator comes with an Reinforcement Learning-focused environment, which implements states (observations), actions (reduced to node-splitting and line status switches) as well as a reward signal. Finally, a renderer is available, such that the observations of the network can be plotted in real-time (synchronized with the game time).
 
-Official documentation: https://pypownet.readthedocs.io/
+## Official documentation: 
+The official documentation can be found here: https://pypownet.readthedocs.io/
 
-
+## Table of contents:
 *   [1 Installation](#installation)
     *   [1.1 Using Docker](#using-docker)
     *   [1.2 Without using Docker](#without-using-docker)
