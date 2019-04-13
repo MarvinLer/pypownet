@@ -44,31 +44,26 @@ class Grid(object):
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
 
-        from pypownet import configure_matpower
-        # Import for this instance of __class__ an octave instance (even for pypower backend for loading grid)
-        oct2py = importlib.import_module('oct2py')
-        self.octave = getattr(oct2py, 'octave')
-        configure_matpower()  # Will declare path dependencies and such
-
         # Initialize loadflow backend
         if loadflow_backend not in ['matpower', 'pypower']:
-            raise ValueError('should not happen')
+            raise ValueError('Loadflow computation backend {} is not supported; '
+                             'options: matpower (octave), pypower (python)'.format(loadflow_backend))
         if loadflow_backend == 'matpower':
+            from pypownet import configure_matpower
+            # Import for this instance of __class__ an octave instance (even for pypower backend for loading grid)
+            oct2py = importlib.import_module('oct2py')
+            self.matpower = getattr(oct2py, 'octave')
+            configure_matpower()  # Will declare path dependencies and such
             self.Oct2PyError = getattr(importlib.import_module('oct2py.utils'), 'Oct2PyError')
-            self.loadflow_options = self.octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25, 'verbose', 0, 'out.all',
-                                                         0)
-            self.mpc = self.octave.loadcase(self.filename, verbose=False)
+            self.loadflow_options = self.matpower.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25, 'verbose', 0,
+                                                           'out.all', 0)
+            self.mpc = self.matpower.loadcase(self.filename, verbose=False)
         elif loadflow_backend == 'pypower':
-            try:
-                self.pypower_api = importlib.import_module('pypower.api')
-                self.loadflow_options = self.pypower_api.ppoption(PF_ALG=2, PF_MAX_IT_FD=15, PF_TOL=1e-6, VERBOSE=0,
-                                                                  OUT_ALL=0)
-                self.mpc = self.octave.loadcase(self.filename, verbose=False)
-            except:
-                raise
-        else:
-            raise Exception('Should not happen')
-        self.loadflow_backend = loadflow_backend
+            self.pypower = importlib.import_module('pypower.api')
+            self.loadflow_options = self.pypower.ppoption(PF_ALG=2, PF_MAX_IT_FD=25, PF_TOL=1e-6, VERBOSE=0,
+                                                          OUT_ALL=0)
+            self.mpc = self.pypower.loadcase(self.filename, expect_gencost=False)
+        self.loadflow_backend_name = loadflow_backend
 
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
         self.thermal_limits = np.asarray(new_imaps)
@@ -77,7 +72,7 @@ class Grid(object):
         self.mpc['branch'][:, 7] = np.asarray(new_imaps)
 
         self.new_slack_bus = self.mpc['bus'][:, 0][np.where(self.mpc['bus'][:, 1] == 3)[0][0]]
-        #self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
+        # self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
         # Containers that keep in mind the PQ nodes (consumers)
         self.are_loads = np.logical_or(self.mpc['bus'][:, 2] != 0, self.mpc['bus'][:, 3] != 0)
 
@@ -197,7 +192,7 @@ class Grid(object):
         are_prods = np.array([g in prods_ids for g in substations_ids])
 
         return are_isolated_buses[are_loads], are_isolated_buses[are_prods], are_isolated_buses
-        #return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
+        # return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
     def __vanilla_loadflow_backend_callback(self, fname_end=''):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
@@ -207,20 +202,20 @@ class Grid(object):
         :return: the output of matpower (typically mpc structure), and a boolean success of loadflow indicator
         """
         if self.save_io:
-            fname_end += '.py' if self.loadflow_backend == 'pypower' else '.m'
+            fname_end += '.py' if self.loadflow_backend_name == 'pypower' else '.m'
             fname = os.path.abspath(os.path.join('tmp', os.path.basename(self.filename))) + fname_end
             pprint = os.path.abspath(os.path.join('tmp', 'pp' + os.path.basename(self.filename))) + fname_end
         else:
             fname, pprint = '', ''
 
-        if self.loadflow_backend == 'pypower':
-            function = self.pypower_api.rundcpf if self.dc_loadflow else self.pypower_api.runpf
+        if self.loadflow_backend_name == 'pypower':
+            function = self.pypower.rundcpf if self.dc_loadflow else self.pypower.runpf
             try:
                 output, loadflow_success = function(self.mpc, self.loadflow_options, pprint, fname)
             except (RuntimeError, RuntimeWarning, IndexError):
                 raise DivergingLoadflowException(None, 'The grid is not connexe')
-        elif self.loadflow_backend == 'matpower':
-            function = self.octave.rundcpf if self.dc_loadflow else self.octave.runpf
+        elif self.loadflow_backend_name == 'matpower':
+            function = self.matpower.rundcpf if self.dc_loadflow else self.matpower.runpf
             try:
                 output = function(self.mpc, self.loadflow_options, pprint, fname)
                 loadflow_success = output['success']
@@ -580,10 +575,10 @@ class Grid(object):
             if not os.path.exists('tmp'):
                 os.makedirs('tmp')
         self.logger.info('Saved snapshot at', dst_fname)
-        if self.loadflow_backend == 'matpower':
-            return self.octave.savecase(dst_fname, self.mpc)
-        elif self.loadflow_backend == 'pypower':
-            return self.pypower_api.savecase(dst_fname, self.mpc)
+        if self.loadflow_backend_name == 'matpower':
+            return self.matpower.savecase(dst_fname, self.mpc)
+        elif self.loadflow_backend_name == 'pypower':
+            return self.pypower.savecase(dst_fname, self.mpc)
 
 
 class Topology(object):

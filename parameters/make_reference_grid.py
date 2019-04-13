@@ -2,13 +2,24 @@ __author__ = 'marvinler'
 import os
 import sys
 import numpy as np
-from oct2py import octave
 from pypownet import ARTIFICIAL_NODE_STARTING_STRING
 import copy
 
 
 def main(grid_path, output_file=None):
-    mpc = octave.loadcase(grid_path, verbose=False)
+    if grid_path.endswith('.mat') or grid_path.endswith('.m'):
+        from oct2py import octave as matpower
+        loadflow_backend = matpower
+        mpc = matpower.loadcase(grid_path, verbose=False)
+    elif grid_path.endswith('.py'):
+        import importlib
+        pypower = importlib.import_module('pypower.api')
+        loadflow_backend = pypower
+        mpc = pypower.loadcase(grid_path, expect_gencost=False)
+    else:
+        raise ValueError('Loadflow computation backend with extension .{} is not supported; '
+                         'options: matpower (.m), pypower (.py)'.format(grid_path.split('.')[-1]))
+
     mpc = {k: mpc[k] for k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}  # Shrink useless parts
 
     # Sort prods, buses, lines
@@ -45,14 +56,17 @@ def main(grid_path, output_file=None):
     if np.all(mpc['bus'][:, 9] == 0):
         mpc['bus'][:, 9] = 100
 
-    output_file = os.path.join(os.path.dirname(input_file), 'reference_grid.m') if output_file is None else output_file
-    octave.savecase(output_file, mpc)
+    if output_file is None:
+        output_file = os.path.join(
+            os.path.dirname(input_file), 'reference_grid.' + grid_path.split('.')[-1])
+            # os.path.basename('.'.join(grid_path.split('.')[:-1])+'_referenced.'+grid_path.split('.')[-1]))
+    loadflow_backend.savecase(output_file, mpc)
     return output_file, preartificial_mpc
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print('usage: python -m pypownet.%s caseZZZ.m' % os.path.basename(__file__)[:-3])
+        print('usage: python -m pypownet.%s filecase[.m|.mat|.py]' % os.path.basename(__file__)[:-3])
     input_file = sys.argv[1]
     output_file, mpc = main(input_file)
     print('created file', output_file)

@@ -40,7 +40,8 @@ class Parameters(object):
                 raise FileNotFoundError('Mandatory file/folder %s not found within %s' % (f, self.level_folder))
 
         format_path = lambda f: os.path.join(self.level_folder, f)
-        self.reference_grid_path = format_path('reference_grid.m')
+        self.reference_grid_matpower_path = format_path('reference_grid.m')
+        self.reference_grid_pypower_path = format_path('reference_grid.py')
         self.chronics_path = format_path('chronics/')
         # Seek and read configuration file
         # self.configuration_path = format_path('configuration.json')
@@ -71,8 +72,13 @@ class Parameters(object):
     def get_reward_signal_class(self):
         return self.reward_signal_class
 
-    def get_reference_grid_path(self):
-        return self.reference_grid_path
+    def get_reference_grid_path(self, loadflow_backend):
+        if loadflow_backend == 'pypower':
+            return self.reference_grid_pypower_path
+        elif loadflow_backend == 'matpower':
+            return self.reference_grid_matpower_path
+        else:
+            raise ValueError('should not happen')
 
     def get_chronics_path(self):
         return self.chronics_path

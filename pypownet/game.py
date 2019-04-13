@@ -278,7 +278,7 @@ class Game(object):
 
         # Seek and load starting reference grid
         self.grid = pypownet.grid.Grid(loadflow_backend=loadflow_backend,
-                                       src_filename=self.__parameters.get_reference_grid_path(),
+                                       src_filename=self.__parameters.get_reference_grid_path(loadflow_backend),
                                        dc_loadflow=self.is_mode_dc,
                                        new_imaps=self.__chronic.get_imaps())
         # Container that counts the consecutive timesteps lines are soft-overflows
