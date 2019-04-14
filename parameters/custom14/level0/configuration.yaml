@@ -21,3 +21,7 @@ n_timesteps_actionned_line_reactionable: 3  # number of consecutive timesteps be
 n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again
 n_timesteps_pending_line_reactionable_when_overflowed: 1 # number of cons. timesteps before a line waiting to be reactionable is reactionable if it is overflowed
 n_timesteps_pending_node_reactionable_when_overflowed: 1 # number of cons. timesteps before a none waiting to be reactionable is reactionable if it has an overflowed line
+
+max_number_actionned_substations: 7  # max number of changes tolerated in number of substations per timestep; actions with more than max_number_actionned_substations have at least one 1 value are replaced by do-nothing action
+max_number_actionned_lines: 10  # max number of changes tolerated in number of lines per timestep; actions with more than max_number_actionned_lines are switched are replaced by do-nothing action
+max_number_actionned_total: 15  # combination of 2 previous parameters; actions with more than max_number_total_actionned elements (substation or line) have a switch are replaced by do-nothing action

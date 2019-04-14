@@ -861,9 +861,10 @@ class RunEnv(object):
         elif isinstance(flag, pypownet.game.TooManyProductionsCut):
             return TooManyProductionsCut(flag.text)
         elif isinstance(flag, pypownet.game.IllegalActionException):
-            return IllegalActionException(flag.text, flag.illegal_broken_lines_reconnections,
-                                          flag.illegal_oncooldown_lines_switches,
-                                          flag.illegal_oncoolown_substations_switches)
+            return IllegalActionException(flag.text, flag.get_has_too_much_activations(),
+                                          flag.get_illegal_broken_lines_reconnections(),
+                                          flag.get_illegal_oncoolown_lines_switches(),
+                                          flag.get_illegal_oncoolown_substations_switches())
         else:
             return flag
 

@@ -143,6 +143,15 @@ class Parameters(object):
     def get_n_timesteps_pending_node_reactionable_when_overflowed(self):
         return self.simulator_configuration['n_timesteps_pending_node_reactionable_when_overflowed']
 
+    def get_max_number_actionned_substations(self):
+        return self.simulator_configuration['max_number_actionned_substations']
+
+    def get_max_number_actionned_lines(self):
+        return self.simulator_configuration['max_number_actionned_lines']
+
+    def get_max_number_actionned_total(self):
+        return self.simulator_configuration['max_number_actionned_total']
+
     def __str__(self):
         params_str = ['    ' + k + ': ' + str(v) for k, v in self.simulator_configuration.items()]
         max_length = max(list(map(len, params_str)))

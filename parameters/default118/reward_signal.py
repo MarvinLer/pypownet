@@ -34,7 +34,11 @@ class CustomRewardSignal(RewardSignal):
         self.too_many_productions_cut = -constant
         self.too_many_consumptions_cut = -constant
 
-        # Action cost reward hyperparameters
+        # Penalize actions where the max number of activated substations, switches lines or total is more than the
+        # constraints of the environment
+        self.too_much_activated_elements = -5 * constant
+
+        # Action cost reward hyper-parameters
         self.multiplicative_factor_number_line_switches = -.2  # equivalent to - cost of line switch
         self.multiplicative_factor_number_node_switches = -.1  # equivalent to - cost of node switch
 
@@ -48,33 +52,38 @@ class CustomRewardSignal(RewardSignal):
                 # the list of rewards, then add penalty for each illegal moves of the input flag
                 reward_aslist = self.compute_reward(observation, action, flag=None)
 
-                # illegal broken/maintenance lines reconnexions
-                if flag.get_illegal_broken_lines_reconnections() is not None:
-                    n_illegal_lines_reconnexions = np.sum(flag.get_illegal_broken_lines_reconnections())
-                    illegal_lines_reconnexions_subreward = \
-                        self.multiplicative_factor_number_illegal_broken_line_switch * n_illegal_lines_reconnexions
+                # Check that the max number of activable elements have not been overreached; separated from the rest
+                # of the illegal actions processing since both cannot happen at the same time
+                if flag.get_has_too_much_activations():
+                    illegal_moves_subreward = self.too_much_activated_elements
                 else:
-                    illegal_lines_reconnexions_subreward = 0
-                # illegal on-cooldown lines switches
-                if flag.get_illegal_oncoolown_lines_switches() is not None:
-                    n_illegal_oncooldown_lines_switches = np.sum(flag.get_illegal_oncoolown_lines_switches())
-                    illegal_oncooldown_lines_switches_subreward = \
-                        self.multiplicative_factor_number_illegal_oncooldown_line_switch * n_illegal_oncooldown_lines_switches
-                else:
-                    illegal_oncooldown_lines_switches_subreward = 0
-                # illegal on-cooldown substations switches
-                if flag.get_illegal_oncoolown_substations_switches() is not None:
-                    n_illegal_oncooldown_substations_switches = np.sum(
-                        flag.get_illegal_oncoolown_substations_switches())
-                    illegal_oncooldown_substations_switches_subreward = \
-                        self.multiplicative_factor_number_illegal_oncooldown_substation_switch * n_illegal_oncooldown_substations_switches
-                else:
-                    illegal_oncooldown_substations_switches_subreward = 0
+                    # illegal broken/maintenance lines reconnexions
+                    if flag.get_illegal_broken_lines_reconnections() is not None:
+                        n_illegal_lines_reconnexions = np.sum(flag.get_illegal_broken_lines_reconnections())
+                        illegal_lines_reconnexions_subreward = \
+                            self.multiplicative_factor_number_illegal_broken_line_switch * n_illegal_lines_reconnexions
+                    else:
+                        illegal_lines_reconnexions_subreward = 0
+                    # illegal on-cooldown lines switches
+                    if flag.get_illegal_oncoolown_lines_switches() is not None:
+                        n_illegal_oncooldown_lines_switches = np.sum(flag.get_illegal_oncoolown_lines_switches())
+                        illegal_oncooldown_lines_switches_subreward = \
+                            self.multiplicative_factor_number_illegal_oncooldown_line_switch * n_illegal_oncooldown_lines_switches
+                    else:
+                        illegal_oncooldown_lines_switches_subreward = 0
+                    # illegal on-cooldown substations switches
+                    if flag.get_illegal_oncoolown_substations_switches() is not None:
+                        n_illegal_oncooldown_substations_switches = np.sum(
+                            flag.get_illegal_oncoolown_substations_switches())
+                        illegal_oncooldown_substations_switches_subreward = \
+                            self.multiplicative_factor_number_illegal_oncooldown_substation_switch * n_illegal_oncooldown_substations_switches
+                    else:
+                        illegal_oncooldown_substations_switches_subreward = 0
 
-                # Sum all illegal moves subrewards
-                illegal_moves_subreward = illegal_lines_reconnexions_subreward + \
-                                          illegal_oncooldown_lines_switches_subreward + \
-                                          illegal_oncooldown_substations_switches_subreward
+                    # Sum all illegal moves subrewards
+                    illegal_moves_subreward = illegal_lines_reconnexions_subreward + \
+                                              illegal_oncooldown_lines_switches_subreward + \
+                                              illegal_oncooldown_substations_switches_subreward
                 reward_aslist[2] += illegal_moves_subreward
             elif isinstance(flag, pypownet.environment.TooManyProductionsCut):
                 reward_aslist = [0., self.too_many_productions_cut, 0., 0., 0.]
@@ -150,7 +159,7 @@ class CustomRewardSignal(RewardSignal):
 
         :return: the number of different nodes between the current topology and the initial one
         """
-        #initial_topology = np.asarray(self.game.get_initial_topology())
+        # initial_topology = np.asarray(self.game.get_initial_topology())
         initial_topology = np.concatenate((observation.initial_productions_nodes, observation.initial_loads_nodes,
                                            observation.initial_lines_or_nodes, observation.initial_lines_ex_nodes))
         current_topology = np.concatenate((observation.productions_nodes, observation.loads_nodes,

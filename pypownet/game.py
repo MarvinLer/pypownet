@@ -19,14 +19,18 @@ class NoMoreScenarios(Exception):
 
 
 class IllegalActionException(Exception):
-    def __init__(self, text, illegal_lines_reconnections, illegal_unavailable_lines_switches,
+    def __init__(self, text, has_too_much_activations, illegal_lines_reconnections, illegal_unavailable_lines_switches,
                  illegal_oncoolown_substations_switches, *args):
         super(IllegalActionException, self).__init__(*args)
         self.text = text
+        self.has_too_much_activations = has_too_much_activations
         # size resp. n_lines, n_lines, n_substations; can be None if no illegal corresponding actions
         self.illegal_broken_lines_reconnections = illegal_lines_reconnections
         self.illegal_oncooldown_lines_switches = illegal_unavailable_lines_switches
         self.illegal_oncoolown_substations_switches = illegal_oncoolown_substations_switches
+
+    def get_has_too_much_activations(self):
+        return self.has_too_much_activations
 
     def get_illegal_broken_lines_reconnections(self):
         return self.illegal_broken_lines_reconnections
@@ -40,7 +44,7 @@ class IllegalActionException(Exception):
     @property
     def is_empty(self):
         return self.illegal_broken_lines_reconnections is None and self.illegal_oncooldown_lines_switches is None \
-            and self.illegal_oncoolown_substations_switches is None
+               and self.illegal_oncoolown_substations_switches is None
 
 
 class DivergingLoadflowException(pypownet.grid.DivergingLoadflowException):
@@ -183,6 +187,15 @@ class Action(object):
 
         return self
 
+    def set_as_do_nothing(self):
+        # fill self values with values of do nothing action ie all 0
+        self.prods_switches_subaction = np.zeros(len(self.prods_switches_subaction)).astype(int)
+        self.loads_switches_subaction = np.zeros(len(self.loads_switches_subaction)).astype(int)
+        self.lines_or_switches_subaction = np.zeros(len(self.lines_or_switches_subaction)).astype(int)
+        self.lines_ex_switches_subaction = np.zeros(len(self.lines_ex_switches_subaction)).astype(int)
+        self.lines_status_subaction = np.zeros(len(self.lines_status_subaction)).astype(int)
+        return self
+
     def as_array(self):
         return np.concatenate((self.get_node_splitting_subaction(), self.get_lines_status_subaction(),))
 
@@ -267,6 +280,9 @@ class Game(object):
             self.__parameters.get_n_timesteps_pending_line_reactionable_when_overflowed()
         self.n_timesteps_pending_node_reactionable_when_overflowed = \
             self.__parameters.get_n_timesteps_pending_node_reactionable_when_overflowed()
+        self.max_number_actionned_substations = self.__parameters.get_max_number_actionned_substations()
+        self.max_number_actionned_lines = self.__parameters.get_max_number_actionned_lines()
+        self.max_number_actionned_total = self.__parameters.get_max_number_actionned_total()
 
         # Seek and load chronic
         self.__chronic_looper = ChronicLooper(chronics_folder=self.__parameters.get_chronics_path(),
@@ -547,8 +563,9 @@ class Game(object):
 
         :param action: an instance of pypownet.env.RunEnv.Action
         """
-        # Initialize exception container that gather illegal action moves
-        to_be_raised_exception = IllegalActionException('', None, None, None)
+        # Initialize exception container that gather illegal action moves to account for all eventual action errors
+        # before returning
+        to_be_raised_exception = IllegalActionException('', False, None, None, None)
 
         self.timestep += 1
         # If there is no action, then no need to apply anything on the grid
@@ -568,10 +585,30 @@ class Game(object):
         action_lines_or_nodes = action.get_lines_or_switches_subaction()
         action_lines_ex_nodes = action.get_lines_ex_switches_subaction()
 
+        # Compute the elements to be switched by the action (ie where >= 1 value is one for substation, or line is 1)
+        to_be_switched_substations = self.get_changed_substations(action)
+        to_be_switched_lines = action_lines_service == 1
+
+        # First, check the number of activated elements (substations, lines) and compare with max tolerated numbers
+        n_switched_substations = sum(to_be_switched_substations)
+        n_switched_lines = sum(to_be_switched_lines)
+        n_switched_total = n_switched_substations + n_switched_lines
+        if n_switched_substations > self.max_number_actionned_lines \
+                or n_switched_lines > self.max_number_actionned_lines \
+                or n_switched_total > self.max_number_actionned_total:
+            to_be_raised_exception.has_too_much_activations = True
+            to_be_raised_exception.text += 'Action has too much activations simultaneously: ' \
+                                           '{}/{} activated substations, {}/{} switched lines and ' \
+                                           '{}/{} total switched elements (substations and lines).' \
+                .format(n_switched_substations, self.max_number_actionned_substations, n_switched_lines,
+                        self.max_number_actionned_lines, n_switched_total, self.max_number_actionned_total)
+            # Raise error now because the following checks do not make sense since the action is virtually do-nothing at
+            # this point
+            raise to_be_raised_exception
+
         # Verify that the player is not intended to reconnect not reconnectable lines (broken or being maintained);
         # here, we check for lines switches, because if a line is broken, then its status is already to 0, such that a
         # switch will switch on the power line
-        to_be_switched_lines = np.equal(action_lines_service, 1)
         broken_lines = self.timesteps_before_lines_reconnectable > 0  # Mask of broken lines
         illegal_lines_reconnections = np.logical_and(to_be_switched_lines, broken_lines)
         # Raises an exception if there is some attempt to reconnect broken lines; Game.step should manage what to do in
@@ -597,11 +634,9 @@ class Game(object):
 
         # Verify that the player is not trying to switch lines or nodes topologies that are pending for reusage after
         # being used within the tolerated timeframe before another action can be operated on a line or a node
-        # lines
-        lines_subaction = action.get_lines_status_subaction()
-        activating_lines = lines_subaction == 1
+        ## lines
         unactionnable_lines = self.timesteps_before_lines_reactionable > 0
-        illegal_activating_lines = np.logical_and(activating_lines, unactionnable_lines)
+        illegal_activating_lines = np.logical_and(to_be_switched_lines, unactionnable_lines)
         if np.any(illegal_activating_lines):
             timesteps_to_wait = self.timesteps_before_lines_reactionable[illegal_activating_lines]
             assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
@@ -620,10 +655,9 @@ class Game(object):
                 's' if number_invalid_activations > 1 else '',
                 non_actionnable_lines_as_str, timesteps_to_wait_as_str)
             to_be_raised_exception.illegal_oncooldown_lines_switches = illegal_activating_lines
-        # nodes
-        activating_nodes = self.get_changed_substations(action)
+        ## substations
         unactionnable_nodes = self.timesteps_before_nodes_reactionable > 0
-        illegal_activating_nodes = np.logical_and(activating_nodes, unactionnable_nodes)
+        illegal_activating_nodes = np.logical_and(to_be_switched_substations, unactionnable_nodes)
         if np.any(illegal_activating_nodes):
             timesteps_to_wait = self.timesteps_before_nodes_reactionable[illegal_activating_nodes]
             assert not np.any(timesteps_to_wait <= 0), 'Should not happen'
@@ -717,36 +751,42 @@ class Game(object):
             if self.renderer is not None:
                 self.render(None, cascading_frame_id=-1)
         except IllegalActionException as e:
-            # If broken/on-maintenance lines are attempted to be switched, put the switches to 0
-            illegal_broken_lines_switches = e.get_illegal_broken_lines_reconnections()
-            if illegal_broken_lines_switches is not None:
-                if sum(illegal_broken_lines_switches) > 0:
-                    action.lines_status_subaction[illegal_broken_lines_switches] = 0  # cancel illegal moves
-                    e.text += ' Ignoring action switches of broken/on-maintenance lines: %s.' % \
-                              ', '.join(list(map(str, np.where(illegal_broken_lines_switches)[0])))
-                assert np.sum(action.get_lines_status_subaction()[illegal_broken_lines_switches]) == 0
+            # First, check if the action does not overpass the max number of activated elements, and stop further
+            # process since the other checks have not been done
+            if e.get_has_too_much_activations():
+                action = action.set_as_do_nothing()
+                assert sum(action.as_array()) == 0
+            else:
+                # If broken/on-maintenance lines are attempted to be switched, put the switches to 0
+                illegal_broken_lines_switches = e.get_illegal_broken_lines_reconnections()
+                if illegal_broken_lines_switches is not None:
+                    if sum(illegal_broken_lines_switches) > 0:
+                        action.lines_status_subaction[illegal_broken_lines_switches] = 0  # cancel illegal moves
+                        e.text += ' Ignoring action switches of broken/on-maintenance lines: %s.' % \
+                                  ', '.join(list(map(str, np.where(illegal_broken_lines_switches)[0])))
+                    assert np.sum(action.get_lines_status_subaction()[illegal_broken_lines_switches]) == 0
 
-            # Similarly if on-cooldown lines are attempted to be switched, put the switches to 0
-            illegal_oncooldown_lines_switches = e.get_illegal_oncoolown_lines_switches()
-            if illegal_oncooldown_lines_switches is not None:
-                if sum(illegal_oncooldown_lines_switches) > 0:
-                    action.lines_status_subaction[illegal_oncooldown_lines_switches] = 0  # cancel illegal moves
-                    e.text += ' Ignoring action switches of on-cooldown lines: %s.' % \
-                              ', '.join(list(map(str, np.where(illegal_oncooldown_lines_switches)[0])))
-                assert np.sum(action.get_lines_status_subaction()[illegal_oncooldown_lines_switches]) == 0
+                # Similarly if on-cooldown lines are attempted to be switched, put the switches to 0
+                illegal_oncooldown_lines_switches = e.get_illegal_oncoolown_lines_switches()
+                if illegal_oncooldown_lines_switches is not None:
+                    if sum(illegal_oncooldown_lines_switches) > 0:
+                        action.lines_status_subaction[illegal_oncooldown_lines_switches] = 0  # cancel illegal moves
+                        e.text += ' Ignoring action switches of on-cooldown lines: %s.' % \
+                                  ', '.join(list(map(str, np.where(illegal_oncooldown_lines_switches)[0])))
+                    assert np.sum(action.get_lines_status_subaction()[illegal_oncooldown_lines_switches]) == 0
 
-            # Similarly for on-cooldown node splitting
-            illegal_oncooldown_nodes_switches = e.get_illegal_oncoolown_substations_switches()
-            if illegal_oncooldown_nodes_switches is not None:
-                substations_changed = self.substations_ids[illegal_oncooldown_nodes_switches]
-                if sum(illegal_oncooldown_nodes_switches) > 0:
-                    # put all switches to 0 for illegal oncooldown substation use
-                    for substation_changed in substations_changed:
-                        expected_subaction_length = len(action.get_substation_switches(substation_changed, False)[1])
-                        action.set_substation_switches(substation_changed, np.zeros(expected_subaction_length))
-                    # self.cancel_action_from_has_been_changed(action, illegal_oncooldown_nodes_switches)  # cancel illegal moves
-                    e.text += ' Ignoring node switches of on-cooldown substations: %s.' % \
-                              ', '.join(list(map(str, np.where(substations_changed)[0])))
+                # Similarly for on-cooldown node splitting
+                illegal_oncooldown_nodes_switches = e.get_illegal_oncoolown_substations_switches()
+                if illegal_oncooldown_nodes_switches is not None:
+                    substations_changed = self.substations_ids[illegal_oncooldown_nodes_switches]
+                    if sum(illegal_oncooldown_nodes_switches) > 0:
+                        # put all switches to 0 for illegal oncooldown substation use
+                        for substation_changed in substations_changed:
+                            expected_subaction_length = len(action.get_substation_switches(substation_changed, False)[1])
+                            action.set_substation_switches(substation_changed, np.zeros(expected_subaction_length))
+                        # self.cancel_action_from_has_been_changed(action, illegal_oncooldown_nodes_switches)  # cancel illegal moves
+                        e.text += ' Ignoring node switches of on-cooldown substations: %s.' % \
+                                  ', '.join(list(map(str, np.where(substations_changed)[0])))
 
             # Resubmit step with modified valid action and return either exception of new step, or this exception
             obs, correct_step, done = self.step(action, _is_simulation=_is_simulation)
