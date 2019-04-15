@@ -168,9 +168,7 @@ class Renderer(object):
                                    ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
                                     (x_offset + width, y_offset + height)),
                                    (200, 250, 200, 240))
-            surface.blit(
-                self.black_bold_font_render('new observation frame'),number_unavailable_lines
-                (x_offset + 120, y_offset + 4))
+            surface.blit(self.black_bold_font_render('new observation frame'), (x_offset + 120, y_offset + 4))
 
     def draw_surface_grid(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
                           are_substations_changed):
