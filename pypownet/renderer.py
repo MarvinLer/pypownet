@@ -169,7 +169,7 @@ class Renderer(object):
                                     (x_offset + width, y_offset + height)),
                                    (200, 250, 200, 240))
             surface.blit(
-                self.black_bold_font_render('new observation frame'),
+                self.black_bold_font_render('new observation frame'),number_unavailable_lines
                 (x_offset + 120, y_offset + 4))
 
     def draw_surface_grid(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
@@ -508,7 +508,8 @@ class Renderer(object):
         self.data = {'number_loads_cut': number_loads_cut, 'number_prods_cut': number_prods_cut,
                      'number_nodes_splitting': number_nodes_splitting, 'number_lines_switches': number_lines_switches,
                      'distance_initial_grid': distance_initial_grid, 'usage': usage,
-                     'n_offlines_lines': n_offlines_lines, 'number_unavailable_lines': number_unavailable_lines,
+                     'n_offlines_lines': n_offlines_lines, 
+                     'number_unavailable_lines': number_unavailable_lines, 'number_unavailable_nodes': number_unavailable_nodes,
                      'max_number_isolated_loads': max_number_isolated_loads,
                      'max_number_isolated_prods': max_number_isolated_prods}
 
