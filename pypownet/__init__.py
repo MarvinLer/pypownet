@@ -35,19 +35,6 @@ def configure_matpower():
     octave.addpath(os.path.abspath(os.path.join(matpower_path, 'lib/')))
 
 
-from gym.envs.registration import register
-
-# Seek for parameters folders
-parameters_folders = [os.path.abspath(os.path.join('parameters/', f)) for f in os.listdir('parameters/')
-                      if not os.path.isfile(f)]
-for parameters_folder in parameters_folders:
-    register(
-        id='pypownet_%s-v1' % os.path.basename(parameters_folder),
-        entry_point='pypownet.environment:RunEnv',
-        kwargs={'parameters_folder': parameters_folder}
-    )
-
-
 def register_gym_envs():
     try:
         from gym.envs.registration import register
