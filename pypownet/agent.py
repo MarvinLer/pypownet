@@ -396,13 +396,13 @@ class FlowsSaver(Agent):
 
 class TestAgent(Agent):
     """This agent is used for testing purposes"""
-    def __init__(self, environment):
+    def __init__(self, environment,  line_to_cut):
         super().__init__(environment)
         print("TestAgent created...")
 
         self.current_step = 1
         self.ioman = ActIOnManager(destination_path='testAgent.csv')
-        self.line_to_cut = 17
+        self.line_to_cut = line_to_cut
 
     def act(self, observation):
         print("current step = ", self.current_step)

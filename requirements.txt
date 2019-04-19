@@ -9,3 +9,4 @@ scipy==1.1.0
 gym>=0.10.5
 PYPOWER==5.1.4
 PyYAML==5.1
+pytest=4.4.0
