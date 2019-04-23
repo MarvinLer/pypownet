@@ -145,6 +145,8 @@ class ActionSpace(MultiBinary):
         return formatted_action
 
     def get_number_elements_of_substation(self, substation_id):
+        # Sanity check
+        assert(substation_id in self.substations_ids)
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
     def get_substation_switches_in_action(self, action, substation_id, concatenated_output=True):
