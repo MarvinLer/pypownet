@@ -15,19 +15,19 @@ from pypownet.runner import Runner
 from pypownet.agent import *
 
 
-class TestAgent_LineLimitSwitching(Agent):
-    """This agent is used for testing purposes
+class Agent_test_LineLimitSwitching(Agent):
+    """This agent tests the restriction : n_timesteps_actionned_line_reactionable: 3
         t = 1, the agent switches off line X,
         t = 2, he observes that the line X has been switched off
         t = 2, he tries to switch the line back on, but should be dropped because of the
         restriction n_timesteps_actionned_line_reactionable: 3
-        t = 3, he observes that it indeed didnt do anything, because of the restriction, we did not managed to switch it
-        t = 3, he tries to cut it again
-        t = 4, he observes that it indeed didnt do anything, because of the restriction, we did not managed to cut it
-        t = 4, he tries to cut it again
-        t = 5, THE CUT WORKED
+        t = 3, he observes that it indeed didnt do anything, because of the restriction, we did not managed to switch it back on
+        t = 3, he tries to switch it on again
+        t = 4, he observes that it indeed didnt do anything, because of the restriction, we did not managed to switch it back on
+        t = 4, he tries to switch it on again
+        t = 5, THE "SWITCH BACK ON" WORKED
         t = 5, he tries to cut it again
-        t = 6,
+        t = 6, must be restricted again. Should still be back on.
     """
     def __init__(self, environment,  line_to_cut):
         super().__init__(environment)
@@ -64,12 +64,12 @@ class TestAgent_LineLimitSwitching(Agent):
         # t = 2, he tries to switch the line back on, but should be dropped because of the
         # restriction n_timesteps_actionned_line_reactionable: 3
         # t = 3, he observes that it indeed didnt do anything, because of the restriction, we did not managed to cut it
-        # t = 3, he tries to cut it again
+        # t = 3, he tries to put it back on again
         # t = 4, he observes that it indeed didnt do anything, because of the restriction, we did not managed to cut it
-        # t = 4, he tries to cut it again
-        # t = 5, THE CUT WORKED
+        # t = 4, he tries to put it back on again
+        # t = 5, THE SWITCH OF WORKED
         # t = 5, he tries to cut it again
-        # t = 6,
+        # t = 6, he observes that it is still on.
 
         if self.current_step == 1:
             # SWITCH OFF LINE X
@@ -125,7 +125,7 @@ class TestAgent_LineLimitSwitching(Agent):
         return action
 
 
-class TestAgent_NodeLimitSwitching(Agent):
+class Agent_test_NodeLimitSwitching(Agent):
     """This agent is used for testing purposes"""
     def __init__(self, environment,  node_to_change):
         super().__init__(environment)
@@ -309,7 +309,7 @@ def test_limit_same_line_switching():
         env = env_class(parameters_folder=parameters, game_level=game_level,
                         chronic_looping_mode=loop_mode, start_id=start_id,
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-        agent = TestAgent_LineLimitSwitching(env, line_to_cut)
+        agent = Agent_test_LineLimitSwitching(env, line_to_cut)
         # Instantiate game runner and loop
         runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
         final_reward = runner.loop(iterations=niter)
@@ -348,7 +348,7 @@ def test_limit_same_node_switching():
         env = env_class(parameters_folder=parameters, game_level=game_level,
                         chronic_looping_mode=loop_mode, start_id=start_id,
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-        agent = TestAgent_NodeLimitSwitching(env, node_to_change)
+        agent = Agent_test_NodeLimitSwitching(env, node_to_change)
         # Instantiate game runner and loop
         runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
         final_reward = runner.loop(iterations=niter)
@@ -357,4 +357,4 @@ def test_limit_same_node_switching():
 
 
 
-test_limit_same_node_switching()
+# test_limit_same_node_switching()
