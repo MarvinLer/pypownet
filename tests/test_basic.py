@@ -3,7 +3,7 @@
 import sys
 import os
 
-#add current path to sys.path
+# add current path to sys.path
 # print("current path = ", current_pwd)
 # sys.path.append(os.path.abspath("../"))
 #
@@ -15,23 +15,22 @@ from pypownet.runner import Runner
 from pypownet.agent import *
 
 
-class Agent_test_MaxNumberActionnedLines(Agent):
-    """This agent tests the restriction: max_number_actionned_lines = 2
-        t = 1, Agent switches off 3 lines, ==> should be rejected because of the restriction.
-        t = 2, check if all lines are ON.
-        t = 2, Agent switches off 2 lines, ==> should work.
-        t = 3, check if 2 lines are OFF and rest of lines are still ON
-        t = 4, Agent switches of 4 lines, ==> should be rejected because of the restriction.
-        t = 5, check if 2 lines are still OFF and rest of lines are still ON
+class Agent_test_MaxNumberActionnedSubstations(Agent):
+    """This agent tests the restriction: max_number_actionned_substations = 2
+        t = 1, Agent changes the topology of 3 nodes, ==> should be rejected because of the restriction.
+        t = 2, check if substation configurations are identical to t == 1
+        t = 2, Agent changes the topology of 2 nodes, ==> should work.
+        t = 3, check if substation configurations of node [X, X] changed and the rest is identical to t == 1
+        t = 3, Agent changes the topology of 4 nodes, ==> should be rejected because of the restriction.
+        t = 4, check if substation configurations of node [X, X] changed and the rest is identical to t == 1
     """
-    def __init__(self, environment,  line_to_cut=None):
+    def __init__(self, environment, line_to_cut=None):
         super().__init__(environment)
-        print("AgentCutLines created...")
+        print("Agent_test_MaxNumberActionnedNodes created...")
         self.current_step = 1
-        self.lines_to_cut = [1, 2]
 
     def act(self, observation):
-        # because we receive an observation = numpy.ndarray, we have to change it into class Observation
+        # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
         if not isinstance(observation, pypownet.environment.Observation):
             try:
                 observation = self.environment.observation_space.array_to_observation(observation)
@@ -41,7 +40,88 @@ class Agent_test_MaxNumberActionnedLines(Agent):
         assert isinstance(observation, pypownet.environment.Observation)
 
         action_space = self.environment.action_space
-        action_length = action_space.action_length
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        substation_topo = get_verbose_node_topology(observation, action_space)
+        print("prods_substations_ids = ", observation.productions_substations_ids)
+        print("prods_substationsTopo = ", observation.productions_nodes)
+        print("loads_substations_ids = ", list(observation.loads_substations_ids.astype(int)))
+        print("loads_substationsTopo = ", observation.loads_nodes)
+        print("substation_topo = ", substation_topo)
+        conf, types = observation.get_nodes_of_substation(11)
+        print("conf node11 = ", conf)
+
+        if self.current_step == 1:
+            # changes the topology of 3 nodes
+            # self.change_node_topology(4, action_space, action)
+            # action_space.set_substation_switches_in_action(action, 4, [1, 0, 0, 0, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 4, [0, 1, 0, 0, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 1, 0, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 1, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 1, 0])
+            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 0, 1])
+            # action_space.set_substation_switches_in_action(action, 11, [1, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 11, [0, 1, 0])
+            action_space.set_substation_switches_in_action(action, 11, [0, 0, 1])
+
+
+        if self.current_step == 2:
+            # check if substation configurations are identical to t == 1
+            pass
+
+        print("the action we return is, action = ", action)
+
+        print("action_space_get_switches_conf[4] = ", action_space.get_substation_switches_in_action(action, 11))
+        print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
+                                                                                 np.zeros(len(action))).all()))
+        print("========================================================")
+
+        self.current_step += 1
+        return action
+
+    # def change_node_topology(self, substation_id, action_space, action):
+    #     # Select a random substation ID on which to perform node-splitting
+    #     expected_target_configuration_size = action_space.get_number_elements_of_substation(substation_id)
+    #     # Choses a new switch configuration (binary array)
+    #     target_configuration = np.zeros(expected_target_configuration_size)
+    #     # we connect the CONSUMPTION to BUSBAR 1
+    #     target_configuration[3] = 1
+    #     print("target_configuration =", target_configuration)
+    #
+    #     action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
+    #                                                    new_values=target_configuration)
+    #     # Ensure changes have been done on action
+    #     current_configuration, _ = action_space.get_substation_switches_in_action(action, substation_id)
+    #     assert np.all(current_configuration == target_configuration)
+
+class Agent_test_MaxNumberActionnedLines(Agent):
+    """This agent tests the restriction: max_number_actionned_lines = 2
+        t = 1, Agent switches off 3 lines, ==> should be rejected because of the restriction.
+        t = 2, check if all lines are ON.
+        t = 2, Agent switches off 2 lines, ==> should work.
+        t = 3, check if 2 lines are OFF and rest of lines are still ON
+        t = 3, Agent switches of 4 lines, ==> should be rejected because of the restriction.
+        t = 4, check if 2 lines are still OFF and rest of lines are still ON
+    """
+
+    def __init__(self, environment, line_to_cut=None):
+        super().__init__(environment)
+        print("Agent_test_MaxNumberActionnedLines created...")
+        self.current_step = 1
+        self.lines_to_cut = [1, 2]
+
+    def act(self, observation):
+        # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
 
@@ -56,7 +136,7 @@ class Agent_test_MaxNumberActionnedLines(Agent):
 
         if self.current_step == 2:
             # check if all lines are ON
-            assert(np.equal(lines_status, np.ones(len(lines_status))).all())
+            assert (np.equal(lines_status, np.ones(len(lines_status))).all())
 
             # cut line 0 and line 1
             action_space.set_lines_status_switch_from_id(action=action, line_id=0, new_switch_value=1)
@@ -64,10 +144,10 @@ class Agent_test_MaxNumberActionnedLines(Agent):
 
         if self.current_step == 3:
             # check if lines 0, 1 are OFF and the rest is ON
-            assert(lines_status[0] == 0)
-            assert(lines_status[1] == 0)
+            assert (lines_status[0] == 0)
+            assert (lines_status[1] == 0)
             for i in range(2, 15):
-                assert(lines_status[i] == 1)
+                assert (lines_status[i] == 1)
 
             # cut 4 lines, it should end up as a do nothing action, nothing gets done.
             action_space.set_lines_status_switch_from_id(action=action, line_id=2, new_switch_value=1)
@@ -77,10 +157,10 @@ class Agent_test_MaxNumberActionnedLines(Agent):
 
         if self.current_step == 4:
             # check AGAIN if lines 0, 1 are OFF and the rest is ON
-            assert(lines_status[0] == 0)
-            assert(lines_status[1] == 0)
+            assert (lines_status[0] == 0)
+            assert (lines_status[1] == 0)
             for i in range(2, 15):
-                assert(lines_status[i] == 1)
+                assert (lines_status[i] == 1)
 
         print("Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
                                                                                  np.zeros(len(action))).all()))
@@ -104,7 +184,8 @@ class Agent_test_LineLimitSwitching(Agent):
         t = 5, he tries to cut it again
         t = 6, must be restricted again. Should still be back on.
     """
-    def __init__(self, environment,  line_to_cut):
+
+    def __init__(self, environment, line_to_cut):
         super().__init__(environment)
         print("TestAgent_LineLimitSwitching created...")
 
@@ -182,7 +263,7 @@ class Agent_test_LineLimitSwitching(Agent):
         self.current_step += 1
         print("the action we return is, action = ", action)
 
-        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action)) ).all())
+        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
         print("========================================================")
 
         return action
@@ -190,7 +271,8 @@ class Agent_test_LineLimitSwitching(Agent):
 
 class Agent_test_NodeLimitSwitching(Agent):
     """This agent is used for testing purposes"""
-    def __init__(self, environment,  node_to_change):
+
+    def __init__(self, environment, node_to_change):
         super().__init__(environment)
         print("TestAgent_NodeLimitSwitching created...")
 
@@ -212,7 +294,7 @@ class Agent_test_NodeLimitSwitching(Agent):
         action_space = self.environment.action_space
         print("prods_substations_ids = ", observation.productions_substations_ids)
         print("prods_substationsTopo = ", observation.productions_nodes)
-        nodes_ids = self.get_verbose_node_topology(observation)
+        nodes_ids = get_verbose_node_topology(observation, action_space)
         print("nodes_ids = ", nodes_ids)
 
         # Create template of action with no switch activated (do-nothing action)
@@ -240,45 +322,7 @@ class Agent_test_NodeLimitSwitching(Agent):
             print(new_supposed_name_str)
             # Here we just OBSERVE that the NODE_TO_CHANGE has the production now connected to BUSBAR1
             index_res = list(observation.productions_substations_ids).index(self.node_to_change)
-            assert(observation.productions_nodes[index_res] == 1)
-
-
-            # assert (observation.lines_status[self.line_to_cut] == 0)
-
-
-            # we try to switch the line back on, but should be dropped because of the
-            # restriction n_timesteps_actionned_line_reactionable: 3
-            # print("we try switch back line {}, curr_step = {}".format(self.line_to_cut, self.current_step))
-            # action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
-
-        # elif self.current_step == 3:
-        #     # Here, because of the restriction, we did not managed to cut it.
-        #     assert (observation.lines_status[self.line_to_cut] == 0)
-        #
-        #     # we try again, it still should not work.
-        #     print("we try switch back line {}, curr_step = {}".format(self.line_to_cut, self.current_step))
-        #     action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
-        #
-        # elif self.current_step == 4:
-        #     # Here, because of the restriction, we did not managed to cut it.
-        #     assert (observation.lines_status[self.line_to_cut] == 0)
-        #
-        #     # SWITCH BACK ON LINE X # NOW IT SHOULD WORK, because it is the last (third) step, AND IT SHOULD BE VISIBLE
-        #     # IN STEP 5
-        #     print("we try switch back line {}, curr_step = {}".format(self.line_to_cut, self.current_step))
-        #     action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
-        #
-        # elif self.current_step == 5:
-        #     # Here, because of the restriction, we did not managed to cut it.
-        #     assert (observation.lines_status[self.line_to_cut] == 1)
-        #
-        #     # LAST CHECK:  SWITCH BACK ON LINE X # NOW IT SHOULD WORK AND IT SHOULD BE VISIBLE IN STEP 6
-        #     print("we switch back line {}, curr_step = {}".format(self.line_to_cut, self.current_step))
-        #     action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
-        #
-        # elif self.current_step == 6:
-        #     # Here, because of the restriction, we should still see the line, ON
-        #     assert (observation.lines_status[self.line_to_cut] == 1)
+            assert (observation.productions_nodes[index_res] == 1)
 
         # Dump best action into stored actions file
         self.ioman.dump(action)
@@ -287,60 +331,57 @@ class Agent_test_NodeLimitSwitching(Agent):
 
         return action
 
-    def get_verbose_node_topology(self, obs):
-        """This function returns the <real> topology, ie, split nodes are displayed"""
-        action_space = self.environment.action_space
-        n_bars = len(action_space.substations_ids)
-        # The following code allows to get just the nodes ids
-        # where there are elements connected. It also considerer
-        # the split node action.
-        all_sub_conf = []
-        for sub_id in obs.substations_ids:
-            sub_conf, _ = obs.get_nodes_of_substation(sub_id)
-            all_sub_conf.append(sub_conf)
 
-        # print("all sub conf = ", all_sub_conf)
+def get_verbose_node_topology(obs, action_space):
+    """This function returns the <real> topology, ie, split nodes are displayed"""
+    n_bars = len(action_space.substations_ids)
+    # The following code allows to get just the nodes ids
+    # where there are elements connected. It also considerer
+    # the split node action.
+    all_sub_conf = []
+    for sub_id in obs.substations_ids:
+        sub_conf, _ = obs.get_nodes_of_substation(sub_id)
+        all_sub_conf.append(sub_conf)
 
-        nodes_ids = np.arange(1, n_bars + 1)
-        for i in range(len(all_sub_conf)):
-            # Check if all elements in sub (i)
-            # are connected to busbar B1.
-            # print(np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i]))))
-            # print("np.ones(len(all_sub_conf[i] = ", np.ones(len(all_sub_conf[i])))
-            # print("type = ", type(np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i])))))
-            if (np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i])))).all():
-                # Remove the existing node.
-                nodes_ids = np.delete(nodes_ids, i)
-                # And create a new node.
-                nodes_ids = np.append(nodes_ids, int(str(666) + str(i + 1)))
-            # Check if one or more elements
-            # are connected to busbar B1.
-            elif np.sum(all_sub_conf[i]) > 0:
-                nodes_ids = np.append(nodes_ids, int(str(666) + str(i + 1)))
+    nodes_ids = np.arange(1, n_bars + 1)
+    for i in range(len(all_sub_conf)):
+        # Check if all elements in sub (i) are connected to busbar B1.
+        # print(np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i]))))
+        # print("np.ones(len(all_sub_conf[i] = ", np.ones(len(all_sub_conf[i])))
+        # print("type = ", type(np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i])))))
+        if (np.equal(all_sub_conf[i], np.ones(len(all_sub_conf[i])))).all():
+            # Remove the existing node.
+            nodes_ids = np.delete(nodes_ids, i)
+            # And create a new node.
+            nodes_ids = np.append(nodes_ids, int(str(666) + str(i + 1)))
+        # Check if one or more elements
+        # are connected to busbar B1.
+        elif np.sum(all_sub_conf[i]) > 0:
+            nodes_ids = np.append(nodes_ids, int(str(666) + str(i + 1)))
 
-        nodes_ids = list(nodes_ids)
-        # print("CUSTOM nodes ids = ", nodes_ids)
+    nodes_ids = list(nodes_ids)
 
-        for node in obs.substations_ids:
-            conf = obs.get_nodes_of_substation(node)
-            print(f"node [{node}] config = {conf}")
-            ii = 0
-            for elem, type in zip(conf[0], conf[1]):
-                print(f"element n°[{ii}] connected to BusBar n°[{elem}] is a [{type}]")
-                ii += 1
-                return nodes_ids
+    for node in obs.substations_ids:
+        conf = obs.get_nodes_of_substation(node)
+        # print(f"node [{node}] config = {conf}")
+        # print(f"func: get_verbose_topo: node [{node}]")
+        ii = 0
+        for elem, type in zip(conf[0], conf[1]):
+            # print(f"element n°[{ii}] connected to BusBar n°[{elem}] is a [{type}]")
+            ii += 1
+    return list(nodes_ids)
 
 
 def test_first():
     a = 1
     b = 1
-    assert(a == b)
+    assert (a == b)
 
 
 def test_second():
     a = "A"
     b = "A"
-    assert(a == b)
+    assert (a == b)
 
 
 def test_Agent_test_LineLimitSwitching():
@@ -444,7 +485,33 @@ def test_Agent_test_MaxNumberActionnedLines():
     print("Obtained a final reward of {}".format(final_reward))
 
 
+def test_Agent_test_MaxNumberActionnedNodes():
+    """This function creates an Agent that tests the restriction param: max_number_actionned_lines """
+
+    parameters = "./tests/parameters/default14/"
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # agent = "RandomLineSwitch"
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_MaxNumberActionnedSubstations(env)
+    # Instantiate game runner and loop
+    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+
 
 
 # test_limit_same_node_switching()
-test_Agent_test_MaxNumberActionnedLines()
+# test_Agent_test_MaxNumberActionnedLines()
+test_Agent_test_MaxNumberActionnedNodes()
