@@ -7,12 +7,108 @@ import os
 # print("current path = ", current_pwd)
 # sys.path.append(os.path.abspath("../"))
 #
-print("dir = ", dir())
-print("syspath = ", sys.path)
+# print("dir = ", dir())
+# print("syspath = ", sys.path)
 
 from pypownet.environment import RunEnv
 from pypownet.runner import Runner
 from pypownet.agent import *
+
+
+class Agent_test_BasicSubstationTopologyChange(Agent):
+    """This agent changes all the possible connections on a given node, and checks from Observations that it did occur.
+    We check this way all changes, PRODS, LOADS, OR, EX"""
+    def __init__(self, environment, node_to_change=None):
+        super().__init__(environment)
+        print("Agent_test_BasicSubstationTopologyChange created...")
+        self.node_to_change = node_to_change
+        self.current_step = 1
+
+        action_space = self.environment.action_space
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # give a list [0, 0, 0] ==> it generates [1, 0, 0], [0, 1, 0], [0, 0, 1] lists..
+        self.node_topology_generator = create_node_topology_generator(target_configuration)
+        self.all_topologies = []
+        for topo in self.node_topology_generator:
+            self.all_topologies.append(topo)
+        print("All topologies = ", self.all_topologies)
+        self.previous_conf = None
+
+    def act(self, observation):
+        # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        ################################################################################################################
+        action_space = self.environment.action_space
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        print("types = ", types)
+
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+
+        if self.current_step == 1:
+            new_conf = self.all_topologies[self.current_step - 1]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+        elif self.current_step == 2:
+            # t = 2, check if substation configurations are identical to t == 1
+            assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+
+            new_conf = self.all_topologies[self.current_step - 1]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+
+            final_conf = get_differencial_topology(new_conf, current_conf)
+            print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 3:
+            # t = 3, check if substation configurations are identical to t == t - 1
+            assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+
+            new_conf = self.all_topologies[self.current_step - 1]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+
+            final_conf = get_differencial_topology(new_conf, current_conf)
+            print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 4:
+            # t = 4, check if substation configurations are identical to t == t - 1
+            assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+
+            new_conf = self.all_topologies[self.current_step - 2]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+        elif self.current_step == 5:
+            # t = 4, check if substation configurations are identical to t == t - 1
+            if len(current_conf) < 4:
+                return action
+            else:
+                assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+
+
+        print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
+                                                                                        np.zeros(len(action))).all()))
+        print("========================================================")
+        self.current_step += 1
+        return action
 
 
 class Agent_test_MaxNumberActionnedSubstations(Agent):
@@ -39,6 +135,7 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
 
+        ################################################################################################################
         action_space = self.environment.action_space
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
@@ -49,7 +146,7 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         print("loads_substations_ids = ", list(observation.loads_substations_ids.astype(int)))
         print("loads_substationsTopo = ", observation.loads_nodes)
         print("substation_topo = ", substation_topo)
-        conf, types = observation.get_nodes_of_substation(11)
+        conf, types = observation.get_nodes_of_substation(5)
         print("conf node11 = ", conf)
 
         if self.current_step == 1:
@@ -61,9 +158,9 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 1, 0, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 1, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 0, 1])
-            # action_space.set_substation_switches_in_action(action, 11, [1, 0, 0])
+            action_space.set_substation_switches_in_action(action, 5, [1, 0, 0, 0, 0])
             # action_space.set_substation_switches_in_action(action, 11, [0, 1, 0])
-            action_space.set_substation_switches_in_action(action, 11, [0, 0, 1])
+            # action_space.set_substation_switches_in_action(action, 11, [0, 0, 1])
 
 
         if self.current_step == 2:
@@ -72,7 +169,7 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
 
         print("the action we return is, action = ", action)
 
-        print("action_space_get_switches_conf[4] = ", action_space.get_substation_switches_in_action(action, 11))
+        print("action_space_get_switches_conf[5] = ", action_space.get_substation_switches_in_action(action, 5))
         print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
                                                                                  np.zeros(len(action))).all()))
         print("========================================================")
@@ -80,20 +177,20 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         self.current_step += 1
         return action
 
-    # def change_node_topology(self, substation_id, action_space, action):
-    #     # Select a random substation ID on which to perform node-splitting
-    #     expected_target_configuration_size = action_space.get_number_elements_of_substation(substation_id)
-    #     # Choses a new switch configuration (binary array)
-    #     target_configuration = np.zeros(expected_target_configuration_size)
-    #     # we connect the CONSUMPTION to BUSBAR 1
-    #     target_configuration[3] = 1
-    #     print("target_configuration =", target_configuration)
-    #
-    #     action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
-    #                                                    new_values=target_configuration)
-    #     # Ensure changes have been done on action
-    #     current_configuration, _ = action_space.get_substation_switches_in_action(action, substation_id)
-    #     assert np.all(current_configuration == target_configuration)
+    def change_node_topology(self, substation_id, action_space, action):
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(substation_id)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # we connect the CONSUMPTION to BUSBAR 1
+        target_configuration[3] = 1
+        print("target_configuration =", target_configuration)
+
+        action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
+                                                       new_values=target_configuration)
+        # Ensure changes have been done on action
+        current_configuration, _ = action_space.get_substation_switches_in_action(action, substation_id)
+        assert np.all(current_configuration == target_configuration)
 
 class Agent_test_MaxNumberActionnedLines(Agent):
     """This agent tests the restriction: max_number_actionned_lines = 2
@@ -319,7 +416,6 @@ class Agent_test_NodeLimitSwitching(Agent):
 
         elif self.current_step == 2:
             new_supposed_name_str = "666" + str(self.node_to_change)
-            print(new_supposed_name_str)
             # Here we just OBSERVE that the NODE_TO_CHANGE has the production now connected to BUSBAR1
             index_res = list(observation.productions_substations_ids).index(self.node_to_change)
             assert (observation.productions_nodes[index_res] == 1)
@@ -511,7 +607,66 @@ def test_Agent_test_MaxNumberActionnedNodes():
     print("Obtained a final reward of {}".format(final_reward))
 
 
+def test_Agent_test_BasicSubstationTopologyChange():
+    """This function creates an Agent that tests all the Topological changes of all the Substations"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # agent = "RandomLineSwitch"
+    niter = 6
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_BasicSubstationTopologyChange(env, 1)
+    # Instantiate game runner and loop
+    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+
+
+def create_node_topology_generator(l):
+    for i in range(len(l)):
+        res = l.copy()
+        res[i] = 1
+        yield list(res.astype(int))
+
+
+def get_differencial_topology(new_conf, old_conf):
+    """new - old, for elem in result, if elem -1, then put one"""
+    assert(len(new_conf) == len(old_conf))
+    res = []
+
+    for elemNew, elemOld in zip(new_conf, old_conf):
+        r = elemNew - elemOld
+        if r < 0:
+            res.append(1)
+        else:
+            res.append(int(r))
+    return res
+
+
+def test_differencial_topology():
+    res = get_differencial_topology([0, 0, 0], [1, 1, 1])
+    assert(res == [1, 1, 1])
+
+    res = get_differencial_topology([0, 1, 0], [1, 1, 1])
+    assert(res == [1, 0, 1])
+
+    res = get_differencial_topology([0, 0, 1], [1, 1, 0])
+    assert(res == [1, 1, 1])
+
 
 # test_limit_same_node_switching()
 # test_Agent_test_MaxNumberActionnedLines()
-test_Agent_test_MaxNumberActionnedNodes()
+# test_Agent_test_MaxNumberActionnedNodes()
+test_Agent_test_BasicSubstationTopologyChange()
+

@@ -15,10 +15,10 @@ n_timesteps_soft_overflow_is_broken: 5  # number of timesteps a soft overflow br
 n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for planned maintenance prevision
 
 max_number_prods_game_over: 2  # number of tolerated isolated productions before game over
-max_number_loads_game_over: 2  # number of tolerated isolated loads before game over
+max_number_loads_game_over: 0  # number of tolerated isolated loads before game over
 
 n_timesteps_actionned_line_reactionable: 3  # number of consecutive timesteps before a switched line can be switched again
-n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again
+n_timesteps_actionned_node_reactionable: 0  # number of consecutive timesteps before a topology-changed node can be changed again
 n_timesteps_pending_line_reactionable_when_overflowed: 1 # number of cons. timesteps before a line waiting to be reactionable is reactionable if it is overflowed
 n_timesteps_pending_node_reactionable_when_overflowed: 1 # number of cons. timesteps before a none waiting to be reactionable is reactionable if it has an overflowed line
 
