@@ -15,6 +15,81 @@ from pypownet.runner import Runner
 from pypownet.agent import *
 
 
+class Agent_test_MaxNumberActionnedLines(Agent):
+    """This agent tests the restriction: max_number_actionned_lines = 2
+        t = 1, Agent switches off 3 lines, ==> should be rejected because of the restriction.
+        t = 2, check if all lines are ON.
+        t = 2, Agent switches off 2 lines, ==> should work.
+        t = 3, check if 2 lines are OFF and rest of lines are still ON
+        t = 4, Agent switches of 4 lines, ==> should be rejected because of the restriction.
+        t = 5, check if 2 lines are still OFF and rest of lines are still ON
+    """
+    def __init__(self, environment,  line_to_cut=None):
+        super().__init__(environment)
+        print("AgentCutLines created...")
+        self.current_step = 1
+        self.lines_to_cut = [1, 2]
+
+    def act(self, observation):
+        # because we receive an observation = numpy.ndarray, we have to change it into class Observation
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        action_length = action_space.action_length
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        lines_status = observation.lines_status
+        print("lines_status = ", lines_status)
+
+        if self.current_step == 1:
+            # cut 3 lines, it should end up as a do nothing action, nothing gets done.
+            action_space.set_lines_status_switch_from_id(action=action, line_id=1, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=0, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=5, new_switch_value=1)
+
+        if self.current_step == 2:
+            # check if all lines are ON
+            assert(np.equal(lines_status, np.ones(len(lines_status))).all())
+
+            # cut line 0 and line 1
+            action_space.set_lines_status_switch_from_id(action=action, line_id=0, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=1, new_switch_value=1)
+
+        if self.current_step == 3:
+            # check if lines 0, 1 are OFF and the rest is ON
+            assert(lines_status[0] == 0)
+            assert(lines_status[1] == 0)
+            for i in range(2, 15):
+                assert(lines_status[i] == 1)
+
+            # cut 4 lines, it should end up as a do nothing action, nothing gets done.
+            action_space.set_lines_status_switch_from_id(action=action, line_id=2, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=3, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=4, new_switch_value=1)
+            action_space.set_lines_status_switch_from_id(action=action, line_id=5, new_switch_value=1)
+
+        if self.current_step == 4:
+            # check AGAIN if lines 0, 1 are OFF and the rest is ON
+            assert(lines_status[0] == 0)
+            assert(lines_status[1] == 0)
+            for i in range(2, 15):
+                assert(lines_status[i] == 1)
+
+        print("Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
+                                                                                 np.zeros(len(action))).all()))
+        print("========================================================")
+
+        self.current_step += 1
+        return action
+
+
 class Agent_test_LineLimitSwitching(Agent):
     """This agent tests the restriction : n_timesteps_actionned_line_reactionable: 3
         t = 1, the agent switches off line X,
@@ -58,18 +133,6 @@ class Agent_test_LineLimitSwitching(Agent):
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
-
-        # t = 1, the agent switches off line X,
-        # t = 2, he observes that the line X has been switched off
-        # t = 2, he tries to switch the line back on, but should be dropped because of the
-        # restriction n_timesteps_actionned_line_reactionable: 3
-        # t = 3, he observes that it indeed didnt do anything, because of the restriction, we did not managed to cut it
-        # t = 3, he tries to put it back on again
-        # t = 4, he observes that it indeed didnt do anything, because of the restriction, we did not managed to cut it
-        # t = 4, he tries to put it back on again
-        # t = 5, THE SWITCH OF WORKED
-        # t = 5, he tries to cut it again
-        # t = 6, he observes that it is still on.
 
         if self.current_step == 1:
             # SWITCH OFF LINE X
@@ -280,7 +343,7 @@ def test_second():
     assert(a == b)
 
 
-def test_limit_same_line_switching():
+def test_Agent_test_LineLimitSwitching():
     """
     This function creates an agent that switches a line, then tries to switch it again. (But should be nullified because
      of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps, we switch it back up.
@@ -316,7 +379,7 @@ def test_limit_same_line_switching():
         print("Obtained a final reward of {}".format(final_reward))
 
 
-def test_limit_same_node_switching():
+def test_Agent_test_NodeLimitSwitching():
     """This function creates an agent that switches a node topology, then tries to switch it again (same).
     (But should be nullified because of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps,
      we switch it back up.
@@ -355,6 +418,33 @@ def test_limit_same_node_switching():
         print("Obtained a final reward of {}".format(final_reward))
 
 
+def test_Agent_test_MaxNumberActionnedLines():
+    """This function creates an Agent that tests the restriction param: max_number_actionned_lines """
+
+    parameters = "./tests/parameters/default14/"
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # agent = "RandomLineSwitch"
+    niter = 5
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_MaxNumberActionnedLines(env)
+    # Instantiate game runner and loop
+    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+
+
 
 
 # test_limit_same_node_switching()
+test_Agent_test_MaxNumberActionnedLines()
