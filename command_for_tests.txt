@@ -1,0 +1,3 @@
+# inside pypownet folder.
+pytest --verbose --disable-warnings
+pytest --verbose --disable-warnings --continue-on-collection-errors
