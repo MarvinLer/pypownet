@@ -3,6 +3,7 @@
 from pypownet.environment import RunEnv
 from pypownet.runner import Runner
 from pypownet.agent import *
+import math
 
 
 class Agent_test_LimitOfProdsLost(Agent):
@@ -97,11 +98,70 @@ class Agent_test_LimitOfProdsLost(Agent):
 #     print("Obtained a final reward of {}".format(final_reward))
 
 
-class Agent_test_InputProdValues(Agent):
-    """This agent compares the values found in the chronics and internal observation for 3 steps. """
-    def __init__(self, environment, line_to_cut):
+class Agent_test_InputLoadValues(Agent):
+    """This agent compares the input LOAD values found in the chronics and internal observations for 3 steps. """
+    def __init__(self, environment):
         super().__init__(environment)
-        print("TestAgent_LineLimitSwitching created...")
+        print("Agent_test_InputLoadValues created...")
+
+        self.current_step = 1
+        self.line_to_cut = None
+
+    def act(self, observation):
+        print("[Current step] = ", self.current_step)
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        current_load_powers = observation.active_loads
+        print("current_load_powers = ", current_load_powers)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        if self.current_step == 1:
+            expected = [25.629642, 97.45528, 49.735317, 8.250563, 10.010641, 30.2604, 9.736532, 3.3486228, 7.0213113,
+                        16.209476, 16.188494]
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+
+                print("error diff = ", error_diff)
+                assert (math.fabs(error_diff) < 1e-3)
+
+        if self.current_step == 2:
+            expected = [21.07166, 87.22948, 43.29531, 6.9710474, 10.483086, 28.114975, 10.368015, 3.0358257, 5.108532,
+                        12.720526, 12.9846325]
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+
+                print("error diff = ", error_diff)
+                assert (math.fabs(error_diff) < 1e-3)
+
+        if self.current_step == 3:
+            expected = [18.838198, 86.235115, 44.783886, 6.563092, 9.875335, 24.161335, 6.824309, 3.2030978, 4.8327637,
+                        12.320875, 13.072087]
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+                print("error diff = ", error_diff)
+                assert (math.fabs(error_diff) < 1e-3)
+
+        self.current_step += 1
+
+        return action
+
+
+class Agent_test_InputProdValues(Agent):
+    """This agent compares the input PROD values found in the chronics and internal observations for 3 steps. """
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_InputProdValues created...")
 
         self.current_step = 1
         self.line_to_cut = None
@@ -139,7 +199,7 @@ class Agent_test_InputProdValues(Agent):
                 error_diff = core_elem - expected_elem
 
                 print("error diff = ", error_diff)
-                assert (error_diff < 1e-5)
+                assert (math.fabs(error_diff) < 1e-3)
 
         if self.current_step == 2:
             expected = [104.072556, 43.576332, 31.90516, 32.831142, 32.747932]
@@ -147,15 +207,14 @@ class Agent_test_InputProdValues(Agent):
                 error_diff = core_elem - expected_elem
 
                 print("error diff = ", error_diff)
-                assert (error_diff < 1e-5)
+                assert (math.fabs(error_diff) < 1e-3)
 
         if self.current_step == 3:
             expected = [134.51176, 56.608887, 0.0, 0.0, 46.029488]
             for expected_elem, core_elem in zip(expected, current_production_powers):
                 error_diff = core_elem - expected_elem
-                print(core_elem, expected_elem)
                 print("error diff = ", error_diff)
-                assert (error_diff < 1e-3)
+                assert (math.fabs(error_diff) < 1e-3)
 
         self.current_step += 1
 
@@ -181,17 +240,42 @@ def test_core_Agent_test_InputProdValues():
     env = env_class(parameters_folder=parameters, game_level=game_level,
                     chronic_looping_mode=loop_mode, start_id=start_id,
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-    agent = Agent_test_InputProdValues(env, 1)
+    agent = Agent_test_InputProdValues(env)
     # Instantiate game runner and loop
     runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
 
 
+def test_core_Agent_test_InputLoadValues():
+    """This function creates an Agent that tests the correct loading of input Prod values"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_InputLoadValues(env)
+    # Instantiate game runner and loop
+    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+
 # def test_check_load_prods_values():
 #     pass
 
-
-test_core_Agent_test_InputProdValues()
-
 # test_core_Agent_test_limitOfProdsLost()
+# test_core_Agent_test_InputProdValues()
+test_core_Agent_test_InputLoadValues()
+
