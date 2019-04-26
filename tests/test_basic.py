@@ -485,7 +485,8 @@ def test_Agent_test_LineLimitSwitching():
     This function creates an agent that switches a line, then tries to switch it again. (But should be nullified because
      of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps, we switch it back up.
     """
-    parameters = "./tests/parameters/default14/"
+    # parameters = "./tests/parameters/default14/"
+    parameters = "./tests/parameters/default14_for_tests/"
     game_level = "level0"
     loop_mode = "natural"
     start_id = 0
@@ -521,7 +522,8 @@ def test_Agent_test_NodeLimitSwitching():
     (But should be nullified because of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps,
      we switch it back up.
     """
-    parameters = "./tests/parameters/default14/"
+    # parameters = "./tests/parameters/default14/"
+    parameters = "./tests/parameters/default14_for_tests/"
     game_level = "level0"
     loop_mode = "natural"
     start_id = 0
@@ -558,7 +560,8 @@ def test_Agent_test_NodeLimitSwitching():
 def test_Agent_test_MaxNumberActionnedLines():
     """This function creates an Agent that tests the restriction param: max_number_actionned_lines """
 
-    parameters = "./tests/parameters/default14/"
+    # parameters = "./tests/parameters/default14/"
+    parameters = "./tests/parameters/default14_for_tests/"
     game_level = "level0"
     loop_mode = "natural"
     start_id = 0
@@ -584,7 +587,8 @@ def test_Agent_test_MaxNumberActionnedLines():
 def test_Agent_test_MaxNumberActionnedNodes():
     """This function creates an Agent that tests the restriction param: max_number_actionned_lines """
 
-    parameters = "./tests/parameters/default14/"
+    # parameters = "./tests/parameters/default14/"
+    parameters = "./tests/parameters/default14_for_tests/"
     game_level = "level0"
     loop_mode = "natural"
     start_id = 0
