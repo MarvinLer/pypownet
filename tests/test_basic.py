@@ -480,6 +480,17 @@ def test_second():
     assert (a == b)
 
 
+def test_differencial_topology():
+    res = get_differencial_topology([0, 0, 0], [1, 1, 1])
+    assert(res == [1, 1, 1])
+
+    res = get_differencial_topology([0, 1, 0], [1, 1, 1])
+    assert(res == [1, 0, 1])
+
+    res = get_differencial_topology([0, 0, 1], [1, 1, 0])
+    assert(res == [1, 1, 1])
+
+
 def test_Agent_test_LineLimitSwitching():
     """
     This function creates an agent that switches a line, then tries to switch it again. (But should be nullified because
@@ -654,15 +665,6 @@ def get_differencial_topology(new_conf, old_conf):
     return res
 
 
-def test_differencial_topology():
-    res = get_differencial_topology([0, 0, 0], [1, 1, 1])
-    assert(res == [1, 1, 1])
-
-    res = get_differencial_topology([0, 1, 0], [1, 1, 1])
-    assert(res == [1, 0, 1])
-
-    res = get_differencial_topology([0, 0, 1], [1, 1, 0])
-    assert(res == [1, 1, 1])
 
 
 # test_limit_same_node_switching()
