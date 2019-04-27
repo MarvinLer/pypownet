@@ -390,8 +390,7 @@ class Grid(object):
         for lo, (load_node, new_load_node) in enumerate(zip(self.topology.loads_nodes, new_loads_nodes)):
             # If the node on which a load is connected is swap, then swap P and Q values for both nodes
             if new_load_node != load_node:
-                are_loads = np.where(self.are_loads[:self.n_nodes // 2], self.are_loads[:self.n_nodes // 2],
-                                     self.are_loads[self.n_nodes // 2:])
+                are_loads = np.logical_or(self.are_loads[:self.n_nodes // 2], self.are_loads[self.n_nodes // 2:])
                 id_bus = np.where(are_loads)[0][lo] % (self.n_nodes // 2)
                 # Copy first node P and Q
                 tmp = copy.deepcopy(bus[id_bus, [2, 3]])
