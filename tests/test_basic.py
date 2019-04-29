@@ -15,6 +15,59 @@ from pypownet.runner import Runner
 from pypownet.agent import *
 
 
+class WrappedRunner(Runner):
+    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, parameters=None, level=None,
+                 max_iter=None, log_filepath='runner.log', machinelog_filepath='machine_logs.csv'):
+        super().__init__(environment, agent, render, verbose, vverbose, parameters, level, max_iter, log_filepath,
+                         machinelog_filepath)
+
+    def step(self, observation):
+        """
+        Performs a full RL step: the agent acts given an observation, receives and process the reward, and the env is
+        resetted if done was returned as True; this also logs the variables of the system including actions,
+        observations.
+        :param observation: input observation to be given to the agent
+        :return: (new observation, action taken, reward received)
+        """
+        action = self.agent.act(observation)
+
+        # Update the environment with the chosen action
+        observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
+        if done:
+            observation = self.environment.reset()
+        elif info:
+            self.logger.warning(info.text)
+
+        reward = sum(reward_aslist)
+
+        if self.render:
+            self.environment.render()
+
+        self.agent.feed_reward(action, observation, reward_aslist)
+
+        return observation, action, reward, reward_aslist, done, info
+
+    def loop(self, iterations, episodes=1):
+        """
+        Runs the simulator for the given number of iterations time the number of episodes.
+        :param iterations: int of number of iterations per episode
+        :param episodes: int of number of episodes, each resetting the environment at the beginning
+        :return:
+        """
+        cumul_rew = 0.0
+        dones = []
+        infos = []
+        for i_episode in range(episodes):
+            observation = self.environment.reset()
+            for i in range(1, iterations + 1):
+                (observation, action, reward, reward_aslist, done, info) = self.step(observation)
+                cumul_rew += reward
+                dones.append(done)
+                infos.append(info)
+
+        return cumul_rew, dones, infos
+
+
 class Agent_test_BasicSubstationTopologyChange(Agent):
     """This agent changes all the possible connections on a given node, and checks from Observations that it did occur.
     We check this way all changes, PRODS, LOADS, OR, EX
@@ -156,19 +209,22 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         print("loads_substations_ids = ", list(observation.loads_substations_ids.astype(int)))
         print("loads_substationsTopo = ", observation.loads_nodes)
         print("substation_topo = ", substation_topo)
+        conf, types = observation.get_nodes_of_substation(4)
+        print("conf node4 = ", conf)
         conf, types = observation.get_nodes_of_substation(5)
-        print("conf node11 = ", conf)
+        print("conf node5 = ", conf)
+        conf, types = observation.get_nodes_of_substation(6)
+        print("conf node6 = ", conf)
 
         if self.current_step == 1:
             # changes the topology of 3 nodes
-            # self.change_node_topology(4, action_space, action)
-            # action_space.set_substation_switches_in_action(action, 4, [1, 0, 0, 0, 0, 0])
+            action_space.set_substation_switches_in_action(action, 4, [1, 0, 0, 0, 0, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 1, 0, 0, 0, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 1, 0, 0, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 1, 0, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 1, 0])
             # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 0, 1])
-            action_space.set_substation_switches_in_action(action, 5, [1, 0, 0, 0, 0])
+            # action_space.set_substation_switches_in_action(action, 5, [1, 0, 0, 0, 0])
             # action_space.set_substation_switches_in_action(action, 11, [0, 1, 0])
             # action_space.set_substation_switches_in_action(action, 11, [0, 0, 1])
 
@@ -528,17 +584,6 @@ def get_verbose_node_topology(obs, action_space):
     return list(nodes_ids)
 
 
-def test_first():
-    a = 1
-    b = 1
-    assert (a == b)
-
-
-def test_second():
-    a = "A"
-    b = "A"
-    assert (a == b)
-
 
 def test_differencial_topology():
     res = get_differencial_topology([0, 0, 0], [1, 1, 1])
@@ -581,8 +626,8 @@ def test_Agent_test_LineTimeLimitSwitching():
                         chronic_looping_mode=loop_mode, start_id=start_id,
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
         agent = Agent_test_LineTimeLimitSwitching(env, line_to_cut)
-        # Instantiate game runner and loop
-        runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+        # Instantiate game WrappedRunner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
         final_reward = runner.loop(iterations=niter)
         print("Obtained a final reward of {}".format(final_reward))
 
@@ -621,9 +666,11 @@ def test_Agent_test_NodeTimeLimitSwitching():
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
         agent = Agent_test_NodeTimeLimitSwitching(env, node_to_change)
         # Instantiate game runner and loop
-        runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
-        final_reward = runner.loop(iterations=niter)
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, dones, infos = runner.loop(iterations=niter)
         print("Obtained a final reward of {}".format(final_reward))
+        print("dones = ", dones)
+        print("infos = ", infos)
 
 
 def test_Agent_test_MaxNumberActionnedLines():
@@ -647,7 +694,7 @@ def test_Agent_test_MaxNumberActionnedLines():
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
     agent = Agent_test_MaxNumberActionnedLines(env)
     # Instantiate game runner and loop
-    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
 
@@ -673,7 +720,7 @@ def test_Agent_test_MaxNumberActionnedNodes():
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
     agent = Agent_test_MaxNumberActionnedSubstations(env)
     # Instantiate game runner and loop
-    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
 
@@ -699,7 +746,7 @@ def test_Agent_test_BasicSubstationTopologyChange():
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
     agent = Agent_test_BasicSubstationTopologyChange(env, 1)
     # Instantiate game runner and loop
-    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
 
@@ -727,9 +774,9 @@ def get_differencial_topology(new_conf, old_conf):
 
 
 
-test_Agent_test_NodeTimeLimitSwitching()
+# test_Agent_test_LineTimeLimitSwitching()
+# test_Agent_test_NodeTimeLimitSwitching()
 # test_Agent_test_MaxNumberActionnedLines()
-# test_Agent_test_MaxNumberActionnedNodes()
+test_Agent_test_MaxNumberActionnedNodes()
 # test_Agent_test_BasicSubstationTopologyChange()
-
 
