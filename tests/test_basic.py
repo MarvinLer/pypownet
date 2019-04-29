@@ -180,8 +180,6 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         t = 2, check if substation configurations are identical to t == 1
         t = 2, Agent changes the topology of 2 nodes, ==> should work.
         t = 3, check if substation configurations of node [X, X] changed and the rest is identical to t == 1
-        t = 3, Agent changes the topology of 4 nodes, ==> should be rejected because of the restriction.
-        t = 4, check if substation configurations of node [X, X] changed and the rest is identical to t == 1
     """
     def __init__(self, environment, line_to_cut=None):
         super().__init__(environment)
@@ -189,6 +187,8 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         self.current_step = 1
 
     def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
         # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
         if not isinstance(observation, pypownet.environment.Observation):
             try:
@@ -219,23 +219,31 @@ class Agent_test_MaxNumberActionnedSubstations(Agent):
         if self.current_step == 1:
             # changes the topology of 3 nodes
             action_space.set_substation_switches_in_action(action, 4, [1, 0, 0, 0, 0, 0])
-            # action_space.set_substation_switches_in_action(action, 4, [0, 1, 0, 0, 0, 0])
-            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 1, 0, 0, 0])
-            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 1, 0, 0])
-            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 1, 0])
-            # action_space.set_substation_switches_in_action(action, 4, [0, 0, 0, 0, 0, 1])
-            # action_space.set_substation_switches_in_action(action, 5, [1, 0, 0, 0, 0])
-            # action_space.set_substation_switches_in_action(action, 11, [0, 1, 0])
-            # action_space.set_substation_switches_in_action(action, 11, [0, 0, 1])
-
+            action_space.set_substation_switches_in_action(action, 5, [0, 1, 0, 0, 0])
+            action_space.set_substation_switches_in_action(action, 6, [0, 0, 1, 0, 0, 0])
 
         if self.current_step == 2:
             # check if substation configurations are identical to t == 1
+            conf, types = observation.get_nodes_of_substation(4)
+            assert(list(conf) == [0, 0, 0, 0, 0, 0])
+            conf, types = observation.get_nodes_of_substation(5)
+            assert(list(conf) == [0, 0, 0, 0, 0])
+            conf, types = observation.get_nodes_of_substation(6)
+            assert(list(conf) == [0, 0, 0, 0, 0, 0])
+            action_space.set_substation_switches_in_action(action, 4, [1, 0, 0, 0, 0, 0])
+            action_space.set_substation_switches_in_action(action, 5, [0, 1, 0, 0, 0])
             pass
+
+        if self.current_step == 3:
+            # check if substation configurations changed
+            conf, types = observation.get_nodes_of_substation(4)
+            assert(list(conf) == [1, 0, 0, 0, 0, 0])
+            conf, types = observation.get_nodes_of_substation(5)
+            assert(list(conf) == [0, 1, 0, 0, 0])
 
         print("the action we return is, action = ", action)
 
-        print("action_space_get_switches_conf[5] = ", action_space.get_substation_switches_in_action(action, 5))
+        # print("action_space_get_switches_conf[5] = ", action_space.get_substation_switches_in_action(action, 5))
         print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
                                                                                  np.zeros(len(action))).all()))
         print("========================================================")
