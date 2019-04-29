@@ -17,7 +17,9 @@ from pypownet.agent import *
 
 class Agent_test_BasicSubstationTopologyChange(Agent):
     """This agent changes all the possible connections on a given node, and checks from Observations that it did occur.
-    We check this way all changes, PRODS, LOADS, OR, EX"""
+    We check this way all changes, PRODS, LOADS, OR, EX
+    This test has a specific folder with n_timesteps_actionned_node_reactionable = 0, in order to be able to change
+    nodes easily"""
     def __init__(self, environment, node_to_change=None):
         super().__init__(environment)
         print("Agent_test_BasicSubstationTopologyChange created...")
@@ -35,7 +37,6 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
         for topo in self.node_topology_generator:
             self.all_topologies.append(topo)
         print("All topologies = ", self.all_topologies)
-        self.previous_conf = None
 
     def act(self, observation):
         # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
@@ -92,9 +93,18 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
             # t = 4, check if substation configurations are identical to t == t - 1
             assert(list(current_conf) == self.all_topologies[self.current_step - 2])
 
-            new_conf = self.all_topologies[self.current_step - 2]
-            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
-            action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+            if len(current_conf) > 3:
+                new_conf = self.all_topologies[self.current_step - 1]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+            elif len(current_conf) == 3: # now reset to 000
+                new_conf = [0, 0, 0]
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+
 
         elif self.current_step == 5:
             # t = 4, check if substation configurations are identical to t == t - 1
@@ -267,7 +277,7 @@ class Agent_test_MaxNumberActionnedLines(Agent):
         return action
 
 
-class Agent_test_LineLimitSwitching(Agent):
+class Agent_test_LineTimeLimitSwitching(Agent):
     """This agent tests the restriction : n_timesteps_actionned_line_reactionable: 3
         t = 1, the agent switches off line X,
         t = 2, he observes that the line X has been switched off
@@ -366,19 +376,25 @@ class Agent_test_LineLimitSwitching(Agent):
         return action
 
 
-class Agent_test_NodeLimitSwitching(Agent):
-    """This agent is used for testing purposes"""
+class Agent_test_NodeTimeLimitSwitching(Agent):
+    """This agent tests the restriction : n_timesteps_actionned_node_reactionable: 3
+        t == 1, [0, 0, 0] change one element. SHOULD WORK.     (restriction_step = 1)
+        t == 2, [1, 0, 0] try to change again should NOT work  (restriction_step = 2)
+        t == 3, [1, 0, 0] try to change again should NOT work  (restriction_step = 3)
+        t == 4, [1, 0, 0] try to change node. SHOULD WORK.
+        t == 5, [1, 1, 0] verify change.
+    """
 
     def __init__(self, environment, node_to_change):
         super().__init__(environment)
         print("TestAgent_NodeLimitSwitching created...")
 
         self.current_step = 1
-        self.ioman = ActIOnManager(destination_path='testAgent.csv')
         self.node_to_change = node_to_change
 
     def act(self, observation):
-        print("current step = ", self.current_step)
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
         if not isinstance(observation, pypownet.environment.Observation):
             try:
                 observation = self.environment.observation_space.array_to_observation(observation)
@@ -396,15 +412,19 @@ class Agent_test_NodeLimitSwitching(Agent):
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # get current configuration
+        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        print("types = ", types)
 
         if self.current_step == 1:
             # CHANGE TOPOLOGY OF NODE_TO_CHANGE
             print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
 
-            # Select a random substation ID on which to perform node-splitting
-            expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
-            # Choses a new switch configuration (binary array)
-            target_configuration = np.zeros(expected_target_configuration_size)
             # we connect the PRODUCTION to BUSBAR 1
             target_configuration[0] = 1
 
@@ -416,12 +436,52 @@ class Agent_test_NodeLimitSwitching(Agent):
 
         elif self.current_step == 2:
             new_supposed_name_str = "666" + str(self.node_to_change)
+            assert(int(new_supposed_name_str) in nodes_ids)
             # Here we just OBSERVE that the NODE_TO_CHANGE has the production now connected to BUSBAR1
             index_res = list(observation.productions_substations_ids).index(self.node_to_change)
             assert (observation.productions_nodes[index_res] == 1)
 
-        # Dump best action into stored actions file
-        self.ioman.dump(action)
+            #  t == 2, try to change again should NOT work
+            # we connect the second element to BUSBAR 1
+            target_configuration[1] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+
+        elif self.current_step == 3:
+            # we check that the change at t==2 did not occur, and that we still have current_conf = [1, 0, ... , 0, 0, ]
+            for i, elem in enumerate(current_conf):
+                if i == 0:
+                    assert(elem == 1)
+                else:
+                    assert(elem == 0)
+            #  t == 3, try to change again should NOT work
+            # we connect the second element to BUSBAR 1
+            target_configuration[1] = 1
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+
+        elif self.current_step == 4:
+            # we check that the change at t==3 did not occur, and that we still have current_conf = [1, 0, ... , 0, 0, ]
+            for i, elem in enumerate(current_conf):
+                if i == 0:
+                    assert(elem == 1)
+                else:
+                    assert(elem == 0)
+            #  t == 4, try to change again NOW SHOULD WORK
+            # we connect the second element to BUSBAR 1
+            target_configuration[1] = 1
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+
+        elif self.current_step == 5:
+            # we check that the change at t==3 did occur, and that we still have current_conf = [1, 1, ... , 0, 0, ]
+            for i, elem in enumerate(current_conf):
+                if i == 0 or i == 1:
+                    assert(elem == 1)
+                else:
+                    assert(elem == 0)
+
         self.current_step += 1
         print("the action we return is, action = ", action)
 
@@ -491,7 +551,7 @@ def test_differencial_topology():
     assert(res == [1, 1, 1])
 
 
-def test_Agent_test_LineLimitSwitching():
+def test_Agent_test_LineTimeLimitSwitching():
     """
     This function creates an agent that switches a line, then tries to switch it again. (But should be nullified because
      of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps, we switch it back up.
@@ -520,16 +580,16 @@ def test_Agent_test_LineLimitSwitching():
         env = env_class(parameters_folder=parameters, game_level=game_level,
                         chronic_looping_mode=loop_mode, start_id=start_id,
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-        agent = Agent_test_LineLimitSwitching(env, line_to_cut)
+        agent = Agent_test_LineTimeLimitSwitching(env, line_to_cut)
         # Instantiate game runner and loop
         runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
         final_reward = runner.loop(iterations=niter)
         print("Obtained a final reward of {}".format(final_reward))
 
 
-def test_Agent_test_NodeLimitSwitching():
+def test_Agent_test_NodeTimeLimitSwitching():
     """This function creates an agent that switches a node topology, then tries to switch it again (same).
-    (But should be nullified because of input param "n_timesteps_actionned_line_reactionable: 3", then after 3 steps,
+    (But should be nullified because of input param "n_timesteps_actionned_node_reactionable: 3", then after 3 steps,
      we switch it back up.
     """
     parameters = "./tests/parameters/default14_for_tests/"
@@ -540,7 +600,7 @@ def test_Agent_test_NodeLimitSwitching():
     renderer_latency = 1
     render = False
     # agent = "RandomLineSwitch"
-    niter = 2
+    niter = 5
     #####################################################
     # nodes_to_change = [17, 18, 0, 1, 2]
     # nodes_to_change = [1, 2, 3, 4]
@@ -559,7 +619,7 @@ def test_Agent_test_NodeLimitSwitching():
         env = env_class(parameters_folder=parameters, game_level=game_level,
                         chronic_looping_mode=loop_mode, start_id=start_id,
                         game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-        agent = Agent_test_NodeLimitSwitching(env, node_to_change)
+        agent = Agent_test_NodeTimeLimitSwitching(env, node_to_change)
         # Instantiate game runner and loop
         runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
         final_reward = runner.loop(iterations=niter)
@@ -620,7 +680,7 @@ def test_Agent_test_MaxNumberActionnedNodes():
 
 def test_Agent_test_BasicSubstationTopologyChange():
     """This function creates an Agent that tests all the Topological changes of all the Substations"""
-    parameters = "./tests/parameters/default14_for_tests/"
+    parameters = "./tests/parameters/default14_for_tests_alpha/"
     print("Parameters used = ", parameters)
     game_level = "level0"
     loop_mode = "natural"
@@ -667,8 +727,9 @@ def get_differencial_topology(new_conf, old_conf):
 
 
 
-# test_limit_same_node_switching()
+test_Agent_test_NodeTimeLimitSwitching()
 # test_Agent_test_MaxNumberActionnedLines()
 # test_Agent_test_MaxNumberActionnedNodes()
 # test_Agent_test_BasicSubstationTopologyChange()
+
 
