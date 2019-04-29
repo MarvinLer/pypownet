@@ -13,6 +13,7 @@ import os
 from pypownet.environment import RunEnv
 from pypownet.runner import Runner
 from pypownet.agent import *
+from pypownet.game import IllegalActionException, DivergingLoadflowException
 
 
 class WrappedRunner(Runner):
@@ -72,12 +73,16 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
     """This agent changes all the possible connections on a given node, and checks from Observations that it did occur.
     We check this way all changes, PRODS, LOADS, OR, EX
     This test has a specific folder with n_timesteps_actionned_node_reactionable = 0, in order to be able to change
-    nodes easily"""
+    nodes at each time steps"""
     def __init__(self, environment, node_to_change=None):
         super().__init__(environment)
-        print("Agent_test_BasicSubstationTopologyChange created...")
         self.node_to_change = node_to_change
         self.current_step = 1
+        print("#######################################################################################################")
+        print("##################################### NEW NODE {} #####################################".format(
+            self.node_to_change))
+        print("#######################################################################################################")
+        print("Agent_test_BasicSubstationTopologyChange created...")
 
         action_space = self.environment.action_space
         # Select a random substation ID on which to perform node-splitting
@@ -122,7 +127,10 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
 
         elif self.current_step == 2:
             # t = 2, check if substation configurations are identical to t == 1
-            assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+            if self.node_to_change == 7:
+                assert(list(current_conf) == [0, 0, 0])
+            else:
+                assert(list(current_conf) == self.all_topologies[self.current_step - 2])
 
             new_conf = self.all_topologies[self.current_step - 1]
             print(f"Step [{self.current_step}], we test configuration: {new_conf}")
@@ -135,21 +143,22 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
             # t = 3, check if substation configurations are identical to t == t - 1
             assert(list(current_conf) == self.all_topologies[self.current_step - 2])
 
-            new_conf = self.all_topologies[self.current_step - 1]
-            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
-
-            final_conf = get_differencial_topology(new_conf, current_conf)
-            print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
-            action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
-
-        elif self.current_step == 4:
-            # t = 4, check if substation configurations are identical to t == t - 1
-            assert(list(current_conf) == self.all_topologies[self.current_step - 2])
-
-            if len(current_conf) > 3:
+            if len(current_conf) > 2:
                 new_conf = self.all_topologies[self.current_step - 1]
                 print(f"Step [{self.current_step}], we test configuration: {new_conf}")
-                action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 4:
+            if len(current_conf) > 3:
+                # t = 4, check if substation configurations are identical to t == t - 1
+                assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+                new_conf = self.all_topologies[self.current_step - 1]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
 
             elif len(current_conf) == 3: # now reset to 000
                 new_conf = [0, 0, 0]
@@ -158,14 +167,28 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
                 action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
 
 
-
         elif self.current_step == 5:
-            # t = 4, check if substation configurations are identical to t == t - 1
-            if len(current_conf) < 4:
+            if len(current_conf) <= 4:
                 return action
             else:
+                # t = 5, check if substation configurations are identical to t == t - 1
                 assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+                new_conf = self.all_topologies[self.current_step - 1]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
 
+        elif self.current_step == 6:
+            if len(current_conf) <= 5:
+                return action
+            else:
+                # t = 6, check if substation configurations are identical to t == t - 1
+                assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+                new_conf = self.all_topologies[self.current_step - 1]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+                print("OBS = ", observation)
 
         print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
                                                                                         np.zeros(len(action))).all()))
@@ -636,8 +659,17 @@ def test_Agent_test_LineTimeLimitSwitching():
         agent = Agent_test_LineTimeLimitSwitching(env, line_to_cut)
         # Instantiate game WrappedRunner and loop
         runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-        final_reward = runner.loop(iterations=niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
         print("Obtained a final reward of {}".format(final_reward))
+
+        assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False, False, False, False, False])
+
+        for i, action in enumerate(actions_recap):
+            if i == 0 or i == 3 or i == 5:
+                assert(action is None)
+            else:
+                assert(isinstance(action, IllegalActionException))
 
 
 def test_Agent_test_NodeTimeLimitSwitching():
@@ -675,11 +707,18 @@ def test_Agent_test_NodeTimeLimitSwitching():
         agent = Agent_test_NodeTimeLimitSwitching(env, node_to_change)
         # Instantiate game runner and loop
         runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-        final_reward, dones, infos = runner.loop(iterations=niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
         print("Obtained a final reward of {}".format(final_reward))
-        print("dones = ", dones)
-        print("infos = ", infos)
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False, False, False, False])
 
+        for i, action in enumerate(actions_recap):
+            if i == 0 or i == 3 or i == 4:
+                assert(action is None)
+            else:
+                assert(isinstance(action, IllegalActionException))
 
 def test_Agent_test_MaxNumberActionnedLines():
     """This function creates an Agent that tests the restriction param: max_number_actionned_lines """
@@ -703,8 +742,18 @@ def test_Agent_test_MaxNumberActionnedLines():
     agent = Agent_test_MaxNumberActionnedLines(env)
     # Instantiate game runner and loop
     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-    final_reward = runner.loop(iterations=niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False, False, False])
+
+    for i, action in enumerate(actions_recap):
+        if i == 1 or i == 3 or i == 4:
+            assert(action is None)
+        else:
+            assert(isinstance(action, IllegalActionException))
 
 
 def test_Agent_test_MaxNumberActionnedNodes():
@@ -729,12 +778,23 @@ def test_Agent_test_MaxNumberActionnedNodes():
     agent = Agent_test_MaxNumberActionnedSubstations(env)
     # Instantiate game runner and loop
     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-    final_reward = runner.loop(iterations=niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+
+    for i, action in enumerate(actions_recap):
+        if i == 1 or i == 2:
+            assert(action is None)
+        else:
+            assert(isinstance(action, IllegalActionException))
 
 
 def test_Agent_test_BasicSubstationTopologyChange():
     """This function creates an Agent that tests all the Topological changes of all the Substations"""
+    # specific folder because we need to be able to change a node's topology at each step.
     parameters = "./tests/parameters/default14_for_tests_alpha/"
     print("Parameters used = ", parameters)
     game_level = "level0"
@@ -744,19 +804,40 @@ def test_Agent_test_BasicSubstationTopologyChange():
     renderer_latency = 1
     render = False
     # agent = "RandomLineSwitch"
-    niter = 6
+    niter = 7
 
-    env_class = RunEnv
+    for node_to_change in range(1, 15):
+        env_class = RunEnv
 
-    # Instantiate environment and agent
-    env = env_class(parameters_folder=parameters, game_level=game_level,
-                    chronic_looping_mode=loop_mode, start_id=start_id,
-                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-    agent = Agent_test_BasicSubstationTopologyChange(env, 1)
-    # Instantiate game runner and loop
-    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-    final_reward = runner.loop(iterations=niter)
-    print("Obtained a final reward of {}".format(final_reward))
+        # Instantiate environment and agent
+        env = env_class(parameters_folder=parameters, game_level=game_level,
+                        chronic_looping_mode=loop_mode, start_id=start_id,
+                        game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+        agent = Agent_test_BasicSubstationTopologyChange(env, node_to_change)
+        # Instantiate game runner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+        print("Obtained a final reward of {}".format(final_reward))
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+
+        if node_to_change == 2:
+            for i, action in enumerate(actions_recap):
+                if i == 6:
+                    assert(isinstance(action, DivergingLoadflowException))
+                else:
+                    assert(action is None)
+        elif node_to_change == 7:
+            for i, action in enumerate(actions_recap):
+                if i == 0:
+                    assert(isinstance(action, DivergingLoadflowException))
+                else:
+                    assert(action is None)
+        else:
+            for i, action in enumerate(actions_recap):
+                assert(action is None)
+            assert(list(game_overs) == [False, False, False, False, False, False, False])
 
 
 def create_node_topology_generator(l):
@@ -785,6 +866,6 @@ def get_differencial_topology(new_conf, old_conf):
 # test_Agent_test_LineTimeLimitSwitching()
 # test_Agent_test_NodeTimeLimitSwitching()
 # test_Agent_test_MaxNumberActionnedLines()
-test_Agent_test_MaxNumberActionnedNodes()
+# test_Agent_test_MaxNumberActionnedNodes()
 # test_Agent_test_BasicSubstationTopologyChange()
 
