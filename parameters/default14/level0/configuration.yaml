@@ -18,7 +18,14 @@ max_number_prods_game_over: 1  # number of tolerated isolated productions before
 max_number_loads_game_over: 0  # number of tolerated isolated loads before game over
 
 n_timesteps_actionned_line_reactionable: 3  # number of consecutive timesteps before a switched line can be switched again
-n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again
+
+# example for n_timesteps_actionned_node_reactionable == 2:
+# t = 1, you make a change,
+# t = 2, you still can't make a change, (first step)
+# t = 3, you still can't make a change, (second step)
+# t = 4, now you can make a change !
+# t = 5, change visible here
+n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again. n_timespteps = 1, the first time your return an action.
 n_timesteps_pending_line_reactionable_when_overflowed: 1 # number of cons. timesteps before a line waiting to be reactionable is reactionable if it is overflowed
 n_timesteps_pending_node_reactionable_when_overflowed: 1 # number of cons. timesteps before a none waiting to be reactionable is reactionable if it has an overflowed line
 
