@@ -2,13 +2,14 @@
 
 import sys
 
+
 # sys.path.insert(0, "/home/mozgawamar/Documents/pypownet_last_version/pypownet/")
 # print("sys path = ", sys.path)
 
 from pypownet.environment import RunEnv
 from pypownet.runner import Runner
 from pypownet.agent import *
-from pypownet.game import IllegalActionException, DivergingLoadflowException
+from pypownet.game import TooManyProductionsCut, TooManyConsumptionsCut
 from tests.test_basic import WrappedRunner
 import math
 
@@ -17,19 +18,23 @@ import math
 
 
 class Agent_test_LimitOfProdsLost(Agent):
-    """This agent tests the restriction : max_number_prods_game_over: 2
+    """This agent tests the restriction : max_number_prods_game_over: 1
+        t = 1, we disconnect the prod on node 1.
+        t = 2, same for node 8, connect Prod to busbar 1
+        t = 3, check that we had indeed a Game Over and the game reset. IE, observation.productions_nodes = [0,0,0,0,0]
     """
 
-    def __init__(self, environment, line_to_cut):
+    def __init__(self, environment):
         super().__init__(environment)
-        print("TestAgent_LineLimitSwitching created...")
+        print("Agent_test_LimitOfProdsLost created...")
 
         self.current_step = 1
         self.line_to_cut = None
         self.node_to_change = 1
 
     def act(self, observation):
-        print("[Current step] = ", self.current_step)
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
         # This agent needs to manipulate actions using grid contextual information, so the observation object needs
         # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
         if not isinstance(observation, pypownet.environment.Observation):
@@ -44,6 +49,7 @@ class Agent_test_LimitOfProdsLost(Agent):
         action_space = self.environment.action_space
         print("prods_substations_ids = ", observation.productions_substations_ids)
         print("prods_substationsTopo = ", observation.productions_nodes)
+        # print("are prods cut         = ", observation.are_productions_cut)
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
@@ -52,22 +58,48 @@ class Agent_test_LimitOfProdsLost(Agent):
         # Choses a new switch configuration (binary array)
         target_configuration = np.zeros(expected_target_configuration_size)
         # get current configuration
-        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
-        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
-        print("types = ", types)
+        # current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        # print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        # print("types = ", types)
 
         if self.current_step == 1:
-            # CHANGE TOPOLOGY OF NODE_TO_CHANGE
+            # we disconnect the prod on node 1, ie, change the topology.
+
+            self.node_to_change = 1
             print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
 
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
             # we connect the PRODUCTION to BUSBAR 1
             target_configuration[0] = 1
 
-            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+            action_space.set_substation_switches_in_action(action=action, substation_id=1,
                                                            new_values=target_configuration)
             # Ensure changes have been done on action
             current_configuration, _ = action_space.get_substation_switches_in_action(action, self.node_to_change)
             assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 2:
+            self.node_to_change = 8
+            # CHANGE TOPOLOGY OF NODE_TO_CHANGE
+            print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
+
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
+            # we connect the PRODUCTION to BUSBAR 1
+            target_configuration[0] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=8,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, self.node_to_change)
+            assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 3:
+            # check that we had indeed a Game Over and the game reset. IE, observation.productions_nodes = [0,0,0,0,0]
+            assert(list(observation.productions_nodes) == [0, 0, 0, 0, 0])
 
         print("the action we return is, action = ", action)
 
@@ -78,30 +110,175 @@ class Agent_test_LimitOfProdsLost(Agent):
         return action
 
 
-# def test_core_Agent_test_limitOfProdsLost():
-#     """This function creates an Agent that tests the config variable: max_number_prods_game_over: 1 """
-#     parameters = "./tests/parameters/default14_for_tests/"
-#     print("Parameters used = ", parameters)
-#     game_level = "level0"
-#     loop_mode = "natural"
-#     start_id = 0
-#     game_over_mode = "soft"
-#     renderer_latency = 1
-#     render = False
-#     # render = False
-#     niter = 6
-#
-#     env_class = RunEnv
-#
-#     # Instantiate environment and agent
-#     env = env_class(parameters_folder=parameters, game_level=game_level,
-#                     chronic_looping_mode=loop_mode, start_id=start_id,
-#                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-#     agent = Agent_test_LimitOfProdsLost(env, 1)
-#     # Instantiate game runner and loop
-#     runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
-#     final_reward = runner.loop(iterations=niter)
-#     print("Obtained a final reward of {}".format(final_reward))
+
+class Agent_test_LimitOfLoadsLost(Agent):
+    """This agent tests the restriction : max_number_loads_game_over: 1
+        t = 1, we disconnect the load on node 3.
+        t = 2, same for node 12, connect Load to busbar 1
+        t = 3, check that we had indeed a Game Over and the game reset. IE, observation.loads_nodes = [0,0,..,0,0]
+    """
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_LimitOfLoadsLost created...")
+
+        self.current_step = 1
+        self.line_to_cut = None
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        # =================================== ACT FUNCTION STATS HERE ===================================
+        action_space = self.environment.action_space
+        print("loads_substations_ids = ", observation.loads_substations_ids)
+        print("loads_substationsTopo = ", observation.loads_nodes)
+        print("are_loads_cut         = ", observation.are_loads_cut)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        # get current configuration
+        # current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        # print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        # print("types = ", types)
+
+        if self.current_step == 1:
+            node_to_change = 3
+            current_conf, types = observation.get_nodes_of_substation(node_to_change)
+            print(f"Step[{self.current_step}]: current conf node [{node_to_change}] = {current_conf}")
+            print("types = ", types)
+            # CHANGE TOPOLOGY OF NODE_TO_CHANGE
+            print("we change the topology of node {}, curr_step = {}".format(node_to_change, self.current_step))
+
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
+            # we connect the PRODUCTION to BUSBAR 1
+            target_configuration[1] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=node_to_change,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, node_to_change)
+            assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 2:
+            node_to_change = 12
+            current_conf, types = observation.get_nodes_of_substation(node_to_change)
+            print(f"Step[{self.current_step}]: current conf node [{node_to_change}] = {current_conf}")
+            print("types = ", types)
+            print("we change the topology of node {}, curr_step = {}".format(node_to_change, self.current_step))
+
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
+            # we connect the PRODUCTION to BUSBAR 1
+            target_configuration[0] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=node_to_change,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, node_to_change)
+            assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 3:
+            # check that we had indeed a Game Over and the game reset. IE, observation.loads_nodes = [0,0,...,0,0]
+            assert(list(observation.loads_nodes) == list(np.zeros(len(observation.loads_substations_ids))))
+
+        print("the action we return is, action = ", action)
+
+        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
+        print("========================================================")
+        self.current_step += 1
+
+        return action
+
+def test_core_Agent_test_limitOfProdsLost():
+    """This function creates an Agent that tests the config variable: max_number_prods_game_over: 1
+        t = 1, it disconnects 1 prod
+        t = 2, it disconnects second prod, ==> causes a Game Over
+        t = 3, it checks that obs.productions_nodes = [0, 0, 0, 0, 0], ie, that the game reset.
+        This function checks that the game ended because of TooManyProductionsCut"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_LimitOfProdsLost(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, True, False])
+    for i, action in enumerate(actions_recap):
+        if i == 1:
+            assert(isinstance(action, TooManyProductionsCut))
+        else:
+            assert(action == None)
+
+
+def test_core_Agent_test_limitOfLoadsLost():
+    """This function creates an Agent that tests the config variable: max_number_loads_game_over: 1
+        t = 1, it disconnects 1 load
+        t = 2, it disconnects second load, ==> causes a Game Over
+        t = 3, it checks that obs.loads_nodes = [0, 0, ... , 0, 0], ie, that the game reset.
+        This function checks that the game ended because of TooManyProductionsCut"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_LimitOfLoadsLost(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, True, False])
+    for i, action in enumerate(actions_recap):
+        if i == 1:
+            assert(isinstance(action, TooManyConsumptionsCut))
+        else:
+            assert(action == None)
 
 
 class Agent_test_InputLoadValues(Agent):
@@ -296,4 +473,5 @@ def test_core_Agent_test_InputLoadValues():
 # test_core_Agent_test_InputProdValues()
 # test_core_Agent_test_InputLoadValues()
 # test_core_Agent_test_limitOfProdsLost()
+# test_core_Agent_test_limitOfLoadsLost()
 
