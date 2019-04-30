@@ -8,7 +8,7 @@ from pypownet.runner import Runner
 import pypownet.agent
 
 parser = argparse.ArgumentParser(description='CLI tool to run experiments using PyPowNet.')
-parser.add_argument('-a', '--agent', metavar='AGENT_CLASS', default='Agent', type=str,
+parser.add_argument('-a', '--agent', metavar='AGENT_CLASS', default='DoNothing', type=str,
                     help='class to use for the agent (must be within the \'pypownet/agent.py\' file); '
                          'default class Agent')
 parser.add_argument('-n', '--niter', type=int, metavar='NUMBER_ITERATIONS', default='1000',
