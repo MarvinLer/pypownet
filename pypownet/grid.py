@@ -31,7 +31,7 @@ def compute_flows_a(active, reactive, voltage, are_lines_on):
     flows_a = np.zeros(len(active))
     for i, (p, q, v, is_on) in enumerate(zip(active, reactive, voltage, are_lines_on)):
         if is_on:
-            flows_a[i] = math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)
+            flows_a[i] = 1000. * math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)  # in A; https://en.wikipedia.org/wiki/Per-unit_system
 
     return flows_a
 
@@ -117,7 +117,8 @@ class Grid(object):
         # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
         active = branch[:, 13]  # P
         reactive = branch[:, 14]  # Q
-        voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        voltage_perunit = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        base_kv = np.array([bus[np.where(bus[:, 0] == origin), 9] for origin in branch[:, 0]]).flatten()  # baseKV
 
         if safe_mode:
             active[np.isnan(active)] = 1e5
@@ -126,11 +127,13 @@ class Grid(object):
             reactive[np.isnan(reactive)] = 1e5
             reactive[reactive > 1e5] = 1e5
             reactive[reactive < -1e5] = -1e5
-            voltage[np.isnan(voltage)] = 1.
-            voltage[voltage > 1e2] = 1e2
-            voltage[voltage < -1e2] = -1e2
+            voltage_perunit[np.isnan(voltage_perunit)] = 1.
+            voltage_perunit[voltage_perunit > 1e2] = 1e2
+            voltage_perunit[voltage_perunit < -1e2] = -1e2
         are_lines_on = self.get_lines_status()
-        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage, are_lines_on=are_lines_on)
+        voltage_absolute = voltage_perunit*base_kv  # in V
+        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage_absolute,
+                                           are_lines_on=are_lines_on)
 
         return branches_flows_a
 
