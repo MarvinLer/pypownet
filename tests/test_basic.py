@@ -490,7 +490,7 @@ class Agent_test_NodeTimeLimitSwitching(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
 
-        # =================================== ACT FUNCTION STATS HERE ===================================
+        # =================================== ACT FUNCTION STARTS HERE ===================================
         action_space = self.environment.action_space
         print("prods_substations_ids = ", observation.productions_substations_ids)
         print("prods_substationsTopo = ", observation.productions_nodes)

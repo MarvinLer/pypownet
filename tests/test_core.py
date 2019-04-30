@@ -1,24 +1,23 @@
 """This file contains all core tests."""
 
+import sys
+
+# sys.path.insert(0, "/home/mozgawamar/Documents/pypownet_last_version/pypownet/")
+# print("sys path = ", sys.path)
+
 from pypownet.environment import RunEnv
 from pypownet.runner import Runner
 from pypownet.agent import *
+from pypownet.game import IllegalActionException, DivergingLoadflowException
+from tests.test_basic import WrappedRunner
 import math
+
+
+
 
 
 class Agent_test_LimitOfProdsLost(Agent):
     """This agent tests the restriction : max_number_prods_game_over: 2
-        t = 1, the agent switches off line 0 and 1 to disconnect node [1]
-        t = 2, it observes that the line X has been switched off
-        t = 2, it tries to switch the line back on, but should be dropped because of the
-        restriction n_timesteps_actionned_line_reactionable: 3
-        t = 3, he observes that it indeed didnt do anything, because of the restriction, we did not managed to switch it back on
-        t = 3, he tries to switch it on again
-        t = 4, he observes that it indeed didnt do anything, because of the restriction, we did not managed to switch it back on
-        t = 4, he tries to switch it on again
-        t = 5, THE "SWITCH BACK ON" WORKED
-        t = 5, he tries to cut it again
-        t = 6, must be restricted again. Should still be back on.
     """
 
     def __init__(self, environment, line_to_cut):
@@ -27,6 +26,7 @@ class Agent_test_LimitOfProdsLost(Agent):
 
         self.current_step = 1
         self.line_to_cut = None
+        self.node_to_change = 1
 
     def act(self, observation):
         print("[Current step] = ", self.current_step)
@@ -40,28 +40,34 @@ class Agent_test_LimitOfProdsLost(Agent):
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
 
+        # =================================== ACT FUNCTION STATS HERE ===================================
         action_space = self.environment.action_space
         print("prods_substations_ids = ", observation.productions_substations_ids)
-        print("real power produced by generators = ", observation.active_productions)
-        print("are_prods_cut = ", observation.are_productions_cut)
-        print("lines_status = ", observation.lines_status)
+        print("prods_substationsTopo = ", observation.productions_nodes)
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # get current configuration
+        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        print("types = ", types)
 
         if self.current_step == 1:
-            print("we switch off line {}, curr_step = {}".format([0, 1], self.current_step))
-            action_space.set_lines_status_switch_from_id(action=action, line_id=0, new_switch_value=1)
-            action_space.set_lines_status_switch_from_id(action=action, line_id=1, new_switch_value=1)
+            # CHANGE TOPOLOGY OF NODE_TO_CHANGE
+            print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
 
-        elif self.current_step == 2:
-            # Here we just OBSERVE that lines 0 and 1 have been cut.
-            assert (observation.lines_status[0] == 0)
-            assert (observation.lines_status[1] == 0)
+            # we connect the PRODUCTION to BUSBAR 1
+            target_configuration[0] = 1
 
-            # print("we switch off line {}, curr_step = {}".format([2, 3, 4], self.current_step))
-            # action_space.set_lines_status_switch_from_id(action=action, line_id=2, new_switch_value=1)
-            # action_space.set_lines_status_switch_from_id(action=action, line_id=3, new_switch_value=1)
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, self.node_to_change)
+            assert np.all(current_configuration == target_configuration)
 
         print("the action we return is, action = ", action)
 
@@ -73,7 +79,7 @@ class Agent_test_LimitOfProdsLost(Agent):
 
 
 # def test_core_Agent_test_limitOfProdsLost():
-#     """This function creates an Agent that tests all the Topological changes of all the Substations"""
+#     """This function creates an Agent that tests the config variable: max_number_prods_game_over: 1 """
 #     parameters = "./tests/parameters/default14_for_tests/"
 #     print("Parameters used = ", parameters)
 #     game_level = "level0"
@@ -81,7 +87,7 @@ class Agent_test_LimitOfProdsLost(Agent):
 #     start_id = 0
 #     game_over_mode = "soft"
 #     renderer_latency = 1
-#     render = True
+#     render = False
 #     # render = False
 #     niter = 6
 #
@@ -242,13 +248,18 @@ def test_core_Agent_test_InputProdValues():
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
     agent = Agent_test_InputProdValues(env)
     # Instantiate game runner and loop
-    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
-    final_reward = runner.loop(iterations=niter)
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+    assert(list(actions_recap) == [None, None, None])
 
 
 def test_core_Agent_test_InputLoadValues():
-    """This function creates an Agent that tests the correct loading of input Prod values"""
+    """This function creates an Agent that tests the correct loading of input Load values"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
     game_level = "level0"
@@ -268,14 +279,21 @@ def test_core_Agent_test_InputLoadValues():
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
     agent = Agent_test_InputLoadValues(env)
     # Instantiate game runner and loop
-    runner = Runner(env, agent, render, False, False, parameters, game_level, niter)
-    final_reward = runner.loop(iterations=niter)
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
     print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+    assert(list(actions_recap) == [None, None, None])
 
-# def test_check_load_prods_values():
-#     pass
 
-# test_core_Agent_test_limitOfProdsLost()
+
+
+
+
 # test_core_Agent_test_InputProdValues()
-test_core_Agent_test_InputLoadValues()
+# test_core_Agent_test_InputLoadValues()
+# test_core_Agent_test_limitOfProdsLost()
 
