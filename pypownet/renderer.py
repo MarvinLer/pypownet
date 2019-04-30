@@ -168,12 +168,10 @@ class Renderer(object):
                                    ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
                                     (x_offset + width, y_offset + height)),
                                    (200, 250, 200, 240))
-            surface.blit(
-                self.black_bold_font_render('new observation frame'),
-                (x_offset + 120, y_offset + 4))
+            surface.blit(self.black_bold_font_render('new observation frame'), (x_offset + 120, y_offset + 4))
 
     def draw_surface_grid(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                          are_substations_changed):
+                          are_substations_changed, number_nodes_per_substation):
         layout = self.grid_layout
         my_dpi = 200
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
@@ -241,8 +239,8 @@ class Renderer(object):
         max_diff = max(abs(np.max(prods_minus_loads)), abs(np.min(prods_minus_loads)))
 
         prods_iter, loads_iter = iter(prods), iter(loads)
-        for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
-                zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
+        for i, ((x, y), is_prod, is_load, is_changed, n_used_nodes) in enumerate(
+                zip(layout, self.are_prods, self.are_loads, are_substations_changed, number_nodes_per_substation)):
             prod = next(prods_iter) if is_prod else 0.
             load = next(loads_iter) if is_load else 0.
             prod_minus_load = prod - load
@@ -257,6 +255,9 @@ class Renderer(object):
 
                 c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
+                if n_used_nodes > 1:
+                    c = Circle((x, y), outer_radius-1, linewidth=.5, fill=False, color=color, zorder=10)
+                    ax.add_artist(c)
                 c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
                 ax.add_artist(c)
             elif prod_minus_load < 0:  # Draw consumption
@@ -282,6 +283,11 @@ class Renderer(object):
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9, angle=45.)
                 ax.add_artist(c)
+                if n_used_nodes > 1:
+                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius - 1)), 2. * (outer_radius - 1),
+                                  2. * (outer_radius - 1), linewidth=.5, fill=False, color=color,
+                                  zorder=10, angle=45.)
+                    ax.add_artist(c)
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=linewidth, fill=False, color=color, zorder=10, angle=45.)
                 ax.add_artist(c)
@@ -509,6 +515,7 @@ class Renderer(object):
                      'number_nodes_splitting': number_nodes_splitting, 'number_lines_switches': number_lines_switches,
                      'distance_initial_grid': distance_initial_grid, 'usage': usage,
                      'n_offlines_lines': n_offlines_lines, 'number_unavailable_lines': number_unavailable_lines,
+                     'number_unavailable_nodes': number_unavailable_nodes,
                      'max_number_isolated_loads': max_number_isolated_loads,
                      'max_number_isolated_prods': max_number_isolated_prods}
 
@@ -664,15 +671,15 @@ class Renderer(object):
 
         plt.text(0, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
         plt.text(5, surface_shape[1] - 50, 'Substations', fontdict={'size': 8.5}, color=header2_color)
-        plt.text(offset_text, surface_shape[1] - 70, 'energy output > 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 70, 'power output > 0', fontdict={'size': 8.5}, color=string_color)
         c = Circle((21, surface_shape[1] - 66), self.nodes_outer_radius, linewidth=1.,
                    fill=False, color=[c / 255. for c in (0, 153, 255)])
         ax.add_artist(c)
-        plt.text(offset_text, surface_shape[1] - 95, 'energy output < 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 95, 'power output < 0', fontdict={'size': 8.5}, color=string_color)
         c = Rectangle((13, surface_shape[1] - 99), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
                       linewidth=1., fill=False, color=[c / 255. for c in (210, 77, 255)])
         ax.add_artist(c)
-        plt.text(offset_text, surface_shape[1] - 120, 'energy output = 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 120, 'power output = 0', fontdict={'size': 8.5}, color=string_color)
         c = Rectangle((22, surface_shape[1] - 128), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
                       linewidth=1., fill=False, color=[c / 255. for c in (255, 255, 255)], angle=45.)
         ax.add_artist(c)
@@ -831,7 +838,7 @@ class Renderer(object):
                          loads, are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
                          number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
                          line_capacity_usage, number_off_lines, number_unavailable_lines, number_unavailable_nodes,
-                         max_number_isolated_loads, max_number_isolated_prods):
+                         max_number_isolated_loads, max_number_isolated_prods, number_nodes_per_substation):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -846,7 +853,7 @@ class Renderer(object):
             self.relative_thermal_limits.append(relative_thermal_limits)
 
         lines_surf = self.draw_surface_grid(relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                                            are_substations_changed)
+                                            are_substations_changed, number_nodes_per_substation)
         offset = -68 if self.grid_case == 118 else -20 if self.grid_case == 30 else 0
         self.topology_layout.blit(lines_surf, (0 + offset, 0))
         # arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
@@ -881,11 +888,11 @@ class Renderer(object):
         if game_over:
             self.topology_layout.blit(self.game_over_surface, (320, 320))
 
-    def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
-               loads, last_timestep_rewards, date, are_substations_changed, number_loads_cut, number_prods_cut,
+    def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods, loads,
+               date, are_substations_changed, number_nodes_per_substation, number_loads_cut, number_prods_cut,
                number_nodes_splitting, number_lines_switches, distance_initial_grid, number_off_lines,
-               number_unavailable_lines, number_unactionable_nodes, max_number_isolated_loads, max_number_isolated_prods,
-               game_over=False, cascading_frame_id=None):
+               number_unavailable_lines, number_unactionable_nodes, max_number_isolated_loads,
+               max_number_isolated_prods, game_over=False, cascading_frame_id=None):
         plt.close('all')
 
         def event_looper(force=False):
@@ -916,8 +923,8 @@ class Renderer(object):
                               are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
                               number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
                               lines_capacity_usage, number_off_lines, number_unavailable_lines,
-                              number_unactionable_nodes,
-                              max_number_isolated_loads, max_number_isolated_prods)
+                              number_unactionable_nodes, max_number_isolated_loads, max_number_isolated_prods,
+                              number_nodes_per_substation)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)

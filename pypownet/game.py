@@ -986,23 +986,28 @@ class Game(object):
         max_number_isolated_loads = self.__parameters.get_max_number_loads_game_over()
         max_number_isolated_prods = self.__parameters.get_max_number_prods_game_over()
 
-        self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
-                             self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
-                             prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                             date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
-                             number_loads_cut=sum(are_isolated_loads),
-                             number_prods_cut=sum(are_isolated_prods),
+        # Compute the number of used nodes per substation
+        current_observation = self.export_observation()
+        n_nodes_substations = []
+        for substation_id in self.substations_ids:
+            substation_conf = current_observation.get_nodes_of_substation(substation_id)[0]
+            n_nodes_substations.append(1+int(len(list(set(substation_conf))) == 2))
+
+        self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status, self.epoch, self.timestep,
+                             self.current_timestep_id if not timestep_id else timestep_id, prods=prods_values,
+                             loads=loads_values, date=self.current_date if date is None else date,
+                             are_substations_changed=has_been_changed, number_nodes_per_substation=n_nodes_substations,
+                             number_loads_cut=sum(are_isolated_loads), number_prods_cut=sum(are_isolated_prods),
                              number_nodes_splitting=sum(self.last_action.get_node_splitting_subaction())
                              if self.last_action is not None else 0,
                              number_lines_switches=sum(self.last_action.get_lines_status_subaction())
-                             if self.last_action is not None else 0,
-                             distance_initial_grid=distance_ref_grid,
+                             if self.last_action is not None else 0, distance_initial_grid=distance_ref_grid,
                              number_off_lines=sum(self.grid.get_lines_status() == 0),
                              number_unavailable_lines=number_unavailable_lines,
                              number_unactionable_nodes=number_unavailable_nodes,
                              max_number_isolated_loads=max_number_isolated_loads,
-                             max_number_isolated_prods=max_number_isolated_prods,
-                             game_over=game_over, cascading_frame_id=cascading_frame_id)
+                             max_number_isolated_prods=max_number_isolated_prods, game_over=game_over,
+                             cascading_frame_id=cascading_frame_id)
 
         if self.latency:
             sleep(self.latency)

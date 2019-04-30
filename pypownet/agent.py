@@ -28,6 +28,15 @@ class Agent(ABC):
         pass
 
 
+class tmp(Agent):
+    def act(self, observation):
+        a = self.environment.action_space.get_do_nothing_action(True)
+        c = np.zeros(len(a.get_substation_switches(1)[0]))
+        c[0] = 1
+        a.set_substation_switches(1, c)
+        return a
+
+
 class DoNothing(Agent):
     def act(self, observation):
         action_length = self.environment.action_space.action_length
