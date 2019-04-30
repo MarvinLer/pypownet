@@ -6,7 +6,7 @@ import sys
 # sys.path.insert(0, "/home/mozgawamar/Documents/pypownet_last_version/pypownet/")
 # print("sys path = ", sys.path)
 
-from pypownet.environment import RunEnv
+from pypownet.environment import RunEnv, ElementType
 from pypownet.runner import Runner
 from pypownet.agent import *
 from pypownet.game import TooManyProductionsCut, TooManyConsumptionsCut
@@ -467,11 +467,257 @@ def test_core_Agent_test_InputLoadValues():
 
 
 
+# def test_core_Agent_test_SumInsEqualsSumOuts_Power():
+#     """This function creates an Agent that tests """
+#     parameters = "./tests/parameters/default14_for_tests/"
+#     print("Parameters used = ", parameters)
+#     game_level = "level0"
+#     loop_mode = "natural"
+#     start_id = 0
+#     game_over_mode = "soft"
+#     renderer_latency = 1
+#     render = False
+#     # render = False
+#     niter = 3
+#
+#     env_class = RunEnv
+#
+#     # Instantiate environment and agent
+#     env = env_class(parameters_folder=parameters, game_level=game_level,
+#                     chronic_looping_mode=loop_mode, start_id=start_id,
+#                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+#     agent = Agent_test_InputLoadValues(env)
+#     # Instantiate game runner and loop
+#     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+#     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+#     print("Obtained a final reward of {}".format(final_reward))
+#     print("game_overs = ", game_overs)
+#     print("actions_recap = ", actions_recap)
 
 
+
+class Agent_test_method_obs_are_prods_cut(Agent):
+    """This function tests the method: observation.are_prods_cut"""
+    def __init__(self, environment, node_to_change):
+        super().__init__(environment)
+        print("Agent_test_LimitOfProdsLost created...")
+
+        self.current_step = 1
+        self.node_to_change = node_to_change
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        # =================================== ACT FUNCTION STATS HERE ===================================
+        action_space = self.environment.action_space
+        print("prods_substations_ids = ", observation.productions_substations_ids)
+        print("prods_substationsTopo = ", observation.productions_nodes)
+        print("are prods cut         = ", observation.are_productions_cut)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # get current configuration
+        # current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        # print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        # print("types = ", types)
+
+        if self.current_step == 1:
+            print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
+
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
+            # we connect the PRODUCTION to BUSBAR 1
+            target_configuration[0] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, self.node_to_change)
+            assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 2:
+            # here we check that are_prods_cut show the information at the correct index.
+            index = list(observation.productions_nodes).index(1)
+            print("index = ", index)
+            assert(observation.are_productions_cut[index] == 1)
+
+
+        print("the action we return is, action = ", action)
+
+        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
+        print("========================================================")
+        self.current_step += 1
+
+        return action
+
+
+def test_core_Agent_test_method_obs_are_prods_cut():
+    """This function tests the method: observation.are_prods_cut"""
+    parameters = "./tests/parameters/default14_for_tests_alpha/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 2
+
+    env_class = RunEnv
+    nodes_to_change = [1, 2, 3, 6, 8]
+
+    for node in nodes_to_change:
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO NODE [{}] OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO".format(node))
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+        # Instantiate environment and agent
+        env = env_class(parameters_folder=parameters, game_level=game_level,
+                        chronic_looping_mode=loop_mode, start_id=start_id,
+                        game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+        agent = Agent_test_method_obs_are_prods_cut(env, node)
+        # Instantiate game runner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+        print("Obtained a final reward of {}".format(final_reward))
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False])
+        assert(list(actions_recap) == [None, None])
+
+
+
+class Agent_test_method_obs_are_loads_cut(Agent):
+    """This function tests the method: observation.are_loads_cut"""
+    def __init__(self, environment, node_to_change):
+        super().__init__(environment)
+        print("Agent_test_LimitOfLoadsLost created...")
+
+        self.current_step = 1
+        self.node_to_change = node_to_change
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        # =================================== ACT FUNCTION STATS HERE ===================================
+        load_index = None
+        action_space = self.environment.action_space
+        print("loads_substations_ids = ", observation.loads_substations_ids)
+        print("loads_substationsTopo = ", observation.loads_nodes)
+        print("are loads cut         = ", observation.are_loads_cut)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # get current configuration
+        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        print("types = ", types)
+        for i, type in enumerate(types):
+            print("elem [{}] is of type [{}]".format(i, type))
+            if type == ElementType.CONSUMPTION:
+                load_index = i
+        print("load index = ", load_index)
+
+        if self.current_step == 1:
+            print("we change the topology of node {}, curr_step = {}".format(self.node_to_change, self.current_step))
+
+            expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+            # Choses a new switch configuration (binary array)
+            target_configuration = np.zeros(expected_target_configuration_size)
+            # we connect the LOAD to BUSBAR 1
+            target_configuration[load_index] = 1
+
+            action_space.set_substation_switches_in_action(action=action, substation_id=self.node_to_change,
+                                                           new_values=target_configuration)
+            # Ensure changes have been done on action
+            current_configuration, _ = action_space.get_substation_switches_in_action(action, self.node_to_change)
+            assert np.all(current_configuration == target_configuration)
+
+        if self.current_step == 2:
+            # here we check that are_loads_cut show the information at the correct index.
+            index = list(observation.loads_nodes).index(1)
+            print("index = ", index)
+            assert(observation.are_loads_cut[index] == 1)
+
+
+        print("the action we return is, action = ", action)
+
+        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
+        print("========================================================")
+        self.current_step += 1
+
+        return action
+
+
+def test_core_Agent_test_method_obs_are_loads_cut():
+    """This function tests the method: observation.are_loads_cut"""
+    parameters = "./tests/parameters/default14_for_tests_alpha/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 2
+
+    env_class = RunEnv
+    nodes_to_change = [2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14]
+
+
+    for node in nodes_to_change:
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO NODE [{}] OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO".format(node))
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+        # Instantiate environment and agent
+        env = env_class(parameters_folder=parameters, game_level=game_level,
+                        chronic_looping_mode=loop_mode, start_id=start_id,
+                        game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+        agent = Agent_test_method_obs_are_loads_cut(env, node)
+        # Instantiate game runner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+        print("Obtained a final reward of {}".format(final_reward))
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False])
+        assert(list(actions_recap) == [None, None])
 
 # test_core_Agent_test_InputProdValues()
 # test_core_Agent_test_InputLoadValues()
 # test_core_Agent_test_limitOfProdsLost()
 # test_core_Agent_test_limitOfLoadsLost()
-
+# test_core_Agent_test_method_obs_are_prods_cut()
+# test_core_Agent_test_method_obs_are_loads_cut()
