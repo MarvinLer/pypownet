@@ -31,7 +31,7 @@ def compute_flows_a(active, reactive, voltage, are_lines_on):
     flows_a = np.zeros(len(active))
     for i, (p, q, v, is_on) in enumerate(zip(active, reactive, voltage, are_lines_on)):
         if is_on:
-            flows_a[i] = math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)
+            flows_a[i] = 1000. * math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)  # in A; https://en.wikipedia.org/wiki/Per-unit_system
 
     return flows_a
 
@@ -117,7 +117,8 @@ class Grid(object):
         # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
         active = branch[:, 13]  # P
         reactive = branch[:, 14]  # Q
-        voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        voltage_perunit = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        base_kv = np.array([bus[np.where(bus[:, 0] == origin), 9] for origin in branch[:, 0]]).flatten()  # baseKV
 
         if safe_mode:
             active[np.isnan(active)] = 1e5
@@ -126,11 +127,13 @@ class Grid(object):
             reactive[np.isnan(reactive)] = 1e5
             reactive[reactive > 1e5] = 1e5
             reactive[reactive < -1e5] = -1e5
-            voltage[np.isnan(voltage)] = 1.
-            voltage[voltage > 1e2] = 1e2
-            voltage[voltage < -1e2] = -1e2
+            voltage_perunit[np.isnan(voltage_perunit)] = 1.
+            voltage_perunit[voltage_perunit > 1e2] = 1e2
+            voltage_perunit[voltage_perunit < -1e2] = -1e2
         are_lines_on = self.get_lines_status()
-        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage, are_lines_on=are_lines_on)
+        voltage_absolute = voltage_perunit*base_kv  # in V
+        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage_absolute,
+                                           are_lines_on=are_lines_on)
 
         return branches_flows_a
 
@@ -147,7 +150,7 @@ class Grid(object):
 
         # Computes the number of cut loads, and a mask array whether the substation is isolated
         are_isolated_loads, are_isolated_prods, are_isolated_buses = Grid._count_isolated_loads(mpc,
-                                                                                                are_loads=are_loads)
+                                                                                                crude_are_loads=are_loads)
 
         # Retrieve buses with productions (their type needs to be 2)
         bus_prods = gen[:, 0]
@@ -171,12 +174,24 @@ class Grid(object):
                     bus[b, 1] = 1
 
     @staticmethod
-    def _count_isolated_loads(mpc, are_loads):
+    def _count_isolated_loads(mpc, crude_are_loads, consistent_reorder=False):
         bus = mpc['bus']
         gen = mpc['gen']
         branch = mpc['branch']
 
-        substations_ids = bus[:, 0]
+        crude_substations_ids = bus[:, 0]
+        substations_ids = []
+        are_loads = []
+        # Swap indexes such that nodes of same substation are consecutive for output ordering
+        if consistent_reorder:
+            for i in range(len(crude_substations_ids) // 2):
+                substations_ids.append(crude_substations_ids[i])
+                substations_ids.append(crude_substations_ids[len(crude_substations_ids) // 2 + i])
+                are_loads.append(crude_are_loads[i])
+                are_loads.append(crude_are_loads[len(crude_substations_ids) // 2 + i])
+        else:
+            substations_ids = crude_substations_ids
+            are_loads = crude_are_loads
         prods_ids = gen[:, 0]
 
         # Retrieves the substations id at the origin or extremity of at least one switched-on line
@@ -390,8 +405,7 @@ class Grid(object):
         for lo, (load_node, new_load_node) in enumerate(zip(self.topology.loads_nodes, new_loads_nodes)):
             # If the node on which a load is connected is swap, then swap P and Q values for both nodes
             if new_load_node != load_node:
-                are_loads = np.where(self.are_loads[:self.n_nodes // 2], self.are_loads[:self.n_nodes // 2],
-                                     self.are_loads[self.n_nodes // 2:])
+                are_loads = np.logical_or(self.are_loads[:self.n_nodes // 2], self.are_loads[self.n_nodes // 2:])
                 id_bus = np.where(are_loads)[0][lo] % (self.n_nodes // 2)
                 # Copy first node P and Q
                 tmp = copy.deepcopy(bus[id_bus, [2, 3]])
@@ -523,8 +537,8 @@ class Grid(object):
         substations_ids_loads = to_array(nodes_to_substations(reordered_loads_buses[:, 0])).astype(int)
 
         # Retrieve isolated buses
-        are_isolated_loads, are_isolated_prods, are_isolated_buses = self._count_isolated_loads(mpc,
-                                                                                                are_loads=self.are_loads)
+        are_isolated_loads, are_isolated_prods, _ = self._count_isolated_loads(mpc, crude_are_loads=self.are_loads,
+                                                                               consistent_reorder=True)
 
         # Topology vector
         prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = self.get_topology().get_unzipped()
