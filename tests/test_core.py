@@ -715,9 +715,131 @@ def test_core_Agent_test_method_obs_are_loads_cut():
         assert(list(game_overs) == [False, False])
         assert(list(actions_recap) == [None, None])
 
+
+class Agent_test_Loss_Error(Agent):
+    """This agent compares the expected (from chronics) and real loss (from observation) for the first 3 iterations. """
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_Loss_Error created...")
+
+        self.current_step = 1
+        self.line_to_cut = None
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        current_prod_powers = observation.active_productions
+        current_load_powers = observation.active_loads
+        print("current_load_powers = ", current_load_powers)
+        print("current_prod_powers = ", current_prod_powers)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        if self.current_step == 1:
+            expected_prods = [123.370285, 49.144115, 32.21891, 38.52085, 35.704945]
+            expected_loads = [25.629642, 97.45528, 49.735317, 8.250563, 10.010641, 30.2604, 9.736532, 3.3486228, 7.0213113,
+                        16.209476, 16.188494]
+            sum_expected_prods = np.sum(expected_prods)
+            sum_expected_loads = np.sum(expected_loads)
+            expected_loss = sum_expected_prods - sum_expected_loads
+            print("sum_expected prods = ", sum_expected_prods)
+            print("sum_expected loads = ", sum_expected_loads)
+            print("sum_expected loss  = ", expected_loss)
+
+            real_loss = np.sum(current_prod_powers) - np.sum(current_load_powers)
+            print("real_loss = ", real_loss)
+            diff_loss = expected_loss - real_loss
+            print("diff expected - real  LOSS = ", diff_loss)
+            assert (math.fabs(diff_loss) < 1e-3)
+
+        if self.current_step == 2:
+            expected_prods = [104.072556, 43.576332, 31.90516, 32.831142, 32.747932]
+            expected_loads = [21.07166, 87.22948, 43.29531, 6.9710474, 10.483086, 28.114975, 10.368015, 3.0358257, 5.108532,
+                        12.720526, 12.9846325]
+            sum_expected_prods = np.sum(expected_prods)
+            sum_expected_loads = np.sum(expected_loads)
+            expected_loss = sum_expected_prods - sum_expected_loads
+            print("sum_expected prods = ", sum_expected_prods)
+            print("sum_expected loads = ", sum_expected_loads)
+            print("sum_expected loss  = ", expected_loss)
+
+            real_loss = np.sum(current_prod_powers) - np.sum(current_load_powers)
+            print("real_loss = ", real_loss)
+            diff_loss = expected_loss - real_loss
+            print("diff expected - real  LOSS = ", diff_loss)
+            assert (math.fabs(diff_loss) < 1e-3)
+
+        if self.current_step == 3:
+            expected_prods = [134.51176, 56.608887, 0.0, 0.0, 46.029488]
+            expected_loads = [18.838198, 86.235115, 44.783886, 6.563092, 9.875335, 24.161335, 6.824309, 3.2030978, 4.8327637,
+                        12.320875, 13.072087]
+            sum_expected_prods = np.sum(expected_prods)
+            sum_expected_loads = np.sum(expected_loads)
+            expected_loss = sum_expected_prods - sum_expected_loads
+            print("sum_expected prods = ", sum_expected_prods)
+            print("sum_expected loads = ", sum_expected_loads)
+            print("sum_expected loss  = ", expected_loss)
+
+            real_loss = np.sum(current_prod_powers) - np.sum(current_load_powers)
+            print("real_loss = ", real_loss)
+            diff_loss = expected_loss - real_loss
+            print("diff expected - real  LOSS = ", diff_loss)
+            assert (math.fabs(diff_loss) < 1e-3)
+
+        self.current_step += 1
+
+        return action
+
+
+
+def test_core_Agent_test_Loss_Error():
+    """This function creates an Agent that compares the expected (from chronics) and real loss (from observation)
+    for the first 3 iterations"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_Loss_Error(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+    assert(list(actions_recap) == [None, None, None])
+
+
 # test_core_Agent_test_InputProdValues()
 # test_core_Agent_test_InputLoadValues()
 # test_core_Agent_test_limitOfProdsLost()
 # test_core_Agent_test_limitOfLoadsLost()
 # test_core_Agent_test_method_obs_are_prods_cut()
 # test_core_Agent_test_method_obs_are_loads_cut()
+# test_core_Agent_test_Loss_Error()
