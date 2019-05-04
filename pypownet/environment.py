@@ -63,8 +63,7 @@ class ActionSpace(MultiBinary):
         self.lines_ex_subs_id = lines_ex_subs_id
         self._substations_n_elements = [len(
             self.get_substation_switches_in_action(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for
-                                        sub_id in
-                                        self.substations_ids]
+                                        sub_id in self.substations_ids]
 
     def get_do_nothing_action(self, as_class_Action=False):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
@@ -807,6 +806,9 @@ class RunEnv(object):
 
     def _get_obs(self):
         return self.game.export_observation()
+
+    def is_action_valid(self, action):
+        return self.game.is_action_valid(action)
 
     def step(self, action, do_sum=True):
         """ Performs a game step given an action. The as list pattern is:

@@ -43,7 +43,8 @@ class IllegalActionException(Exception):
 
     @property
     def is_empty(self):
-        return self.illegal_broken_lines_reconnections is None and self.illegal_oncooldown_lines_switches is None \
+        return self.has_too_much_activations is None and self.illegal_broken_lines_reconnections is None \
+               and self.illegal_oncooldown_lines_switches is None \
                and self.illegal_oncoolown_substations_switches is None
 
 
@@ -563,10 +564,6 @@ class Game(object):
 
         :param action: an instance of pypownet.env.RunEnv.Action
         """
-        # Initialize exception container that gather illegal action moves to account for all eventual action errors
-        # before returning
-        to_be_raised_exception = IllegalActionException('', False, None, None, None)
-
         self.timestep += 1
         # If there is no action, then no need to apply anything on the grid
         if action is None:
@@ -584,6 +581,49 @@ class Game(object):
         action_loads_nodes = action.get_loads_switches_subaction()
         action_lines_or_nodes = action.get_lines_or_switches_subaction()
         action_lines_ex_nodes = action.get_lines_ex_switches_subaction()
+
+        try:
+            to_be_raised_exception = self._verify_illegal_action(action)
+        except (IllegalActionException, ValueError) as e:
+            raise e
+
+        # If illegal moves has been caught, raise exception
+        if not to_be_raised_exception.is_empty:
+            raise to_be_raised_exception
+
+        # Compute the destination nodes of all elements + the lines service finale values: actions are switches
+        prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
+        loads_nodes = np.where(action_loads_nodes, 1 - loads_nodes, loads_nodes)
+        lines_or_nodes = np.where(action_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
+        lines_ex_nodes = np.where(action_lines_ex_nodes, 1 - lines_ex_nodes, lines_ex_nodes)
+        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
+                                              mapping_array=grid_topology_mapping_array)
+
+        new_lines_service = np.where(action_lines_service, 1 - lines_service, lines_service)
+
+        # Apply the newly computed destination topology to the grid
+        self.grid.apply_topology(new_topology)
+        # Apply the newly computed destination topology to the grid
+        self.grid.set_lines_status(new_lines_service)
+
+        # Put activated lines as unactivable for predetermined timestep
+        has_lines_been_changed = action_lines_service == 1
+        self.timesteps_before_lines_reactionable[has_lines_been_changed] = self.n_timesteps_actionned_line_reactionable
+        # Compute and put activated nodes as unactivable for predetermined timestep
+        has_nodes_been_changed = self.get_changed_substations(action)
+        self.timesteps_before_nodes_reactionable[has_nodes_been_changed] = self.n_timesteps_actionned_node_reactionable
+
+    def _verify_illegal_action(self, action):
+        # Initialize exception container that gather illegal action moves to account for all eventual action errors
+        # before returning
+        to_be_raised_exception = IllegalActionException('', False, None, None, None)
+
+        # If there is no action, then no need to apply anything on the grid
+        if action is None:
+            raise ValueError('Cannot play None action')
+
+        action_lines_service = action.get_lines_status_subaction()
 
         # Compute the elements to be switched by the action (ie where >= 1 value is one for substation, or line is 1)
         to_be_switched_substations = self.get_changed_substations(action)
@@ -677,32 +717,14 @@ class Game(object):
                                                            non_actionnable_nodes_as_str, timesteps_to_wait_as_str)
             to_be_raised_exception.illegal_oncoolown_substations_switches = illegal_activating_nodes
 
-        # If illegal moves has been caught, raise exception
-        if not to_be_raised_exception.is_empty:
-            raise to_be_raised_exception
+        return to_be_raised_exception
 
-        # Compute the destination nodes of all elements + the lines service finale values: actions are switches
-        prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
-        loads_nodes = np.where(action_loads_nodes, 1 - loads_nodes, loads_nodes)
-        lines_or_nodes = np.where(action_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
-        lines_ex_nodes = np.where(action_lines_ex_nodes, 1 - lines_ex_nodes, lines_ex_nodes)
-        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
-                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
-                                              mapping_array=grid_topology_mapping_array)
-
-        new_lines_service = np.where(action_lines_service, 1 - lines_service, lines_service)
-
-        # Apply the newly computed destination topology to the grid
-        self.grid.apply_topology(new_topology)
-        # Apply the newly computed destination topology to the grid
-        self.grid.set_lines_status(new_lines_service)
-
-        # Put activated lines as unactivable for predetermined timestep
-        has_lines_been_changed = action_lines_service == 1
-        self.timesteps_before_lines_reactionable[has_lines_been_changed] = self.n_timesteps_actionned_line_reactionable
-        # Compute and put activated nodes as unactivable for predetermined timestep
-        has_nodes_been_changed = self.get_changed_substations(action)
-        self.timesteps_before_nodes_reactionable[has_nodes_been_changed] = self.n_timesteps_actionned_node_reactionable
+    def is_action_valid(self, action):
+        try:
+            to_be_raised_exception = self._verify_illegal_action(action)
+        except (IllegalActionException, ValueError):
+            return False
+        return to_be_raised_exception.is_empty
 
     def reset(self):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
@@ -782,7 +804,8 @@ class Game(object):
                     if sum(illegal_oncooldown_nodes_switches) > 0:
                         # put all switches to 0 for illegal oncooldown substation use
                         for substation_changed in substations_changed:
-                            expected_subaction_length = len(action.get_substation_switches(substation_changed, False)[1])
+                            expected_subaction_length = len(
+                                action.get_substation_switches(substation_changed, False)[1])
                             action.set_substation_switches(substation_changed, np.zeros(expected_subaction_length))
                         # self.cancel_action_from_has_been_changed(action, illegal_oncooldown_nodes_switches)  # cancel illegal moves
                         e.text += ' Ignoring node switches of on-cooldown substations: %s.' % \
@@ -953,7 +976,7 @@ class Game(object):
                 "{}. (HINT: install pygame using `pip install pygame` or refer to this package README)".format(e))
 
         # if close:
-        #     pygame.quit()
+        # pygame.quit()
 
         if self.renderer is None:
             self.renderer = initialize_renderer()
@@ -991,7 +1014,7 @@ class Game(object):
         n_nodes_substations = []
         for substation_id in self.substations_ids:
             substation_conf = current_observation.get_nodes_of_substation(substation_id)[0]
-            n_nodes_substations.append(1+int(len(list(set(substation_conf))) == 2))
+            n_nodes_substations.append(1 + int(len(list(set(substation_conf))) == 2))
 
         self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status, self.epoch, self.timestep,
                              self.current_timestep_id if not timestep_id else timestep_id, prods=prods_values,
