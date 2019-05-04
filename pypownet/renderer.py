@@ -238,6 +238,8 @@ class Renderer(object):
             prods_minus_loads.append(prod - load)
         max_diff = max(abs(np.max(prods_minus_loads)), abs(np.min(prods_minus_loads)))
 
+        activated_node_color = (255, 255, 0)
+
         prods_iter, loads_iter = iter(prods), iter(loads)
         for i, ((x, y), is_prod, is_load, is_changed, n_used_nodes) in enumerate(
                 zip(layout, self.are_prods, self.are_loads, are_substations_changed, number_nodes_per_substation)):
@@ -248,25 +250,38 @@ class Renderer(object):
             linewidth_min = 1.
             if prod_minus_load > 0:  # Draw production
                 color = [c / 255. for c in (0, 153, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min + 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius + 3. * prod_minus_load / max_diff
 
+                if n_used_nodes > 1:
+                    c = Circle((x, y), outer_radius + linewidth + 4., linewidth=0., fill=True,
+                               color=[c / 255. for c in self.background_color], zorder=10)
+                    ax.add_artist(c)
+                    c = Circle((x, y), outer_radius + linewidth + 4., linewidth=.75, fill=False, color=color,
+                               zorder=10)
+                    ax.add_artist(c)
                 c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
-                if n_used_nodes > 1:
-                    c = Circle((x, y), outer_radius-1, linewidth=.5, fill=False, color=color, zorder=10)
-                    ax.add_artist(c)
                 c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
                 ax.add_artist(c)
             elif prod_minus_load < 0:  # Draw consumption
                 color = [c / 255. for c in (210, 77, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min - 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
 
+                if n_used_nodes > 1:
+                    c = Rectangle((x - outer_radius - linewidth - 4., y - outer_radius - linewidth - 4.),
+                                  2. * (outer_radius + linewidth + 4.), 2. * (outer_radius + linewidth + 4.),
+                                  linewidth=0., fill=True, color=[c / 255. for c in self.background_color], zorder=10)
+                    ax.add_artist(c)
+                    c = Rectangle((x - outer_radius - linewidth - 4., y - outer_radius - linewidth - 4.),
+                                  2. * (outer_radius + linewidth + 4.), 2. * (outer_radius + linewidth + 4.),
+                                  linewidth=.6, fill=False, color=color, zorder=10)
+                    ax.add_artist(c)
                 c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
@@ -275,23 +290,28 @@ class Renderer(object):
                 ax.add_artist(c)
             else:
                 color = [c / 255. for c in (255, 255, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min
                 outer_radius = self.nodes_outer_radius
 
+                if n_used_nodes > 1:
+                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius + 4.)),
+                                  2. * (outer_radius + 4.), 2. * (outer_radius + 4.),
+                                  linewidth=0., fill=True, color=[c / 255. for c in self.background_color],
+                                  zorder=10, angle=45.)
+                    ax.add_artist(c)
+                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius + 4.)),
+                                  2. * (outer_radius + 4.), 2. * (outer_radius + 4.),
+                                  linewidth=.6, fill=False, color=color, zorder=10, angle=45.)
+                    ax.add_artist(c)
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9, angle=45.)
                 ax.add_artist(c)
-                if n_used_nodes > 1:
-                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius - 1)), 2. * (outer_radius - 1),
-                                  2. * (outer_radius - 1), linewidth=.5, fill=False, color=color,
-                                  zorder=10, angle=45.)
-                    ax.add_artist(c)
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=linewidth, fill=False, color=color, zorder=10, angle=45.)
                 ax.add_artist(c)
-                # Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+                    # Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
 
         l = []
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
@@ -416,7 +436,7 @@ class Renderer(object):
         string_color = (180 / 255., 180 / 255., 180 / 255.)
         header_color = (220 / 255., 220 / 255., 220 / 255.)
         value_color = (1., 1., 1.)
-        plt.text(0, height - 25, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
+        plt.text(90, height - 25, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
 
         string_offset = 65
         value_offset = 10
@@ -669,7 +689,7 @@ class Renderer(object):
         header_color = (220 / 255., 220 / 255., 220 / 255.)
         value_color = (1., 1., 1.)
 
-        plt.text(0, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
+        plt.text(45, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
         plt.text(5, surface_shape[1] - 50, 'Substations', fontdict={'size': 8.5}, color=header2_color)
         plt.text(offset_text, surface_shape[1] - 70, 'power output > 0', fontdict={'size': 8.5}, color=string_color)
         c = Circle((21, surface_shape[1] - 66), self.nodes_outer_radius, linewidth=1.,
@@ -744,7 +764,7 @@ class Renderer(object):
                       linewidth=1., fill=True, color=[c / 255. for c in (255, 255, 0)])
         ax.add_artist(c)
         plt.text(offset_text, surface_shape[1] - 335, 'node splitting', fontdict={'size': 8.5}, color=string_color)
-        #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+        # color=[.8, .8, .8], figure=fig, linestyle='dashed'))
         #         l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.8,
         #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
         #     else:
@@ -881,7 +901,7 @@ class Renderer(object):
         # self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (690, 11))
         self.topology_layout.blit(legend_surface, (
-        805, self.last_rewards_surface.get_height() + (110 if self.grid_case != 118 else 30)))
+            815, self.last_rewards_surface.get_height() + (90 if self.grid_case != 118 else 30)))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost
