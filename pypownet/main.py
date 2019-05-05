@@ -29,12 +29,15 @@ parser.add_argument('-m', '--game-over-mode', metavar='GAME_OVER_MODE', type=str
                          'the next timestep of the same chronic; or "hard", and after each game over the simulator '
                          'will load the first timestep of the next grid, depending on --loop-mode parameter (default '
                          '"soft")')
+parser.add_argument('--no-overflow-cutoff', action='store_true',
+                    help='disable the grid automatic cut-off of overflows lines (soft and hard) independently from the '
+                         'parameters environment used')
 parser.add_argument('-r', '--render', action='store_true',
                     help='render the power network observation at each timestep (not available if --batch is not 1)')
 parser.add_argument('-la', '--latency', type=float, default=None,
                     help='time to sleep after each frame plot of the renderer (in seconds); note: there are multiple'
                          ' frame plots per timestep (at least 2, varies)')
-parser.add_argument('-v', '--verbose', action='store_true', default=True,
+parser.add_argument('-v', '--verbose', action='store_true',
                     help='display live info of the current experiment including reward, cumulative reward')
 parser.add_argument('-vv', '--vverbose', action='store_true',
                     help='display live info + observations and actions played')
@@ -48,7 +51,8 @@ def main():
     # Instantiate environment and agent
     env = env_class(parameters_folder=args.parameters, game_level=args.level,
                     chronic_looping_mode=args.loop_mode, start_id=args.start_id,
-                    game_over_mode=args.game_over_mode, renderer_latency=args.latency)
+                    game_over_mode=args.game_over_mode, renderer_latency=args.latency,
+                    without_overflow_cutoff=args.no_overflow_cutoff)
     agent = agent_class(env)
     # Instantiate game runner and loop
     runner = Runner(env, agent, args.render, args.verbose, args.vverbose, args.parameters, args.level, args.niter)

@@ -253,7 +253,7 @@ class Action(object):
 
 class Game(object):
     def __init__(self, parameters_folder, game_level, chronic_looping_mode, chronic_starting_id,
-                 game_over_mode, renderer_frame_latency=None):
+                 game_over_mode, renderer_frame_latency, without_overflow_cutoff):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
         self.logger = logging.getLogger('pypownet.' + __name__)
@@ -265,10 +265,14 @@ class Game(object):
         self.is_mode_dc = self.__parameters.is_dc_mode()
         # overflows
         self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
+        if without_overflow_cutoff:
+            self.hard_overflow_coefficient = 1e9
         self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()
         self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
         self.n_timesteps_consecutive_soft_overflow_breaks = \
             self.__parameters.get_n_timesteps_consecutive_soft_overflow_breaks()
+        if without_overflow_cutoff:
+            self.n_timesteps_consecutive_soft_overflow_breaks = 1e12
         # maintenance
         self.n_timesteps_horizon_maintenance = self.__parameters.get_n_timesteps_horizon_maintenance()
         # game over
@@ -529,6 +533,20 @@ class Game(object):
                 self.timesteps_before_lines_reconnectable[
                     over_hard_thlim_lines] = self.n_timesteps_hard_overflow_is_broken
                 is_done = False
+
+                # Log some info
+                n_cut_off = sum(over_hard_thlim_lines)
+                self.logger.info('  AUTOMATIC HARD OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due to '
+                                 'hard overflow (%s%s of capacity)' %
+                                 ('s' if n_cut_off > 1 else '',
+                                  ', '.join(
+                                      list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[over_hard_thlim_lines]))),
+                                  str(self.n_timesteps_hard_overflow_is_broken),
+                                  's' if self.n_timesteps_hard_overflow_is_broken > 1 else '',
+                                  'resp. ' if n_cut_off > 1 else '',
+                                  ', '.join(list(map(lambda i: '%.0f%%' % i,
+                                                     100. * current_flows_a[over_hard_thlim_lines] / thermal_limits[
+                                                         over_hard_thlim_lines])))))
             # Those lines have been treated so discard them for further depth process
             over_thlim_lines[over_hard_thlim_lines] = False
 
@@ -544,6 +562,18 @@ class Game(object):
                     self.timesteps_before_lines_reconnectable[
                         soft_broken_lines] = self.n_timesteps_soft_overflow_is_broken
                     is_done = False
+
+                    # Log some info
+                    n_cut_off = sum(soft_broken_lines)
+                    self.logger.info('  AUTOMATIC SOFT OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due '
+                                     'to soft overflow' %
+                                     ('s' if n_cut_off > 1 else '',
+                                      ', '.join(
+                                          list(map(lambda i: '#%.0f' % i,
+                                                   self.grid.ids_lines[soft_broken_lines]))),
+                                      str(self.n_timesteps_soft_overflow_is_broken),
+                                      's' if self.n_timesteps_hard_overflow_is_broken > 1 else ''))
+
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
 
