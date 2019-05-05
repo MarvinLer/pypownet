@@ -23,7 +23,7 @@ def main():
         sys.path.append(matpower_path)
         with open(mp_path_config, 'w') as f:
             f.write(matpower_path)
-    except ValueError as e:
+    except FileNotFoundError as e:
         print(e)
         print('Only PYPOWER backend available')
 
