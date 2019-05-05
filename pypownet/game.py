@@ -43,7 +43,7 @@ class IllegalActionException(Exception):
 
     @property
     def is_empty(self):
-        return self.has_too_much_activations is None and self.illegal_broken_lines_reconnections is None \
+        return self.has_too_much_activations is False and self.illegal_broken_lines_reconnections is None \
                and self.illegal_oncooldown_lines_switches is None \
                and self.illegal_oncoolown_substations_switches is None
 
