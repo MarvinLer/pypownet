@@ -3,6 +3,7 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
+from copy import deepcopy
 from enum import Enum
 from collections import OrderedDict
 from gym.spaces import MultiBinary, Box, Dict, Discrete
@@ -122,7 +123,7 @@ class ActionSpace(MultiBinary):
             except ValueError as e:
                 raise e
         else:
-            formatted_action = action
+            formatted_action = deepcopy(action)
 
         prods_switches_subaction_length, loads_switches_subaction_length, lines_or_switches_subaction_length, \
         lines_ex_subaction_length, lines_status_subaction_length = formatted_action.__len__(do_sum=False)
