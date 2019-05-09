@@ -9,7 +9,7 @@ import sys
 from pypownet.environment import RunEnv, ElementType
 from pypownet.runner import Runner
 from pypownet.agent import *
-from pypownet.game import TooManyProductionsCut, TooManyConsumptionsCut, DivergingLoadflowException
+from pypownet.game import TooManyProductionsCut, TooManyConsumptionsCut, IllegalActionException
 from tests.test_basic import WrappedRunner, get_verbose_node_topology
 import math
 
@@ -677,7 +677,7 @@ class Agent_test_SoftOverflowBreakLimit(Agent):
     at t = 11, it is the third consecutive timestep so we should have a line that is CUT because of SOFT OVERFLOW"""
     def __init__(self, environment):
         super().__init__(environment)
-        print("Agent_test_SoftOverflow created...")
+        print("Agent_test_SoftOverflowBreakLimit created...")
 
         self.current_step = 1
         self.line_to_cut = 9
@@ -727,11 +727,85 @@ class Agent_test_SoftOverflowBreakLimit(Agent):
         return action
 
 
-class Agent_test_NodeTopoChangePersistance(Agent):
+class Agent_test_SoftOverflowIsBroken(Agent):
+    """This agent tests the variable n_timesteps_soft_overflow_is_broken: 2  # number of timesteps a soft overflow
+    broken line is broken, it is a follow up test for SoftOverflowBreakLimit.
+    at t = 9,  line's 6 flow in ampere > 300, 322
+    at t = 10, line's 6 flow in ampere > 300, 347
+    at t = 11, it is the third consecutive timestep so we should have a line that is CUT because of SOFT OVERFLOW
+    from this point, for 2 more steps we will try to set the line back up, and we should get Illegal Actions exception
+    until t = 13
+    at t = 12 down for 2 consecutive steps
+    at t = 13, 3 consecutive steps > n_timesteps_soft_overflow_is_broken: 2, so we should be able to reconnect
+    at t = 14, we check line is BACK ONLINE"""
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_SoftOverflowIsBroken created...")
+
+        self.current_step = 1
+        self.line_to_cut = 6
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        # print(observation)
+        print("lines_status = ", list(observation.lines_status.astype(int)))
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        if self.current_step == 11:
+            # line's 6 flow == 0  consecutive_steps = 3  > n_timesteps_consecutive_soft_overflow_breaks, so line BREAKS
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+            # we try to set it up, but because n_timesteps_soft_overflow_is_broken: 2, it should not work and we should
+            # get an IllegalAction exception.
+            action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
+
+        if self.current_step == 12:
+            # line should still be broken
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+            # we try to set it up, but because n_timesteps_soft_overflow_is_broken: 2, it still should not work and we
+            # should get an IllegalAction exception.
+            action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
+
+        if self.current_step == 13:
+            # line should still be broken
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+            # line broke on step 11, so consecutive_broken_step is now 3, which now is superior to
+            # n_timesteps_soft_overflow_is_broken: 2, so we should be able to turn it back ONLINE.
+            action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
+
+        if self.current_step == 14:
+            # line should be back UP
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+
+        self.current_step += 1
+
+        return action
+
+
+
+
+class Agent_test_NodeTopoChangePersistence(Agent):
     """This agent switches a nodes topology and checks for 9 steps that it is still the same"""
     def __init__(self, environment):
         super().__init__(environment)
-        print("Agent_test_NodeTopoChangePersistance created...")
+        print("Agent_test_NodeTopoChangePersistence created...")
 
         self.current_step = 1
         self.node_to_change = 9
@@ -780,11 +854,11 @@ class Agent_test_NodeTopoChangePersistance(Agent):
         return action
 
 
-class Agent_test_LineChangePersistance(Agent):
+class Agent_test_LineChangePersistence(Agent):
     """This agent cuts a line and checks for 9 steps that it is still cut"""
     def __init__(self, environment):
         super().__init__(environment)
-        print("Agent_test_LineChangePersistance created...")
+        print("Agent_test_LineChangePersistence created...")
 
         self.current_step = 1
         self.line_to_cut = 18
@@ -1154,8 +1228,6 @@ def test_core_Agent_test_NodesPhysics():
 def test_core_Agent_test_SoftOverflowBreakLimit():
     """This function creates an Agent that checks variable: n_timesteps_consecutive_soft_overflow_breaks = 2"""
     parameters = "./tests/parameters/default14_for_tests_alpha/"
-    # parameters = "./tests/parameters/static_ieee14/"
-    # parameters = "./tests/parameters/static_ieee14/"
     print("Parameters used = ", parameters)
     game_level = "level0"
     loop_mode = "natural"
@@ -1180,44 +1252,49 @@ def test_core_Agent_test_SoftOverflowBreakLimit():
     print("game_overs = ", game_overs)
     print("actions_recap = ", actions_recap)
     assert(niter == len(game_overs) == len(actions_recap))
-    # assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False])
-    # assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
+    assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False, False, False])
+    assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None, None, None])
 
 
-# def test_core_Agent_test_SoftOverflowIsBroken():
-#     """This function creates an Agent that checks variable:
-#     n_timesteps_soft_overflow_is_broken: 2  # number of timesteps a soft overflow broken line is broken"""
-#     parameters = "./tests/parameters/default14_for_tests_alpha/"
-#     # parameters = "./tests/parameters/static_ieee14/"
-#     # parameters = "./tests/parameters/static_ieee14/"
-#     print("Parameters used = ", parameters)
-#     game_level = "level0"
-#     loop_mode = "natural"
-#     start_id = 0
-#     game_over_mode = "soft"
-#     renderer_latency = 1
-#     # render = False
-#     render = True
-#     niter = 20
-#
-#     env_class = RunEnv
-#
-#     # Instantiate environment and agent
-#     env = env_class(parameters_folder=parameters, game_level=game_level,
-#                     chronic_looping_mode=loop_mode, start_id=start_id,
-#                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-#     agent = Agent_test_SoftOverflowBreakLimit(env)
-#     # Instantiate game runner and loop
-#     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
-#     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
-#     print("Obtained a final reward of {}".format(final_reward))
-#     print("game_overs = ", game_overs)
-#     print("actions_recap = ", actions_recap)
-#     assert(niter == len(game_overs) == len(actions_recap))
+def test_core_Agent_test_SoftOverflowIsBroken():
+    """This function creates an Agent that checks variable:
+    n_timesteps_soft_overflow_is_broken: 2  # number of timesteps a soft overflow broken line is broken"""
+    parameters = "./tests/parameters/default14_for_tests_alpha/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = True
+    niter = 14
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_SoftOverflowIsBroken(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False, False, False,
+                                False, False])
+    for i, action in enumerate(actions_recap):
+        if i == 10 or i == 11:
+            assert(isinstance(action, IllegalActionException))
+        else:
+            assert(action == None)
 
 
 
-def test_core_Agent_test_NodeTopoChangePersistance():
+def test_core_Agent_test_NodeTopoChangePersistence():
     """This function creates an Agent that switches a nodes topology and checks for 9 steps that it is still the same"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
@@ -1236,7 +1313,7 @@ def test_core_Agent_test_NodeTopoChangePersistance():
     env = env_class(parameters_folder=parameters, game_level=game_level,
                     chronic_looping_mode=loop_mode, start_id=start_id,
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-    agent = Agent_test_NodeTopoChangePersistance(env)
+    agent = Agent_test_NodeTopoChangePersistence(env)
     # Instantiate game runner and loop
     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
@@ -1251,7 +1328,7 @@ def test_core_Agent_test_NodeTopoChangePersistance():
 
 
 
-def test_core_Agent_test_LineChangePersistance():
+def test_core_Agent_test_LineChangePersistence():
     """This function creates an Agent that cut a line and checks for 9 steps that it is still cut"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
@@ -1270,7 +1347,7 @@ def test_core_Agent_test_LineChangePersistance():
     env = env_class(parameters_folder=parameters, game_level=game_level,
                     chronic_looping_mode=loop_mode, start_id=start_id,
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-    agent = Agent_test_LineChangePersistance(env)
+    agent = Agent_test_LineChangePersistence(env)
     # Instantiate game runner and loop
     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
@@ -1291,7 +1368,10 @@ def test_core_Agent_test_LineChangePersistance():
 # test_core_Agent_test_Loss_Error()
 # test_core_Agent_test_NodeTopoChangePersistance()
 # test_core_Agent_test_LineChangePersistance()
+test_core_Agent_test_SoftOverflowBreakLimit()
+# test_core_Agent_test_SoftOverflowIsBroken()
+
+
 
 # to finish
 #test_core_Agent_test_NodesPhysics()
-test_core_Agent_test_SoftOverflowBreakLimit()
