@@ -663,7 +663,7 @@ class Game(object):
         n_switched_substations = sum(to_be_switched_substations)
         n_switched_lines = sum(to_be_switched_lines)
         n_switched_total = n_switched_substations + n_switched_lines
-        if n_switched_substations > self.max_number_actionned_lines \
+        if n_switched_substations > self.max_number_actionned_substations \
                 or n_switched_lines > self.max_number_actionned_lines \
                 or n_switched_total > self.max_number_actionned_total:
             to_be_raised_exception.has_too_much_activations = True
