@@ -536,17 +536,18 @@ class Game(object):
 
                 # Log some info
                 n_cut_off = sum(over_hard_thlim_lines)
-                self.logger.info('  AUTOMATIC HARD OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due to '
-                                 'hard overflow (%s%s of capacity)' %
-                                 ('s' if n_cut_off > 1 else '',
-                                  ', '.join(
-                                      list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[over_hard_thlim_lines]))),
-                                  str(self.n_timesteps_hard_overflow_is_broken),
-                                  's' if self.n_timesteps_hard_overflow_is_broken > 1 else '',
-                                  'resp. ' if n_cut_off > 1 else '',
-                                  ', '.join(list(map(lambda i: '%.0f%%' % i,
-                                                     100. * current_flows_a[over_hard_thlim_lines] / thermal_limits[
-                                                         over_hard_thlim_lines])))))
+                if not is_simulation:
+                    self.logger.info('  AUTOMATIC HARD OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due to '
+                                     'hard overflow (%s%s of capacity)' %
+                                     ('s' if n_cut_off > 1 else '',
+                                      ', '.join(
+                                          list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[over_hard_thlim_lines]))),
+                                      str(self.n_timesteps_hard_overflow_is_broken),
+                                      's' if self.n_timesteps_hard_overflow_is_broken > 1 else '',
+                                      'resp. ' if n_cut_off > 1 else '',
+                                      ', '.join(list(map(lambda i: '%.0f%%' % i,
+                                                         100. * current_flows_a[over_hard_thlim_lines] / thermal_limits[
+                                                             over_hard_thlim_lines])))))
             # Those lines have been treated so discard them for further depth process
             over_thlim_lines[over_hard_thlim_lines] = False
 
@@ -565,14 +566,15 @@ class Game(object):
 
                     # Log some info
                     n_cut_off = sum(soft_broken_lines)
-                    self.logger.info('  AUTOMATIC SOFT OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due '
-                                     'to soft overflow' %
-                                     ('s' if n_cut_off > 1 else '',
-                                      ', '.join(
-                                          list(map(lambda i: '#%.0f' % i,
-                                                   self.grid.ids_lines[soft_broken_lines]))),
-                                      str(self.n_timesteps_soft_overflow_is_broken),
-                                      's' if self.n_timesteps_hard_overflow_is_broken > 1 else ''))
+                    if not is_simulation:
+                        self.logger.info('  AUTOMATIC SOFT OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due '
+                                         'to soft overflow' %
+                                         ('s' if n_cut_off > 1 else '',
+                                          ', '.join(
+                                              list(map(lambda i: '#%.0f' % i,
+                                                       self.grid.ids_lines[soft_broken_lines]))),
+                                          str(self.n_timesteps_soft_overflow_is_broken),
+                                          's' if self.n_timesteps_hard_overflow_is_broken > 1 else ''))
 
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
