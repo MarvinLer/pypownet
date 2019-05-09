@@ -227,7 +227,7 @@ class Grid(object):
             function = self.pypower.rundcpf if self.dc_loadflow else self.pypower.runpf
             try:
                 output, loadflow_success = function(self.mpc, self.loadflow_options, pprint, fname)
-            except (RuntimeError, RuntimeWarning, IndexError):
+            except (RuntimeError, RuntimeWarning, IndexError, ValueError):
                 raise DivergingLoadflowException(None, 'The grid is not connexe')
         elif self.loadflow_backend_name == 'matpower':
             function = self.matpower.rundcpf if self.dc_loadflow else self.matpower.runpf
