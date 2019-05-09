@@ -499,7 +499,7 @@ class Game(object):
 
         self.load_entries_from_timestep_id(next_timestep_id, is_simulation)
 
-    def _compute_loadflow_cascading(self):
+    def _compute_loadflow_cascading(self, is_simulation=False):
         depth = 0  # Count cascading depth
         is_done = False
         over_thlim_lines = np.full(self.grid.n_lines, False)
@@ -512,7 +512,7 @@ class Game(object):
                 self.grid.compute_loadflow(fname_end='_cascading%d' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': cascading emulation of depth %d has diverged' % depth
-                if self.renderer is not None:
+                if self.renderer is not None and not is_simulation:
                     self.render(None, game_over=True, cascading_frame_id=depth, date=self.previous_date,
                                 timestep_id=self.previous_timestep)
                 raise DivergingLoadflowException(e.last_observation, e.text)
@@ -578,7 +578,7 @@ class Game(object):
                     over_thlim_lines[soft_broken_lines] = False
 
             depth += 1
-            if self.renderer is not None:
+            if self.renderer is not None and not is_simulation:
                 self.render(None, cascading_frame_id=depth, date=self.previous_date, timestep_id=self.previous_timestep)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
@@ -800,7 +800,7 @@ class Game(object):
         try:
             self.last_action = action  # tmp
             self.apply_action(action)
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, cascading_frame_id=-1)
         except IllegalActionException as e:
             # First, check if the action does not overpass the max number of activated elements, and stop further
@@ -852,7 +852,7 @@ class Game(object):
         try:
             # Load next timestep entries, compute one loadflow, then potentially cascading failure
             self.load_entries_from_next_timestep(is_simulation=_is_simulation)
-            self._compute_loadflow_cascading()
+            self._compute_loadflow_cascading(is_simulation=_is_simulation)
         except pypownet.grid.DivergingLoadflowException as e:
             return None, DivergingLoadflowException(e.last_observation, e.text), True
 
@@ -866,7 +866,7 @@ class Game(object):
             flag = TooManyConsumptionsCut('There are %d isolated loads; at most %d tolerated' % (
                 np.sum(are_isolated_loads), self.max_number_loads_game_over))
             done = True
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
         if np.sum(are_isolated_prods) > self.max_number_prods_game_over:
@@ -874,7 +874,7 @@ class Game(object):
             flag = TooManyProductionsCut('There are %d isolated productions; at most %d tolerated' % (
                 np.sum(are_isolated_prods), self.max_number_prods_game_over))
             done = True
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
 
