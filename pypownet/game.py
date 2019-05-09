@@ -796,7 +796,7 @@ class Game(object):
         if _is_simulation:
             assert self.grid.dc_loadflow, "Cheating detected"
 
-        # Apply action, or raises eception if some broken lines are attempted to be switched on
+        # Apply action, or raises exception if some broken lines are attempted to be switched on
         try:
             self.last_action = action  # tmp
             self.apply_action(action)
@@ -885,10 +885,10 @@ class Game(object):
         before_timestep_id = self.current_timestep_id
         before_mpc = copy.deepcopy(self.grid.mpc)
         before_topology = copy.deepcopy(self.grid.get_topology())
-        before_n_timesteps_overflowed_lines = self.n_timesteps_soft_overflowed_lines
-        before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
-        before_timesteps_before_lines_reactionable = self.timesteps_before_lines_reactionable
-        before_timesteps_before_nodes_reactionable = self.timesteps_before_nodes_reactionable
+        before_n_timesteps_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
+        before_timesteps_before_lines_reconnectable = copy.deepcopy(self.timesteps_before_lines_reconnectable)
+        before_timesteps_before_lines_reactionable = copy.deepcopy(self.timesteps_before_lines_reactionable)
+        before_timesteps_before_nodes_reactionable = copy.deepcopy(self.timesteps_before_nodes_reactionable)
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
