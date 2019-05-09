@@ -670,18 +670,17 @@ class Agent_test_NodesPhysics(Agent):
         return res
 
 
-class Agent_test_SoftOverflow(Agent):
+class Agent_test_SoftOverflowBreakLimit(Agent):
     """This agent tests the variable n_timesteps_consecutive_soft_overflow_breaks=2, with thermal limit = 300 for line 6
-    at t = 7, line's 6 flow in ampere = 300
-    at t = 8, it is the second consecutive timestep in soft overflow
-    at t = 9, the line breaks"""
+    at t = 9,  line's 6 flow in ampere > 300, 322
+    at t = 10, line's 6 flow in ampere > 300, 347
+    at t = 11, it is the third consecutive timestep so we should have a line that is CUT because of SOFT OVERFLOW"""
     def __init__(self, environment):
         super().__init__(environment)
         print("Agent_test_SoftOverflow created...")
 
         self.current_step = 1
         self.line_to_cut = 9
-        self.save_flows = []
 
     def act(self, observation):
         print("----------------------------------- current step = {} -----------------------------------".format(
@@ -698,18 +697,30 @@ class Agent_test_SoftOverflow(Agent):
 
         action_space = self.environment.action_space
         # print(observation)
+        print("lines_status = ", list(observation.lines_status.astype(int)))
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
-        current_ampere_flow_6 = observation.ampere_flows[6]
-        print("current ampere flow 6 = ", current_ampere_flow_6)
 
-        self.save_flows.append(observation.ampere_flows[6])
-        # if current_ampere_flow_6 > 300:
-        #     print("self.currentstep = ", self.current_step)
+        if self.current_step == 9:
+            # line's 6 flow in ampere > 300, 322    consecutive_steps = 1
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
 
-        if self.current_step == 1:
-            action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
+        if self.current_step == 10:
+            # line's 6 flow in ampere > 300, 322    consecutive_steps = 2
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+
+        if self.current_step == 11:
+            # line's 6 flow == 0  consecutive_steps = 3  > n_timesteps_consecutive_soft_overflow_breaks, so line BREAKS
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+
+        if self.current_step == 12:
+            # line should still be broken
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
 
         self.current_step += 1
 
@@ -1140,9 +1151,9 @@ def test_core_Agent_test_NodesPhysics():
 
 
 
-def test_core_Agent_test_SoftOverflow():
+def test_core_Agent_test_SoftOverflowBreakLimit():
     """This function creates an Agent that checks variable: n_timesteps_consecutive_soft_overflow_breaks = 2"""
-    parameters = "./tests/parameters/default14_for_tests/"
+    parameters = "./tests/parameters/default14_for_tests_alpha/"
     # parameters = "./tests/parameters/static_ieee14/"
     # parameters = "./tests/parameters/static_ieee14/"
     print("Parameters used = ", parameters)
@@ -1153,7 +1164,7 @@ def test_core_Agent_test_SoftOverflow():
     renderer_latency = 1
     render = False
     # render = True
-    niter = 11
+    niter = 12
 
     env_class = RunEnv
 
@@ -1161,7 +1172,7 @@ def test_core_Agent_test_SoftOverflow():
     env = env_class(parameters_folder=parameters, game_level=game_level,
                     chronic_looping_mode=loop_mode, start_id=start_id,
                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
-    agent = Agent_test_SoftOverflow(env)
+    agent = Agent_test_SoftOverflowBreakLimit(env)
     # Instantiate game runner and loop
     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
@@ -1171,6 +1182,39 @@ def test_core_Agent_test_SoftOverflow():
     assert(niter == len(game_overs) == len(actions_recap))
     # assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False])
     # assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
+
+
+# def test_core_Agent_test_SoftOverflowIsBroken():
+#     """This function creates an Agent that checks variable:
+#     n_timesteps_soft_overflow_is_broken: 2  # number of timesteps a soft overflow broken line is broken"""
+#     parameters = "./tests/parameters/default14_for_tests_alpha/"
+#     # parameters = "./tests/parameters/static_ieee14/"
+#     # parameters = "./tests/parameters/static_ieee14/"
+#     print("Parameters used = ", parameters)
+#     game_level = "level0"
+#     loop_mode = "natural"
+#     start_id = 0
+#     game_over_mode = "soft"
+#     renderer_latency = 1
+#     # render = False
+#     render = True
+#     niter = 20
+#
+#     env_class = RunEnv
+#
+#     # Instantiate environment and agent
+#     env = env_class(parameters_folder=parameters, game_level=game_level,
+#                     chronic_looping_mode=loop_mode, start_id=start_id,
+#                     game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+#     agent = Agent_test_SoftOverflowBreakLimit(env)
+#     # Instantiate game runner and loop
+#     runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+#     final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+#     print("Obtained a final reward of {}".format(final_reward))
+#     print("game_overs = ", game_overs)
+#     print("actions_recap = ", actions_recap)
+#     assert(niter == len(game_overs) == len(actions_recap))
+
 
 
 def test_core_Agent_test_NodeTopoChangePersistance():
@@ -1245,9 +1289,9 @@ def test_core_Agent_test_LineChangePersistance():
 # test_core_Agent_test_method_obs_are_prods_cut()
 # test_core_Agent_test_method_obs_are_loads_cut()
 # test_core_Agent_test_Loss_Error()
-test_core_Agent_test_NodeTopoChangePersistance()
-test_core_Agent_test_LineChangePersistance()
+# test_core_Agent_test_NodeTopoChangePersistance()
+# test_core_Agent_test_LineChangePersistance()
 
 # to finish
 #test_core_Agent_test_NodesPhysics()
-# test_core_Agent_test_SoftOverflow()
+test_core_Agent_test_SoftOverflowBreakLimit()
