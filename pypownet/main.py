@@ -25,13 +25,10 @@ parser.add_argument('-lm', '--loop-mode', metavar='CHRONIC_LOOP_MODE', type=str,
                          ' play chronic in alphabetical order, "random" will load random chronics ids and "fixed"'
                          ' will always play the same chronic folder (default "natural")')
 parser.add_argument('-m', '--game-over-mode', metavar='GAME_OVER_MODE', type=str, default='soft',
-                    help='game over mode to be played: either "soft", and after each game over the simulator will load '
-                         'the next timestep of the same chronic; or "hard", and after each game over the simulator '
-                         'will load the first timestep of the next grid, depending on --loop-mode parameter (default '
-                         '"soft")')
-parser.add_argument('--no-overflow-cutoff', action='store_true',
-                    help='disable the grid automatic cut-off of overflows lines (soft and hard) independently from the '
-                         'parameters environment used')
+                    help='game over mode to be played among "easy", "soft", "hard". With "easy", overflowed lines do '
+                         'not break and game over do not end scenarios; '
+                         'with "soft" overflowed lines are destroyed but game over do not end the scenarios; '
+                         'with "hard" game over end the chronic upon game over signals and start the next ones if any.')
 parser.add_argument('-r', '--render', action='store_true',
                     help='render the power network observation at each timestep (not available if --batch is not 1)')
 parser.add_argument('-la', '--latency', type=float, default=None,
@@ -49,10 +46,15 @@ def main():
     agent_class = eval('pypownet.agent.{}'.format(args.agent))
 
     # Instantiate environment and agent
+    if args.game_over_mode.lower() not in ['easy', 'soft', 'hard']:
+        raise ValueError('Unknown value {} for argument --game-over-mode; choices {}'.format(args.game_over_mode,
+                                                                                             ['easy', 'soft', 'hard']))
+    game_over_mode = 'hard' if args.game_over_mode.lower() == 'hard' else 'soft'
+    without_overflow_cutoff = args.game_over_mode.lower() == 'easy'
     env = env_class(parameters_folder=args.parameters, game_level=args.level,
                     chronic_looping_mode=args.loop_mode, start_id=args.start_id,
-                    game_over_mode=args.game_over_mode, renderer_latency=args.latency,
-                    without_overflow_cutoff=args.no_overflow_cutoff)
+                    game_over_mode=game_over_mode, renderer_latency=args.latency,
+                    without_overflow_cutoff=without_overflow_cutoff)
     agent = agent_class(env)
     # Instantiate game runner and loop
     runner = Runner(env, agent, args.render, args.verbose, args.vverbose, args.parameters, args.level, args.niter)
