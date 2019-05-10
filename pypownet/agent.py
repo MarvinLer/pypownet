@@ -3,10 +3,11 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import pypownet.environment
+from abc import ABC, abstractmethod
 
 
-class Agent(object):
-    """ The template to be used to create an agent: any controler of the power grid is expected to be a daughter of this
+class Agent(ABC):
+    """ The template to be used to create an agent: any controller of the power grid is expected to be a daughter of this
     class.
     """
 
@@ -15,28 +16,68 @@ class Agent(object):
         assert isinstance(environment, pypownet.environment.RunEnv)
         self.environment = environment
 
+    @abstractmethod
     def act(self, observation):
         """Produces an action given an observation of the environment.
 
-        Takes as argument an observation of the current state, and returns the chosen action."""
-        # Sanity check: an observation is a structured object defined in the environment file.
-        assert isinstance(observation, pypownet.environment.Observation)
-
-        # Implement your policy here.
-        do_nothing_action = self.environment.action_space.get_do_nothing_action()
-
-        return do_nothing_action
+        Takes as argument an observation of the current state, and returns the chosen action of class Action or np
+        array."""
+        pass
 
     def feed_reward(self, action, consequent_observation, rewards_aslist):
         pass
+
+
+class DoNothing(Agent):
+    def act(self, observation):
+        action_length = self.environment.action_space.action_length
+        return np.zeros(action_length)
+
 
 # Examples of baselines agents
 import numpy as np
 
 
+class RandomAction(Agent):
+    """
+    An example of a baseline controller that produce random actions (ie random line switches and random node switches.
+    """
+
+    def __init__(self, environment):
+        super().__init__(environment)
+
+        self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
+
+    def act(self, observation):
+        action = self.environment.action_space.sample()
+        # # or
+        # action_length = self.environment.action_space.n
+        # action = np.random.choice([0, 1], action_length)
+        return action
+
+
+class RandomPointAction(Agent):
+    """
+    An example of a baseline controller that produce 1 random activation (ie an array with all 0 but one 1).
+    """
+
+    def __init__(self, environment):
+        super().__init__(environment)
+
+        self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
+
+    def act(self, observation):
+        action = self.environment.action_space.get_do_nothing_action()
+        # # or
+        # action_length = self.environment.action_space.n
+        # action = np.zeros(action_length)
+        action[np.random.randint(action.shape[0])] = 1
+        return action
+
+
 class RandomLineSwitch(Agent):
     """
-    An example of a baseline controler that randomly switches the status of one random power line per timestep (if the
+    An example of a baseline controller that randomly switches the status of one random power line per timestep (if the
     random line is previously online, switch it off, otherwise switch it on).
     """
 
@@ -46,14 +87,22 @@ class RandomLineSwitch(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_RandomLineSwitch.csv')
 
     def act(self, observation):
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
 
         # Create template of action with no switch activated (do-nothing action)
-        action = action_space.get_do_nothing_action()
+        action = action_space.get_do_nothing_action(as_class_Action=True)
         action_space.set_lines_status_switch_from_id(action=action,
-                                                     line_id=np.random.randint(action_space.lines_status_subaction_length),
+                                                     line_id=np.random.randint(
+                                                         action_space.lines_status_subaction_length),
                                                      new_switch_value=1)
 
         # Dump best action into stored actions file
@@ -65,7 +114,7 @@ class RandomLineSwitch(Agent):
 
 
 class RandomNodeSplitting(Agent):
-    """ Implements a "random node-splitting" agent: at each timestep, this controler will select a random substation
+    """ Implements a "random node-splitting" agent: at each timestep, this controller will select a random substation
     (id), then select a random switch configuration such that switched elements of the selected substations change the
     node within the substation on which they are directly wired.
     """
@@ -76,12 +125,19 @@ class RandomNodeSplitting(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_RandomNodeSplitting.csv')
 
     def act(self, observation):
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
 
         # Create template of action with no switch activated (do-nothing action)
-        action = action_space.get_do_nothing_action()
+        action = action_space.get_do_nothing_action(as_class_Action=True)
 
         # Select a random substation ID on which to perform node-splitting
         target_substation_id = np.random.choice(action_space.substations_ids)
@@ -89,12 +145,11 @@ class RandomNodeSplitting(Agent):
         # Choses a new switch configuration (binary array)
         target_configuration = np.random.choice([0, 1], size=(expected_target_configuration_size,))
 
-        action_space.set_switches_configuration_of_substation(action=action,
-                                                              substation_id=target_substation_id,
-                                                              new_configuration=target_configuration)
+        action_space.set_substation_switches_in_action(action=action, substation_id=target_substation_id,
+                                                       new_values=target_configuration)
 
         # Ensure changes have been done on action
-        current_configuration, _ = action_space.get_switches_configuration_of_substation(action, target_substation_id)
+        current_configuration, _ = action_space.get_substation_switches_in_action(action, target_substation_id)
         assert np.all(current_configuration == target_configuration)
 
         # Dump best action into stored actions file
@@ -114,6 +169,13 @@ class TreeSearchLineServiceStatus(Agent):
         self.ioman = ActIOnManager(destination_path='saved_actions_TreeSearchLineServiceStatus.csv')
 
     def act(self, observation):
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
@@ -127,7 +189,7 @@ class TreeSearchLineServiceStatus(Agent):
             if self.verbose:
                 print('    Simulating switch activation line %d' % l, end='')
             # Construct the action where only line status of line l is switched
-            action = action_space.get_do_nothing_action()
+            action = action_space.get_do_nothing_action(as_class_Action=True)
             action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
             simulated_reward = self.environment.simulate(action=action)
 
@@ -139,7 +201,7 @@ class TreeSearchLineServiceStatus(Agent):
 
         # Also simulate the do nothing action
         if self.verbose:
-            print('    Simulating switch activation line %d' % l, end='')
+            print('    Simulating do-nothing action', end='')
         donothing_action = self.environment.action_space.get_do_nothing_action()
         donothing_simulated_reward = self.environment.simulate(action=donothing_action)
         simulated_rewards.append(donothing_simulated_reward)
@@ -153,15 +215,18 @@ class TreeSearchLineServiceStatus(Agent):
         self.ioman.dump(best_action)
 
         if self.verbose:
-            print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
-                simulated_rewards.index(best_simulated_reward), best_simulated_reward))
+            if simulated_rewards.index(best_simulated_reward) == len(simulated_rewards)-1:
+                print('  Best simulated action: do-nothing')
+            else:
+                print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
+                    simulated_rewards.index(best_simulated_reward), best_simulated_reward))
 
         return best_action
 
 
 class GreedySearch(Agent):
     """ This agent is a tree-search model of depth 1, that is constrained to modifiying at most 1 substation
-    configuration or at most 1 line status. This controler used the simulate method of the environment, by testing
+    configuration or at most 1 line status. This controller used the simulate method of the environment, by testing
     every 1-line status switch action, every new configuration for substations with at least 4 elements, as well as
     the do-nothing action. Then, it will seek for the best reward and return the associated action, expecting
     the maximum reward for the action pool it can reach.
@@ -180,6 +245,13 @@ class GreedySearch(Agent):
     def act(self, observation):
         import itertools
 
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         # Sanity check: an observation is a structured object defined in the environment file.
         assert isinstance(observation, pypownet.environment.Observation)
         action_space = self.environment.action_space
@@ -205,7 +277,7 @@ class GreedySearch(Agent):
         for l in range(number_lines):
             if self.verbose:
                 print(' Simulation with switching status of line %d' % l, end='')
-            action = action_space.get_do_nothing_action()
+            action = action_space.get_do_nothing_action(as_class_Action=True)
             action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
             reward_aslist = self.environment.simulate(action, do_sum=False)
             reward = sum(reward_aslist)
@@ -226,10 +298,9 @@ class GreedySearch(Agent):
                         print(' Simulation with change in topo of sub. %d with switches %s' % (
                             substation_id, repr(new_configuration)), end='')
                     # Construct action
-                    action = action_space.get_do_nothing_action()
-                    action_space.set_switches_configuration_of_substation(action=action,
-                                                                          substation_id=substation_id,
-                                                                          new_configuration=new_configuration)
+                    action = action_space.get_do_nothing_action(as_class_Action=True)
+                    action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
+                                                                   new_values=new_configuration)
                     reward_aslist = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
@@ -290,7 +361,7 @@ class ActIOnManager(object):
 
     def dump(self, action):
         with open(self.destination_path, 'a') as f:
-            f.write(','.join([str(int(switch)) for switch in action.as_array()]) + '\n')
+            f.write('{}\n'.format(action))
 
     @staticmethod
     def load(filepath):
@@ -310,5 +381,12 @@ class FlowsSaver(Agent):
         self.destination_path = 'saved_flows.csv'
 
     def act(self, observation):
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
         open(self.destination_path, 'a').write(','.join(list(map(str, observation.ampere_flows))) + '\n')
         return self.environment.action_space.get_do_nothing_action()

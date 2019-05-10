@@ -1,9 +1,10 @@
 setuptools==40.0.0
 matplotlib==2.2.2
+recommonmark==0.4.0
+gym==0.12.0
 numpy==1.15.0
 oct2py==4.0.6
 pygame==1.9.4
 scipy==1.1.0
-gym>=0.10.5
 PYPOWER==5.1.4
-PyYAML>=3.13
+PyYAML==5.1

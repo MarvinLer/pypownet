@@ -12,8 +12,8 @@ from pypownet.environment import RunEnv
 from pypownet.agent import Agent
 import logging
 import logging.handlers
-import threading
-import queue
+import csv
+import datetime
 
 LOG_FILENAME = 'runner.log'
 
@@ -23,13 +23,25 @@ class TimestepTimeout(Exception):
 
 
 class Runner(object):
-    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, log_filepath='runner.log'):
+    def __init__(self, environment, agent, render=False, verbose=False, vverbose=False, parameters=None, level=None,
+                 max_iter=None, log_filepath='runner.log', machinelog_filepath='machine_logs.csv'):
         # Sanity checks: both environment and agent should inherit resp. RunEnv and Agent
         assert isinstance(environment, RunEnv)
         assert isinstance(agent, Agent)
 
-        # Loggger part
+        # Logger part
         self.logger = logging.getLogger('pypownet')
+        if machinelog_filepath is not None:
+            self.csv_writer = csv.writer(open(machinelog_filepath, 'w'), delimiter=';')
+            self.csv_writer.writerow(['param_env_name', 'level', 'chronic_name', 'max_iter',
+                                      'timestep', 'time', 'game_over', 'timestep_reward_aslist', 'timestep_reward',
+                                      'cumulated_reward'])
+            self.parameters = parameters
+            self.level = level
+            self.max_iter = max_iter
+        else:
+            self.csv_writer = None
+            self.parameters, self.level, self.max_iter = None, None, None
 
         # Always create a log file for runners
         fh = logging.FileHandler(filename=log_filepath, mode='w+')
@@ -52,66 +64,77 @@ class Runner(object):
         self.verbose = verbose
         self.render = render
 
-        # First observation given by the environment
-        self.last_observation = self.environment._get_obs()
-
         self.max_seconds_per_timestep = self.environment.game.get_max_seconds_per_timestep()
 
         if self.render:
             self.environment.render()
 
-    def step(self):
-        # Policy inference
-        # def agent_inference(obs, q):
-        #     action = self.agent.act(obs)
-        #     q.put(action)
-        # q = queue.Queue()
-        # t = threading.Thread(target=agent_inference, name='AgentActThread', args=(self.last_observation, q))
-        # t.start()
-        # t.join(self.max_seconds_per_timestep)
-        # if t.is_alive():
-        #     self.logger.warn('\b\b\bTook too much time to compute action for current timestep: allowed at most %s '
-        #                      'seconds; emulating do-nothing action' % str(self.max_seconds_per_timestep))
-        #     action = self.environment.action_space.get_do_nothing_action()
-        # else:
-        #     action = q.get()
-
-        action = self.agent.act(self.last_observation)
+    def step(self, observation):
+        """
+        Performs a full RL step: the agent acts given an observation, receives and process the reward, and the env is
+        resetted if done was returned as True; this also logs the variables of the system including actions,
+        observations.
+        :param observation: input observation to be given to the agent
+        :return: (new observation, action taken, reward received)
+        """
+        self.logger.debug('observation: ' + str(self.environment.observation_space.array_to_observation(observation)))
+        action = self.agent.act(observation)
 
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
         if done:
-            self.logger.warn('\b\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
+            self.logger.warning('\b\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
             observation = self.environment.reset()
         elif info:
-            self.logger.warn(info.text)
+            self.logger.warning(info.text)
 
         reward = sum(reward_aslist)
 
         if self.render:
             self.environment.render()
 
-        self.last_observation = observation
-
         self.agent.feed_reward(action, observation, reward_aslist)
 
-        self.logger.debug('action: %s' % ('[%s]' % ' '.join(list(map(lambda x: str(int(x)), action.as_array())))))
+        self.logger.debug('action: {}'.format(action))
         self.logger.debug('reward: {}'.format('[' + ','.join(list(map(str, reward_aslist))) + ']'))
         self.logger.debug('done: {}'.format(done))
         self.logger.debug('info: {}'.format(info if not info else info.text))
-        self.logger.debug('observation: \n%s' % observation.__str__())
 
-        return observation, action, reward
+        return observation, action, reward, reward_aslist, done
 
-    def loop(self, iterations):
+    def loop(self, iterations, episodes=1):
+        """
+        Runs the simulator for the given number of iterations time the number of episodes.
+        :param iterations: int of number of iterations per episode
+        :param episodes: int of number of episodes, each resetting the environment at the beginning
+        :return:
+        """
         cumul_rew = 0.0
-        for i in range(1, iterations + 1):
-            (obs, act, rew) = self.step()
-            cumul_rew += rew
-            self.logger.info("step %d/%d - reward: %.2f; cumulative reward: %.2f" % (i, iterations, rew, cumul_rew))
-
-        # Close pygame if renderer has been used
-        if self.render:
-            self.environment.render()
+        for i_episode in range(episodes):
+            observation = self.environment.reset()
+            for i in range(1, iterations + 1):
+                (observation, action, reward, reward_aslist, done) = self.step(observation)
+                cumul_rew += reward
+                self.logger.info("step %d/%d - reward: %.2f; cumulative reward: %.2f" %
+                                 (i, iterations, reward, cumul_rew))
+                self.dump_machinelogs(i, done, reward, reward_aslist, cumul_rew, self.environment.get_current_datetime())
 
         return cumul_rew
+
+    def dump_machinelogs(self, timestep_id, done, reward, reward_aslist, cumul_rew, datetime):
+        if self.csv_writer is None:
+            return
+
+        param_env_name = self.parameters
+        level = self.level
+        chronic_name = self.environment.get_current_chronic_name()
+        max_iter = self.max_iter
+        timestep = timestep_id
+        time = datetime.strftime("%Y-%m-%d %H:%M")
+        game_over = done
+        timestep_reward_aslist = reward_aslist
+        timestep_reward = reward
+        cumulated_reward = cumul_rew
+
+        self.csv_writer.writerow([param_env_name, level, chronic_name, max_iter, timestep, time, game_over,
+                                  timestep_reward_aslist, timestep_reward, cumulated_reward])

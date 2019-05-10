@@ -3,7 +3,7 @@ import os
 import shutil
 from parameters.make_reference_grid import main as make_ref_grid
 
-ieee_path = input('enter the path to the IEEE grid case (.m) to be processed into a reference grid:')
+ieee_path = input('enter the path to the IEEE grid case (.m or .py) to be processed into a reference grid:')
 if not os.path.exists(ieee_path):
     raise FileNotFoundError
 grid_case = os.path.basename(ieee_path)[4:-2]
@@ -64,6 +64,11 @@ n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for 
 
 max_number_prods_game_over: 10  # number of tolerated isolated productions before game over
 max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
+
+n_timesteps_actionned_line_reactionable: 3  # number of consecutive timesteps before a switched line can be switched again
+n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again
+n_timesteps_pending_line_reactionable_when_overflowed: 1 # number of cons. timesteps before a line waiting to be reactionable is reactionable if it is overflowed
+n_timesteps_pending_node_reactionable_when_overflowed: 1 # number of cons. timesteps before a none waiting to be reactionable is reactionable if it has an overflowed line
 '''
 
 # Construct each level
@@ -74,9 +79,26 @@ for i in range(n_levels):
     open(os.path.join(level_path, 'configuration.yaml'), 'w').write(configuration_file_template)
     os.makedirs(os.path.join(level_path, 'chronics/'))
     if i == 0:
-        of = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.m'))
+        potential_matpower_ieee_path = '.'.join(ieee_path.split('.')[:-1]) + '.m'
+        if os.path.exists(potential_matpower_ieee_path):
+            of_matpower, mpc = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.m'))
+        else:
+            of_matpower = None
+
+        potential_pypower_ieee_path = '.'.join(ieee_path.split('.')[:-1]) + '.py'
+        if os.path.exists(potential_pypower_ieee_path):
+            of_pypower, mpc = make_ref_grid(ieee_path, output_file=os.path.join(level_path, 'reference_grid.py'))
+        else:
+            of_pypower = None
+
+        assert of_pypower is not None or of_matpower is not None, \
+            'Reference grid: did not find pypower-type file {} nor matpower-type file {}'.format(of_pypower, of_matpower)
     else:
-        shutil.copy(of, os.path.join(level_path, 'reference_grid.m'))
+        if of_matpower is not None:
+            shutil.copy(of_matpower, os.path.join(level_path, 'reference_grid.m'))
+        if of_pypower is not None:
+            shutil.copy(of_pypower, os.path.join(level_path, 'reference_grid.py'))
+
 
 print()
 print('Successively converted IEEE into reference grid')

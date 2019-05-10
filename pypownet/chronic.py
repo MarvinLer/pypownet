@@ -266,21 +266,23 @@ class ChronicLooper(object):
             raise FileNotFoundError('Chronic folder %s does not exist' % self.chronics_folder)
 
         if looping_mode not in ['natural', 'random', 'fixed']:
-            raise ValueError('Either natural "mode" (loops in the order of chronics ids), "random" (loops randomly) or'
+            raise ValueError('Either "natural" mode (loops in the order of chronics ids), "random" (loops randomly) or'
                              '"fixed" (plays the same chronic)')
         self.looping_mode = looping_mode
 
         # Seeks all available chronics (sorts alphabetically)
         self.chronics = sorted([os.path.join(self.chronics_folder, d) for d in os.listdir(self.chronics_folder)
-                                if not os.path.isfile(d)])
+                                if not os.path.isfile(os.path.join(self.chronics_folder, d))])
         self.logger.info('Found %d chronics of game level %s; looping with mode %s starting with chronic %s' % (
             len(self.chronics), os.path.basename(self.chronics_folder), self.looping_mode,
             os.path.basename(self.chronics[start_id])))
 
         self.next_chronic_id = start_id
+        self.current_chronic_name = None
 
     def get_next_chronic_folder(self):
         res_chronic = self.chronics[self.next_chronic_id]
+        self.current_chronic_name = os.path.basename(res_chronic)
         if self.looping_mode == 'natural':
             self.next_chronic_id = (self.next_chronic_id + 1) % len(self.chronics)
         elif self.looping_mode == 'random':
@@ -288,3 +290,6 @@ class ChronicLooper(object):
         elif self.looping_mode == 'fixed':
             self.next_chronic_id = self.next_chronic_id
         return res_chronic
+
+    def get_current_chronic_name(self):
+        return self.current_chronic_name

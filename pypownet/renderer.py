@@ -19,8 +19,8 @@ import pylab
 from copy import deepcopy
 
 case_layouts = {
-    14: [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0), (438, 0), (326, 54),
-         (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216)],
+    14: [(280, -81), (100, -270), (-366, -270), (-366, -54), (64, -54), (64, 54), (-366, 0), (-438, 0), (-326, 54),
+         (-222, 108), (-79, 162), (152, 270), (64, 270), (-222, 216)],
 
     30: [(-320, -217), (-188, -306), (-191, -221), (-64, -220), (156, -307), (223, -232), (217, -274), (401, -236),
          (200, -145), (238, -125), (87, -143), (-60, -113), (-185, -114), (-159, -60), (-62, 12), (-13, -73),
@@ -82,8 +82,8 @@ class Renderer(object):
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_outer_radius = 8
         self.nodes_inner_radius = 5
-        #node_img = pygame.image.load(os.path.join(media_path, 'substation.png')).convert_alpha()
-        #self.node_img = pygame.transform.scale(node_img, (20, 20))
+        # node_img = pygame.image.load(os.path.join(media_path, 'substation.png')).convert_alpha()
+        # self.node_img = pygame.transform.scale(node_img, (20, 20))
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.are_prods = are_prods
         self.are_loads = are_loads
@@ -168,12 +168,10 @@ class Renderer(object):
                                    ((x_offset, y_offset + height), (x_offset, y_offset), (x_offset + width, y_offset),
                                     (x_offset + width, y_offset + height)),
                                    (200, 250, 200, 240))
-            surface.blit(
-                self.black_bold_font_render('new observation frame'),
-                (x_offset + 120, y_offset + 4))
+            surface.blit(self.black_bold_font_render('new observation frame'), (x_offset + 120, y_offset + 4))
 
     def draw_surface_grid(self, relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                          are_substations_changed):
+                          are_substations_changed, number_nodes_per_substation):
         layout = self.grid_layout
         my_dpi = 200
         fig = plt.figure(figsize=(1000 / my_dpi, 700 / my_dpi), dpi=my_dpi,
@@ -200,7 +198,7 @@ class Renderer(object):
             if rtl < .5:
                 color = color_low + 2. * rtl * (color_middle - color_low)
             elif rtl < 1.:
-                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+                # color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
                 color = color_low + min(1., rtl) * (color_high - color_low)
             else:
                 color = (255, 20, 20)
@@ -240,9 +238,11 @@ class Renderer(object):
             prods_minus_loads.append(prod - load)
         max_diff = max(abs(np.max(prods_minus_loads)), abs(np.min(prods_minus_loads)))
 
+        activated_node_color = (255, 255, 0)
+
         prods_iter, loads_iter = iter(prods), iter(loads)
-        for i, ((x, y), is_prod, is_load, is_changed) in enumerate(
-                zip(layout, self.are_prods, self.are_loads, are_substations_changed)):
+        for i, ((x, y), is_prod, is_load, is_changed, n_used_nodes) in enumerate(
+                zip(layout, self.are_prods, self.are_loads, are_substations_changed, number_nodes_per_substation)):
             prod = next(prods_iter) if is_prod else 0.
             load = next(loads_iter) if is_load else 0.
             prod_minus_load = prod - load
@@ -250,22 +250,38 @@ class Renderer(object):
             linewidth_min = 1.
             if prod_minus_load > 0:  # Draw production
                 color = [c / 255. for c in (0, 153, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min + 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius + 3. * prod_minus_load / max_diff
 
+                if n_used_nodes > 1:
+                    c = Circle((x, y), outer_radius + linewidth + 4., linewidth=0., fill=True,
+                               color=[c / 255. for c in self.background_color], zorder=10)
+                    ax.add_artist(c)
+                    c = Circle((x, y), outer_radius + linewidth + 4., linewidth=.75, fill=False, color=color,
+                               zorder=10)
+                    ax.add_artist(c)
                 c = Circle((x, y), outer_radius, linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
                 c = Circle((x, y), outer_radius, linewidth=linewidth, fill=False, color=color, zorder=10)
                 ax.add_artist(c)
             elif prod_minus_load < 0:  # Draw consumption
                 color = [c / 255. for c in (210, 77, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min - 2. * prod_minus_load / max_diff
                 outer_radius = self.nodes_outer_radius - 3. * prod_minus_load / max_diff
 
+                if n_used_nodes > 1:
+                    c = Rectangle((x - outer_radius - linewidth - 4., y - outer_radius - linewidth - 4.),
+                                  2. * (outer_radius + linewidth + 4.), 2. * (outer_radius + linewidth + 4.),
+                                  linewidth=0., fill=True, color=[c / 255. for c in self.background_color], zorder=10)
+                    ax.add_artist(c)
+                    c = Rectangle((x - outer_radius - linewidth - 4., y - outer_radius - linewidth - 4.),
+                                  2. * (outer_radius + linewidth + 4.), 2. * (outer_radius + linewidth + 4.),
+                                  linewidth=.6, fill=False, color=color, zorder=10)
+                    ax.add_artist(c)
                 c = Rectangle((x - outer_radius, y - outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9)
                 ax.add_artist(c)
@@ -274,18 +290,28 @@ class Renderer(object):
                 ax.add_artist(c)
             else:
                 color = [c / 255. for c in (255, 255, 255)]
-                inner_circle_color = (255, 255, 0) if is_changed else self.background_color
+                inner_circle_color = activated_node_color if is_changed else self.background_color
                 inner_circle_color = [c / 255. for c in inner_circle_color]
                 linewidth = linewidth_min
                 outer_radius = self.nodes_outer_radius
 
+                if n_used_nodes > 1:
+                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius + 4.)),
+                                  2. * (outer_radius + 4.), 2. * (outer_radius + 4.),
+                                  linewidth=0., fill=True, color=[c / 255. for c in self.background_color],
+                                  zorder=10, angle=45.)
+                    ax.add_artist(c)
+                    c = Rectangle((x, y - math.sqrt(2.) * (outer_radius + 4.)),
+                                  2. * (outer_radius + 4.), 2. * (outer_radius + 4.),
+                                  linewidth=.6, fill=False, color=color, zorder=10, angle=45.)
+                    ax.add_artist(c)
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=0, fill=True, color=inner_circle_color, zorder=9, angle=45.)
                 ax.add_artist(c)
                 c = Rectangle((x, y - math.sqrt(2.) * outer_radius), 2. * outer_radius, 2. * outer_radius,
                               linewidth=linewidth, fill=False, color=color, zorder=10, angle=45.)
                 ax.add_artist(c)
-                #Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
+                    # Circle((x, y), self.nodes_inner_radius, fill=True, color=inner_circle_color)
 
         l = []
         for or_id, ex_id, rtl, line_por, is_on in zip(self.lines_ids_or, self.lines_ids_ex, relative_thermal_limits,
@@ -298,7 +324,7 @@ class Renderer(object):
             if rtl < .5:
                 color = color_low + 2. * rtl * (color_middle - color_low)
             elif rtl < 1.:
-                #color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
+                # color = (51, 204, 51) if rtl < .7 else (255, 165, 0) if rtl < 1. else (214, 0, 0)
                 color = color_low + min(1., rtl) * (color_high - color_low)
             else:
                 color = (255, 20, 20)
@@ -329,7 +355,7 @@ class Renderer(object):
                     x = center[0]
                     y = center[1]
 
-                #draw_arrow_head(x, y, angle, color, thickness)
+                # draw_arrow_head(x, y, angle, color, thickness)
                 head_angle = math.pi / 6.
                 width = 8 + 20 * (thickness - .6)
                 x -= width / 2. * math.cos(angle)
@@ -344,7 +370,7 @@ class Renderer(object):
                                       color=[c / 255. for c in color], figure=fig, linestyle='-'))
         fig.lines.extend(l)
 
-        #p.set_array(np.array(color*len(patches)))
+        # p.set_array(np.array(color*len(patches)))
         # Export plot into something readable by pygame
         canvas = agg.FigureCanvasAgg(fig)
         canvas.draw()
@@ -397,9 +423,9 @@ class Renderer(object):
 
     def draw_surface_diagnosis(self, number_loads_cut, number_prods_cut, number_nodes_splitting, number_lines_switches,
                                distance_initial_grid, line_capacity_usage, n_offlines_lines, number_unavailable_lines,
-                               max_number_isolated_loads, max_number_isolated_prods):
+                               number_unavailable_nodes, max_number_isolated_loads, max_number_isolated_prods):
         my_dpi = 100
-        height = 225
+        height = 245
         fig = plt.figure(figsize=(self.left_menu_shape[0] / my_dpi, height / my_dpi), dpi=my_dpi,
                          facecolor=[c / 255. for c in self.left_menu_tile_color], clear=True, tight_layout={'pad': -.3})
         fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
@@ -410,7 +436,7 @@ class Renderer(object):
         string_color = (180 / 255., 180 / 255., 180 / 255.)
         header_color = (220 / 255., 220 / 255., 220 / 255.)
         value_color = (1., 1., 1.)
-        plt.text(0, height - 25, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
+        plt.text(90, height - 25, 'Live diagnosis', fontdict={'size': 12}, color=header_color)
 
         string_offset = 65
         value_offset = 10
@@ -420,17 +446,18 @@ class Renderer(object):
         if self.data is not None:
             old_number_loads_cut, old_number_prods_cut, old_number_nodes_splitting, old_number_lines_switches, \
             old_distance_initial_grid, old_usage, old_n_offlines_lines, old_number_unavailable_lines, \
-            old_max_number_isolated_loads, old_max_number_isolated_prods = \
+            old_number_unavailable_nodes, old_max_number_isolated_loads, old_max_number_isolated_prods = \
                 self.data['number_loads_cut'], self.data['number_prods_cut'], \
                 self.data['number_nodes_splitting'], self.data['number_lines_switches'], \
                 self.data['distance_initial_grid'], self.data['usage'], \
                 self.data['n_offlines_lines'], self.data['number_unavailable_lines'], \
-                self.data['max_number_isolated_loads'], self.data['max_number_isolated_prods']
+                self.data['number_unavailable_nodes'], self.data['max_number_isolated_loads'], \
+                self.data['max_number_isolated_prods']
         else:
             old_number_loads_cut, old_number_prods_cut, old_number_nodes_splitting, old_number_lines_switches, \
             old_distance_initial_grid, old_usage, old_n_offlines_lines, \
-            old_number_unavailable_lines, old_max_number_isolated_loads, \
-            old_max_number_isolated_prods = [0] * 10
+            old_number_unavailable_lines, old_number_unavailable_nodes, old_max_number_isolated_loads, \
+            old_max_number_isolated_prods = [0] * 11
 
         def print_variation(old_val, new_val, h):
             if new_val > old_val:
@@ -473,10 +500,13 @@ class Renderer(object):
         plt.text(string_offset, height - 200, '# of unavailable lines', fontdict={'size': 8.5}, color=string_color)
         plt.text(value_offset, height - 200, '%d' % number_unavailable_lines, fontdict={'size': 8.5}, color=value_color)
         print_variation(old_number_unavailable_lines, number_unavailable_lines, 200)
+        plt.text(string_offset, height - 220, '# of unactionable nodes', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 220, '%d' % number_unavailable_nodes, fontdict={'size': 8.5}, color=value_color)
+        print_variation(number_unavailable_nodes, number_unavailable_nodes, 220)
 
-        plt.text(string_offset, height - 230, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
-        plt.text(value_offset, height - 230, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
-        print_variation(old_distance_initial_grid, distance_initial_grid, 230)
+        plt.text(string_offset, height - 250, 'distance to reference grid', fontdict={'size': 8.5}, color=string_color)
+        plt.text(value_offset, height - 250, '%d' % distance_initial_grid, fontdict={'size': 8.5}, color=value_color)
+        print_variation(old_distance_initial_grid, distance_initial_grid, 250)
 
         fig.tight_layout()
 
@@ -491,7 +521,7 @@ class Renderer(object):
         last_rewards_surface = pygame.Surface(last_rewards_surface_shape, pygame.SRCALPHA, 32).convert_alpha()
         last_rewards_surface.fill(self.left_menu_tile_color)
 
-        #last_rewards_surface.blit(img, (0, 30) if self.grid_case != 30 else (-100, 0))
+        # last_rewards_surface.blit(img, (0, 30) if self.grid_case != 30 else (-100, 0))
         last_rewards_surface.blit(img, (-20, 0))
         gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], 0, (64, 64, 64))
         gfxdraw.hline(last_rewards_surface, 0, last_rewards_surface_shape[0], last_rewards_surface_shape[1] - 1,
@@ -505,6 +535,7 @@ class Renderer(object):
                      'number_nodes_splitting': number_nodes_splitting, 'number_lines_switches': number_lines_switches,
                      'distance_initial_grid': distance_initial_grid, 'usage': usage,
                      'n_offlines_lines': n_offlines_lines, 'number_unavailable_lines': number_unavailable_lines,
+                     'number_unavailable_nodes': number_unavailable_nodes,
                      'max_number_isolated_loads': max_number_isolated_loads,
                      'max_number_isolated_prods': max_number_isolated_prods}
 
@@ -648,7 +679,7 @@ class Renderer(object):
         ax = fig.gca()
         ax.set_xlim(0, surface_shape[0])
         ax.set_ylim(0, surface_shape[1])
-        #fig.subplots_adjust(0, 0, 1, 1, 0, 0)
+        # fig.subplots_adjust(0, 0, 1, 1, 0, 0)
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -658,17 +689,17 @@ class Renderer(object):
         header_color = (220 / 255., 220 / 255., 220 / 255.)
         value_color = (1., 1., 1.)
 
-        plt.text(0, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
+        plt.text(45, surface_shape[1] - 20, 'Legend', fontdict={'size': 12}, color=header_color)
         plt.text(5, surface_shape[1] - 50, 'Substations', fontdict={'size': 8.5}, color=header2_color)
-        plt.text(offset_text, surface_shape[1] - 70, 'energy output > 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 70, 'power output > 0', fontdict={'size': 8.5}, color=string_color)
         c = Circle((21, surface_shape[1] - 66), self.nodes_outer_radius, linewidth=1.,
                    fill=False, color=[c / 255. for c in (0, 153, 255)])
         ax.add_artist(c)
-        plt.text(offset_text, surface_shape[1] - 95, 'energy output < 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 95, 'power output < 0', fontdict={'size': 8.5}, color=string_color)
         c = Rectangle((13, surface_shape[1] - 99), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
                       linewidth=1., fill=False, color=[c / 255. for c in (210, 77, 255)])
         ax.add_artist(c)
-        plt.text(offset_text, surface_shape[1] - 120, 'energy output = 0', fontdict={'size': 8.5}, color=string_color)
+        plt.text(offset_text, surface_shape[1] - 120, 'power output = 0', fontdict={'size': 8.5}, color=string_color)
         c = Rectangle((22, surface_shape[1] - 128), 2. * self.nodes_outer_radius, 2. * self.nodes_outer_radius,
                       linewidth=1., fill=False, color=[c / 255. for c in (255, 255, 255)], angle=45.)
         ax.add_artist(c)
@@ -733,7 +764,7 @@ class Renderer(object):
                       linewidth=1., fill=True, color=[c / 255. for c in (255, 255, 0)])
         ax.add_artist(c)
         plt.text(offset_text, surface_shape[1] - 335, 'node splitting', fontdict={'size': 8.5}, color=string_color)
-        #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
+        # color=[.8, .8, .8], figure=fig, linestyle='dashed'))
         #         l.append(lines.Line2D([ori[0], ext[0]], [50 + ori[1], 50 + ext[1]], linewidth=.8,
         #                               color=[.8, .8, .8], figure=fig, linestyle='dashed'))
         #     else:
@@ -770,7 +801,7 @@ class Renderer(object):
         txt_surf = pause_font.render('pause', False, (80., 80., 80.))
         alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
         alpha_img.fill(yellow + (72,))
-        #txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        # txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
         pause_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
         pause_surface.fill(yellow + (128,))
@@ -785,7 +816,7 @@ class Renderer(object):
         txt_surf = game_over_font.render('game over', False, (255, 255, 255))
         alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
         alpha_img.fill(red + (128,))
-        #txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        # txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
         game_over_surface = pygame.Surface((200, 70), pygame.SRCALPHA, 32).convert_alpha()
         game_over_surface.fill(red + (128,))
@@ -803,7 +834,7 @@ class Renderer(object):
         self.left_menu.blit(self.value_render(str(timestep)), (250, 10))
 
         # Last reward surface
-        #last_rewards_surface = self.draw_surface_rewards(rewards)
+        # last_rewards_surface = self.draw_surface_rewards(rewards)
 
         # Loads curve surface
         loads_curve_surface = self.draw_surface_loads_curves()
@@ -817,7 +848,7 @@ class Renderer(object):
             n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds))
 
         gfxdraw.vline(self.left_menu, self.left_menu_shape[0] - 1, 0, self.left_menu_shape[1], (128, 128, 128))
-        #self.left_menu.blit(last_rewards_surface, (0, 50))
+        # self.left_menu.blit(last_rewards_surface, (0, 50))
         self.left_menu.blit(loads_curve_surface, (0, 50))
         self.left_menu.blit(rtl_curves_surface, (0, 380))
         self.left_menu.blit(n_overflows_surface, (0, 560))
@@ -826,8 +857,8 @@ class Renderer(object):
     def _update_topology(self, scenario_id, date, relative_thermal_limits, lines_por, lines_service_status, prods,
                          loads, are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
                          number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
-                         line_capacity_usage, number_off_lines, number_unavailable_lines, max_number_isolated_loads,
-                         max_number_isolated_prods):
+                         line_capacity_usage, number_off_lines, number_unavailable_lines, number_unavailable_nodes,
+                         max_number_isolated_loads, max_number_isolated_prods, number_nodes_per_substation):
         self.topology_layout = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.nodes_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
         self.injections_surface = pygame.Surface(self.topology_layout_shape, pygame.SRCALPHA, 32).convert_alpha()
@@ -842,7 +873,7 @@ class Renderer(object):
             self.relative_thermal_limits.append(relative_thermal_limits)
 
         lines_surf = self.draw_surface_grid(relative_thermal_limits, lines_por, lines_service_status, prods, loads,
-                                            are_substations_changed)
+                                            are_substations_changed, number_nodes_per_substation)
         offset = -68 if self.grid_case == 118 else -20 if self.grid_case == 30 else 0
         self.topology_layout.blit(lines_surf, (0 + offset, 0))
         # arrow_surf = self.draw_surface_arrows(relative_thermal_limits, lines_por, lines_service_status)
@@ -851,7 +882,8 @@ class Renderer(object):
         diagnosis_reward = self.draw_surface_diagnosis(number_loads_cut, number_prods_cut, number_nodes_splitting,
                                                        number_lines_switches, distance_initial_grid,
                                                        line_capacity_usage, number_off_lines, number_unavailable_lines,
-                                                       max_number_isolated_loads, max_number_isolated_prods)
+                                                       number_unavailable_nodes, max_number_isolated_loads,
+                                                       max_number_isolated_prods)
         self.last_rewards_surface = diagnosis_reward
 
         # Legend
@@ -866,20 +898,21 @@ class Renderer(object):
         # Nodes
         self.draw_surface_nodes_headers(scenario_id, date, cascading_result_frame=cascading_frame_id)
 
-        #self.topology_layout.blit(self.lines_surface, (0, 0))
+        # self.topology_layout.blit(self.lines_surface, (0, 0))
         self.topology_layout.blit(self.last_rewards_surface, (690, 11))
-        self.topology_layout.blit(legend_surface, (805, self.last_rewards_surface.get_height() + (110 if self.grid_case != 118 else 30)))
+        self.topology_layout.blit(legend_surface, (
+            815, self.last_rewards_surface.get_height() + (90 if self.grid_case != 118 else 30)))
         self.topology_layout.blit(self.nodes_surface, (0, 0))
 
         # Print a game over message if game has been lost
         if game_over:
             self.topology_layout.blit(self.game_over_surface, (320, 320))
 
-    def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods,
-               loads, last_timestep_rewards, date, are_substations_changed, number_loads_cut, number_prods_cut,
-               number_nodes_splitting, number_lines_switches, distance_initial_grid,
-               number_off_lines, number_unavailable_lines, max_number_isolated_loads, max_number_isolated_prods,
-               game_over=False, cascading_frame_id=None):
+    def render(self, lines_capacity_usage, lines_por, lines_service_status, epoch, timestep, scenario_id, prods, loads,
+               date, are_substations_changed, number_nodes_per_substation, number_loads_cut, number_prods_cut,
+               number_nodes_splitting, number_lines_switches, distance_initial_grid, number_off_lines,
+               number_unavailable_lines, number_unactionable_nodes, max_number_isolated_loads,
+               max_number_isolated_prods, game_over=False, cascading_frame_id=None):
         plt.close('all')
 
         def event_looper(force=False):
@@ -910,7 +943,8 @@ class Renderer(object):
                               are_substations_changed, game_over, cascading_frame_id, number_loads_cut,
                               number_prods_cut, number_nodes_splitting, number_lines_switches, distance_initial_grid,
                               lines_capacity_usage, number_off_lines, number_unavailable_lines,
-                              max_number_isolated_loads, max_number_isolated_prods)
+                              number_unactionable_nodes, max_number_isolated_loads, max_number_isolated_prods,
+                              number_nodes_per_substation)
 
         if cascading_frame_id is None:
             self._update_left_menu(epoch, timestep)
@@ -920,7 +954,7 @@ class Renderer(object):
         self.screen.blit(self.left_menu, (0, 0))
         pygame.display.flip()
         # Bugfix for mac
-        #pygame.event.get()
+        # pygame.event.get()
 
         self.boolean_dynamic_arrows = not self.boolean_dynamic_arrows
 

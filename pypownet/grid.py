@@ -27,12 +27,11 @@ class GridNotConnexeException(Exception):
 
 
 def compute_flows_a(active, reactive, voltage, are_lines_on):
-    # TODO: verify that the formula is correct
     assert len(active) == len(reactive) == len(voltage) == len(are_lines_on)
     flows_a = np.zeros(len(active))
     for i, (p, q, v, is_on) in enumerate(zip(active, reactive, voltage, are_lines_on)):
         if is_on:
-            flows_a[i] = math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)
+            flows_a[i] = 1000. * math.sqrt(p ** 2 + q ** 2) / (3. ** .5 * v)  # in A; https://en.wikipedia.org/wiki/Per-unit_system
 
     return flows_a
 
@@ -45,29 +44,26 @@ class Grid(object):
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
 
-        from pypownet import configure_matpower
-        # Import for this instance of __class__ an octave instance (even for pypower backend for loading grid)
-        oct2py = importlib.import_module('oct2py')
-        self.octave = getattr(oct2py, 'octave')
-        configure_matpower()  # Will declare path dependencies and such
-
         # Initialize loadflow backend
         if loadflow_backend not in ['matpower', 'pypower']:
-            raise ValueError('should not happen')
+            raise ValueError('Loadflow computation backend {} is not supported; '
+                             'options: matpower (octave), pypower (python)'.format(loadflow_backend))
         if loadflow_backend == 'matpower':
+            from pypownet import configure_matpower
+            # Import for this instance of __class__ an octave instance (even for pypower backend for loading grid)
+            oct2py = importlib.import_module('oct2py')
+            self.matpower = getattr(oct2py, 'octave')
+            configure_matpower()  # Will declare path dependencies and such
             self.Oct2PyError = getattr(importlib.import_module('oct2py.utils'), 'Oct2PyError')
-            self.loadflow_options = self.octave.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25, 'verbose', 0, 'out.all', 0)
-            self.mpc = self.octave.loadcase(self.filename, verbose=False)
+            self.loadflow_options = self.matpower.mpoption('pf.alg', 'FDBX', 'pf.fd.max_it', 25, 'verbose', 0,
+                                                           'out.all', 0)
+            self.mpc = self.matpower.loadcase(self.filename, verbose=False)
         elif loadflow_backend == 'pypower':
-            try:
-                self.pypower_api = importlib.import_module('pypower.api')
-                self.loadflow_options = self.pypower_api.ppoption(PF_ALG=2, PF_MAX_IT_FD=15, PF_TOL=1e-6, VERBOSE=0, OUT_ALL=0)
-                self.mpc = self.octave.loadcase(self.filename, verbose=False)
-            except:
-                raise
-        else:
-            raise Exception('Should not happen')
-        self.loadflow_backend = loadflow_backend
+            self.pypower = importlib.import_module('pypower.api')
+            self.loadflow_options = self.pypower.ppoption(PF_ALG=2, PF_MAX_IT_FD=25, PF_TOL=1e-6, VERBOSE=0,
+                                                          OUT_ALL=0)
+            self.mpc = self.pypower.loadcase(self.filename, expect_gencost=False)
+        self.loadflow_backend_name = loadflow_backend
 
         # Change thermal limits: in IEEE format, they are contaied in 'branch'
         self.thermal_limits = np.asarray(new_imaps)
@@ -76,7 +72,7 @@ class Grid(object):
         self.mpc['branch'][:, 7] = np.asarray(new_imaps)
 
         self.new_slack_bus = self.mpc['bus'][:, 0][np.where(self.mpc['bus'][:, 1] == 3)[0][0]]
-        #self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
+        # self.new_slack_bus = new_slack_bus  # The slack bus is fixed, otherwise loadflow issues
         # Containers that keep in mind the PQ nodes (consumers)
         self.are_loads = np.logical_or(self.mpc['bus'][:, 2] != 0, self.mpc['bus'][:, 3] != 0)
 
@@ -121,7 +117,8 @@ class Grid(object):
         # Compute the per-line Ampere values; column 13 is Pf, 14 Qf
         active = branch[:, 13]  # P
         reactive = branch[:, 14]  # Q
-        voltage = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        voltage_perunit = np.array([bus[np.where(bus[:, 0] == origin), 7] for origin in branch[:, 0]]).flatten()  # V
+        base_kv = np.array([bus[np.where(bus[:, 0] == origin), 9] for origin in branch[:, 0]]).flatten()  # baseKV
 
         if safe_mode:
             active[np.isnan(active)] = 1e5
@@ -130,11 +127,13 @@ class Grid(object):
             reactive[np.isnan(reactive)] = 1e5
             reactive[reactive > 1e5] = 1e5
             reactive[reactive < -1e5] = -1e5
-            voltage[np.isnan(voltage)] = 1.
-            voltage[voltage > 1e2] = 1e2
-            voltage[voltage < -1e2] = -1e2
+            voltage_perunit[np.isnan(voltage_perunit)] = 1.
+            voltage_perunit[voltage_perunit > 1e2] = 1e2
+            voltage_perunit[voltage_perunit < -1e2] = -1e2
         are_lines_on = self.get_lines_status()
-        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage, are_lines_on=are_lines_on)
+        voltage_absolute = voltage_perunit*base_kv  # in V
+        branches_flows_a = compute_flows_a(active=active, reactive=reactive, voltage=voltage_absolute,
+                                           are_lines_on=are_lines_on)
 
         return branches_flows_a
 
@@ -151,7 +150,7 @@ class Grid(object):
 
         # Computes the number of cut loads, and a mask array whether the substation is isolated
         are_isolated_loads, are_isolated_prods, are_isolated_buses = Grid._count_isolated_loads(mpc,
-                                                                                                are_loads=are_loads)
+                                                                                                crude_are_loads=are_loads)
 
         # Retrieve buses with productions (their type needs to be 2)
         bus_prods = gen[:, 0]
@@ -175,12 +174,24 @@ class Grid(object):
                     bus[b, 1] = 1
 
     @staticmethod
-    def _count_isolated_loads(mpc, are_loads):
+    def _count_isolated_loads(mpc, crude_are_loads, consistent_reorder=False):
         bus = mpc['bus']
         gen = mpc['gen']
         branch = mpc['branch']
 
-        substations_ids = bus[:, 0]
+        crude_substations_ids = bus[:, 0]
+        substations_ids = []
+        are_loads = []
+        # Swap indexes such that nodes of same substation are consecutive for output ordering
+        if consistent_reorder:
+            for i in range(len(crude_substations_ids) // 2):
+                substations_ids.append(crude_substations_ids[i])
+                substations_ids.append(crude_substations_ids[len(crude_substations_ids) // 2 + i])
+                are_loads.append(crude_are_loads[i])
+                are_loads.append(crude_are_loads[len(crude_substations_ids) // 2 + i])
+        else:
+            substations_ids = crude_substations_ids
+            are_loads = crude_are_loads
         prods_ids = gen[:, 0]
 
         # Retrieves the substations id at the origin or extremity of at least one switched-on line
@@ -196,30 +207,30 @@ class Grid(object):
         are_prods = np.array([g in prods_ids for g in substations_ids])
 
         return are_isolated_buses[are_loads], are_isolated_buses[are_prods], are_isolated_buses
-        #return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
+        # return sum(are_isolated_buses[are_loads]), sum(are_isolated_buses[are_prods]), are_isolated_buses
 
     def __vanilla_loadflow_backend_callback(self, fname_end=''):
         """ Performs a plain matpower callback using octave to compute the loadflow of grid mpc (should be mpc format
         from matpower). This function uses default octave mpoption (they control in certain ways how matpower behaves
         for the loadflow computation.
 
-        :return: the ouput of matpower (typically mpc structure), and a boolean success of loadflow indicator
+        :return: the output of matpower (typically mpc structure), and a boolean success of loadflow indicator
         """
         if self.save_io:
-            fname_end += '.py' if self.loadflow_backend == 'pypower' else '.m'
+            fname_end += '.py' if self.loadflow_backend_name == 'pypower' else '.m'
             fname = os.path.abspath(os.path.join('tmp', os.path.basename(self.filename))) + fname_end
             pprint = os.path.abspath(os.path.join('tmp', 'pp' + os.path.basename(self.filename))) + fname_end
         else:
             fname, pprint = '', ''
 
-        if self.loadflow_backend == 'pypower':
-            function = self.pypower_api.rundcpf if self.dc_loadflow else self.pypower_api.runpf
+        if self.loadflow_backend_name == 'pypower':
+            function = self.pypower.rundcpf if self.dc_loadflow else self.pypower.runpf
             try:
                 output, loadflow_success = function(self.mpc, self.loadflow_options, pprint, fname)
-            except (RuntimeError, RuntimeWarning):
+            except (RuntimeError, RuntimeWarning, IndexError, ValueError):
                 raise DivergingLoadflowException(None, 'The grid is not connexe')
-        elif self.loadflow_backend == 'matpower':
-            function = self.octave.rundcpf if self.dc_loadflow else self.octave.runpf
+        elif self.loadflow_backend_name == 'matpower':
+            function = self.matpower.rundcpf if self.dc_loadflow else self.matpower.runpf
             try:
                 output = function(self.mpc, self.loadflow_options, pprint, fname)
                 loadflow_success = output['success']
@@ -242,7 +253,7 @@ class Grid(object):
         self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
         try:
             output, loadflow_success = self.__vanilla_loadflow_backend_callback(fname_end=fname_end)
-        except DivergingLoadflowException as e:  # Propagates error if one was raised
+        except DivergingLoadflowException as e:  # Propagates error
             raise e
 
         # Save the loadflow output as current grid
@@ -293,8 +304,11 @@ class Grid(object):
         loads_q = timestep_injections.get_loads_q() if loads_q is None else loads_q
         # Check that there are the same number of productions names and values
         assert len(loads_q) == len(loads_p), 'Not the same number of active loads values than reactives loads'
-        bus[self.are_loads, 2] = loads_p
-        bus[self.are_loads, 3] = loads_q
+        # Retrieve the invert mapping value that reorders the loads injections with respect to the current
+        # node-splitting for dealing with order caused by artificial nodes
+        invert_consistent_ordering_loads = self._invert_consistent_ordering_loads()
+        bus[self.are_loads, 2] = invert_consistent_ordering_loads(loads_p)
+        bus[self.are_loads, 3] = invert_consistent_ordering_loads(loads_q)
 
     def discard_flows(self):
         self.mpc['branch'] = self.mpc['branch'][:, :13]
@@ -313,6 +327,35 @@ class Grid(object):
 
     def set_flows_to_0(self):
         self.mpc['branch'][:, 13:] = 0.
+
+    @staticmethod
+    def _nodes_to_substations():
+        """ Returns a function that converts a list of node substations ids with potential node-splitting header into
+        a list of integer of true substations ids.
+        """
+        return lambda array: list(map(lambda x: int(float(x)),
+                                      list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
+
+    def _consistent_ordering_loads(self):
+        """ Returns a mapping function that takes an array as input, and order it such that node splitted loads are
+        always at the same position ie in ascending order wrt their substation id.
+        """
+        nodes_to_substations = self._nodes_to_substations()
+        # Select mpc.bus lines of loads buses
+        loads_buses = self.mpc['bus'][self.are_loads, :]
+        # Compute true substations ids (unordered if node-splitted)
+        loads_buses_substations = np.asarray(nodes_to_substations(loads_buses[:, 0]))
+        consistent_ordering_loads = lambda values: values[np.argsort(loads_buses_substations)]
+        return consistent_ordering_loads
+
+    def _invert_consistent_ordering_loads(self):
+        nodes_to_substations = self._nodes_to_substations()
+        # Select mpc.bus lines of loads buses
+        loads_buses = self.mpc['bus'][self.are_loads, :]
+        # Compute true substations ids (unordered if node-splitted)
+        loads_buses_substations = np.asarray(nodes_to_substations(loads_buses[:, 0]))
+        invert_consistent_ordering_loads = lambda values: values[np.argsort(np.argsort(loads_buses_substations))]
+        return invert_consistent_ordering_loads
 
     def apply_topology(self, new_topology):
         # Verify new specified topology is of good number of elements and only 0 or 1
@@ -362,8 +405,7 @@ class Grid(object):
         for lo, (load_node, new_load_node) in enumerate(zip(self.topology.loads_nodes, new_loads_nodes)):
             # If the node on which a load is connected is swap, then swap P and Q values for both nodes
             if new_load_node != load_node:
-                are_loads = np.where(self.are_loads[:self.n_nodes // 2], self.are_loads[:self.n_nodes // 2],
-                                     self.are_loads[self.n_nodes // 2:])
+                are_loads = np.logical_or(self.are_loads[:self.n_nodes // 2], self.are_loads[self.n_nodes // 2:])
                 id_bus = np.where(are_loads)[0][lo] % (self.n_nodes // 2)
                 # Copy first node P and Q
                 tmp = copy.deepcopy(bus[id_bus, [2, 3]])
@@ -385,12 +427,12 @@ class Grid(object):
 
     def compute_topological_mapping_permutation(self):
         """ Computes a permutation that shuffles the construction order of a topology (prods->loads->lines or->lines ex)
-        into a representation where all elements of a substation are consecutives values (same order, but locally).
+        into a representation where all elements of a substation are consecutive values (same order, but locally).
         By construction, the topological vector is the concatenation of the subvectors: productions nodes (for each
         value, on which node, 0 or 1, the prod is wired), loads nodes, lines origin nodes, lines extremity nodes and the
         lines service status.
 
-        This function should only be called once, at the instanciation of the grid, for it computes the fixed mapping
+        This function should only be called once, at the instantiation of the grid, for it computes the fixed mapping
         function for the remaining of the game (also fixed along games).
         """
         # Retrieve the true ids of the productions, loads, lines origin (substation id where the origin of a line is
@@ -460,9 +502,7 @@ class Grid(object):
 
         # Lists and arrays helpers
         to_array = lambda array: np.asarray(array)
-        nodes_to_substations = lambda array: list(
-            map(lambda x: int(float(x)),
-                list(map(lambda v: str(v).replace(ARTIFICIAL_NODE_STARTING_STRING, ''), array))))
+        nodes_to_substations = self._nodes_to_substations()
 
         substations_ids = to_array(bus[:, 0][:len(bus) // 2]).astype(int)
 
@@ -487,15 +527,18 @@ class Grid(object):
         ampere_flows = self.extract_flows_a()
 
         # Loads data
-        loads_buses = bus[self.are_loads, :]  # Select lines of loads buses
-        active_loads = to_array(loads_buses[:, 2])
-        reactive_loads = to_array(loads_buses[:, 3])
-        voltage_loads = to_array(loads_buses[:, 7])
-        substations_ids_loads = to_array(nodes_to_substations(bus[:, 0][self.are_loads])).astype(int)
+        loads_buses = bus[self.are_loads, :]  # Select mpc.bus lines of loads buses
+        # Compute ordering of values to export such that the values always correspond to the same substations
+        consistent_ordering_loads = self._consistent_ordering_loads()
+        reordered_loads_buses = consistent_ordering_loads(loads_buses)
+        active_loads = to_array(reordered_loads_buses[:, 2])
+        reactive_loads = to_array(reordered_loads_buses[:, 3])
+        voltage_loads = to_array(reordered_loads_buses[:, 7])
+        substations_ids_loads = to_array(nodes_to_substations(reordered_loads_buses[:, 0])).astype(int)
 
         # Retrieve isolated buses
-        are_isolated_loads, are_isolated_prods, are_isolated_buses = self._count_isolated_loads(mpc,
-                                                                                                are_loads=self.are_loads)
+        are_isolated_loads, are_isolated_prods, _ = self._count_isolated_loads(mpc, crude_are_loads=self.are_loads,
+                                                                               consistent_reorder=True)
 
         # Topology vector
         prods_nodes, loads_nodes, lines_or_nodes, lines_ex_nodes = self.get_topology().get_unzipped()
@@ -510,11 +553,14 @@ class Grid(object):
                                                 substations_ids_loads, substations_ids_prods,
                                                 substations_ids_lines_or,
                                                 substations_ids_lines_ex, timesteps_before_lines_reconnectable=None,
+                                                timesteps_before_lines_reactionable=None,
+                                                timesteps_before_nodes_reactionable=None,
                                                 timesteps_before_planned_maintenance=None,
                                                 planned_active_loads=None,
                                                 planned_reactive_loads=None, planned_active_productions=None,
-                                                planned_voltage_productions=None, date=None,
-                                                prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                                planned_voltage_productions=None, date_year=None, date_month=None,
+                                                date_day=None, date_hour=None, date_minute=None, date_second=None,
+                                                productions_nodes=prods_nodes, loads_nodes=loads_nodes,
                                                 lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
                                                 initial_productions_nodes=None, initial_loads_nodes=None,
                                                 initial_lines_or_nodes=None, initial_lines_ex_nodes=None)
@@ -543,10 +589,10 @@ class Grid(object):
             if not os.path.exists('tmp'):
                 os.makedirs('tmp')
         self.logger.info('Saved snapshot at', dst_fname)
-        if self.loadflow_backend == 'matpower':
-            return self.octave.savecase(dst_fname, self.mpc)
-        elif self.loadflow_backend == 'pypower':
-            return self.pypower_api.savecase(dst_fname, self.mpc)
+        if self.loadflow_backend_name == 'matpower':
+            return self.matpower.savecase(dst_fname, self.mpc)
+        elif self.loadflow_backend_name == 'pypower':
+            return self.pypower.savecase(dst_fname, self.mpc)
 
 
 class Topology(object):

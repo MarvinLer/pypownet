@@ -40,7 +40,8 @@ class Parameters(object):
                 raise FileNotFoundError('Mandatory file/folder %s not found within %s' % (f, self.level_folder))
 
         format_path = lambda f: os.path.join(self.level_folder, f)
-        self.reference_grid_path = format_path('reference_grid.m')
+        self.reference_grid_matpower_path = format_path('reference_grid.m')
+        self.reference_grid_pypower_path = format_path('reference_grid.py')
         self.chronics_path = format_path('chronics/')
         # Seek and read configuration file
         # self.configuration_path = format_path('configuration.json')
@@ -62,7 +63,7 @@ class Parameters(object):
             sys.path.append(os.path.dirname(reward_signal_expected_path))
             try:
                 self.reward_signal_class = getattr(importlib.import_module('reward_signal'), 'CustomRewardSignal')
-                self.logger.warn('Using custom reward signal CustomRewardSignal of file %s' %
+                self.logger.warning('Using custom reward signal CustomRewardSignal of file %s' %
                                  reward_signal_expected_path)
             except ImportError:
                 self.logger.error('/!\ Using default reward signal, as reward_signal.py file is not found')
@@ -71,8 +72,13 @@ class Parameters(object):
     def get_reward_signal_class(self):
         return self.reward_signal_class
 
-    def get_reference_grid_path(self):
-        return self.reference_grid_path
+    def get_reference_grid_path(self, loadflow_backend):
+        if loadflow_backend == 'pypower':
+            return self.reference_grid_pypower_path
+        elif loadflow_backend == 'matpower':
+            return self.reference_grid_matpower_path
+        else:
+            raise ValueError('should not happen')
 
     def get_chronics_path(self):
         return self.chronics_path
@@ -124,6 +130,27 @@ class Parameters(object):
 
     def get_max_number_loads_game_over(self):
         return self.simulator_configuration['max_number_loads_game_over']
+
+    def get_n_timesteps_actionned_line_reactionable(self):
+        return self.simulator_configuration['n_timesteps_actionned_line_reactionable']
+
+    def get_n_timesteps_actionned_node_reactionable(self):
+        return self.simulator_configuration['n_timesteps_actionned_node_reactionable']
+
+    def get_n_timesteps_pending_line_reactionable_when_overflowed(self):
+        return self.simulator_configuration['n_timesteps_pending_line_reactionable_when_overflowed']
+
+    def get_n_timesteps_pending_node_reactionable_when_overflowed(self):
+        return self.simulator_configuration['n_timesteps_pending_node_reactionable_when_overflowed']
+
+    def get_max_number_actionned_substations(self):
+        return self.simulator_configuration['max_number_actionned_substations']
+
+    def get_max_number_actionned_lines(self):
+        return self.simulator_configuration['max_number_actionned_lines']
+
+    def get_max_number_actionned_total(self):
+        return self.simulator_configuration['max_number_actionned_total']
 
     def __str__(self):
         params_str = ['    ' + k + ': ' + str(v) for k, v in self.simulator_configuration.items()]
