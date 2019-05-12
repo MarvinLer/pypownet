@@ -405,7 +405,6 @@ class Game(object):
     def load_entries_from_timestep_id(self, timestep_id, is_simulation=False, silence=False):
         # Retrieve the Scenario object associated to the desired id
         timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
-        self.current_timestep_entries = timestep_entries
 
         # Loads the next timestep injections: PQ and PV and gen status
         if not is_simulation:
@@ -416,6 +415,8 @@ class Game(object):
                                                prods_v=self.current_timestep_entries.get_planned_prods_v(),
                                                loads_p=self.current_timestep_entries.get_planned_loads_p(),
                                                loads_q=self.current_timestep_entries.get_planned_loads_q(), )
+
+        self.current_timestep_entries = timestep_entries
 
         # Integration of timestep maintenance: disco lines for which current maintenance not 0 (equal to time to wait)
         timestep_maintenance = timestep_entries.get_maintenance()
