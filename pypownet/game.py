@@ -886,7 +886,7 @@ class Game(object):
         # Copy variables of a step: timestep id, mpc (~grid), topology (stand-alone in self), and lists of overflows
         before_timestep_id = self.current_timestep_id
         before_mpc = copy.deepcopy(self.grid.mpc)
-        before_topology = copy.deepcopy(self.grid.get_topology())
+        before_are_loads = copy.deepcopy(self.grid.are_loads)
         before_n_timesteps_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
         before_timesteps_before_lines_reconnectable = copy.deepcopy(self.timesteps_before_lines_reconnectable)
         before_timesteps_before_lines_reactionable = copy.deepcopy(self.timesteps_before_lines_reactionable)
@@ -898,8 +898,8 @@ class Game(object):
 
         def reload_minus_1_timestep():
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
-            self.grid.apply_topology(before_topology)  # Change topo before loading entries (reflects what happened)
-            self.load_entries_from_timestep_id(before_timestep_id, silence=True)
+            self.grid.are_loads = before_are_loads
+            self.current_timestep_id = before_timestep_id
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
