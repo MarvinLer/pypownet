@@ -410,8 +410,8 @@ class Grid(object):
                 # Copy first node P and Q
                 tmp = copy.deepcopy(bus[id_bus, [2, 3]])
                 # Replace their values with the one of its associated node
-                bus[id_bus, 2] = bus[(lo + self.n_nodes // 2) % self.n_nodes, 2]
-                bus[id_bus, 3] = bus[(lo + self.n_nodes // 2) % self.n_nodes, 3]
+                bus[id_bus, 2] = bus[id_bus + self.n_nodes // 2, 2]
+                bus[id_bus, 3] = bus[id_bus + self.n_nodes // 2, 3]
                 # Paste tmp values into asso. node
                 bus[(id_bus + self.n_nodes // 2) % self.n_nodes, 2] = tmp[0]
                 bus[(id_bus + self.n_nodes // 2) % self.n_nodes, 3] = tmp[1]
