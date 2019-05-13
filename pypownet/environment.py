@@ -834,7 +834,7 @@ class RunEnv(object):
         return observation.as_array() if observation is not None else observation, \
                sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
-    def simulate(self, action, do_sum=True):
+    def simulate(self, action, do_sum=True, obs_for_tests=False):
         """ Computes the reward of the simulation of action to the current grid. """
         # First verify that the action is in expected condition: one array (or list) of expected size of 0 or 1
         try:
@@ -849,7 +849,12 @@ class RunEnv(object):
                                                           flag=reward_flag)
         self.last_rewards = reward_aslist
 
-        return sum(reward_aslist) if do_sum else reward_aslist
+        if do_sum:
+            return sum(reward_aslist)
+        elif obs_for_tests:
+            return reward_aslist, observation
+        else:
+            return reward_aslist
 
     def reset(self):
         self.game.reset()
