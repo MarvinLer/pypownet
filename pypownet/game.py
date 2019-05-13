@@ -886,11 +886,11 @@ class Game(object):
     def simulate(self, action):
         # Copy variables of a step: timestep id, mpc (~grid), topology (stand-alone in self), and lists of overflows
         before_timestep_id = self.current_timestep_id
-        before_current_date=copy.deepcopy(self.current_date)
+        before_current_date = copy.deepcopy(self.current_date)
         before_mpc = copy.deepcopy(self.grid.mpc)
         before_topology = copy.deepcopy(self.grid.topology)
         before_are_loads = copy.deepcopy(self.grid.are_loads)
-        before_timestep_entries=copy.deepcopy(self.current_timestep_entries)
+        before_timestep_entries = copy.deepcopy(self.current_timestep_entries)
         before_n_timesteps_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
         before_timesteps_before_lines_reconnectable = copy.deepcopy(self.timesteps_before_lines_reconnectable)
         before_timesteps_before_lines_reactionable = copy.deepcopy(self.timesteps_before_lines_reactionable)
@@ -906,7 +906,7 @@ class Game(object):
             self.current_timestep_id = before_timestep_id
             self.grid.topology = copy.deepcopy(before_topology)
             self.current_date = before_current_date
-            self.current_timestep_entries=before_timestep_entries
+            self.current_timestep_entries = before_timestep_entries
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
