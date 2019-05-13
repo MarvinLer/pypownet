@@ -849,7 +849,7 @@ class RunEnv(object):
                                                           flag=reward_flag)
         self.last_rewards = reward_aslist
 
-        if do_sum:
+        if do_sum and not obs_for_tests:
             return sum(reward_aslist)
         elif obs_for_tests:
             return reward_aslist, observation
