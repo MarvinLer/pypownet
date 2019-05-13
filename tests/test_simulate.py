@@ -273,7 +273,7 @@ def test_simulate_Agent_test_SimulateThenAct():
     # assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
 
 
-def small_test_simulate_Agent_test_RewardError():
+def test_simulate_Agent_test_RewardError():
     """ Function to test if a reward is the same whether we simulate during our work or not.
     This function creates a small_Agent_test_RewardError which works for 3 steps.
     first instance ==> the agent simulates in addition to cutting a line and change a node's topology
@@ -395,7 +395,7 @@ def test_simulate_Agent_CustomGreedySearch():
 
 
 # test_simulate_Agent_test_SimulateThenAct()
-# small_test_simulate_Agent_test_RewardError()
+# test_simulate_Agent_test_RewardError()
 test_simulate_Agent_CustomGreedySearch()
 
 
