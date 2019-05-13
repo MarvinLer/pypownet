@@ -899,6 +899,73 @@ class Agent_test_LineChangePersistence(Agent):
         return action
 
 
+class Agent_test_HardOverflowCoefTest(Agent):
+    """This agent checks the variable hard_overflow_coefficient: 1.5,
+    the flow of line 6 for each 15 steps is =[244, 210, 223, 214, 214, 237, 244, 286, 322, 347, 381, 310, 303, 324, 275]
+    with the thermal limits of the line 6 being: 200, * (overflow_coeff) 1.5 = 300.
+    So at step 9, the flow value of line 6 being 322, the line should break and we should have 0.
+    we expected the result to be            = [244, 210, 223, 214, 214, 237, 244, 286, 0, 0, 0, 0]
+    by trying to switch the line back up at each step, for step >= 9, we make sur the variable 
+    n_timesteps_hard_overflow_is_broken: 2  # number of timesteps a hard overflow broken line is broken, works.
+    t == 9, line just broke so switching it back up doesnt work. So we should have illegal action
+    t == 10, n_timesteps_hard_overflow_is_broken: 2, so still illegal action,
+    t == 11, we switch, it works but flow > 300 so it breaks again
+    t == 12, broken consec timestep = 1
+    t == 13, broken consec timestep = 2,
+    t == 14, we can switch back up,
+    t == 15, since flow < 300, it didnt break, and we end up with all line that are ON.
+    expected results are = 
+    [None, None, None, None, None, None, None, None, IllegalActionException(), IllegalActionException(), None,
+     IllegalActionException(), IllegalActionException(), None, None]"""
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_HardOverflowCoefTest created...")
+
+        self.current_step = 1
+        self.line_to_cut = 6
+        self.flow_save_line6 = []
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        print(observation)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+        # Select a random substation ID on which to perform node-splitting
+        print("lines_status = ", list(observation.lines_status.astype(int)))
+        print("ampere flows = ", list(observation.ampere_flows.astype(int)))
+        print("ampere flows line 6 = ", list(observation.ampere_flows.astype(int))[6])
+        self.flow_save_line6.append(list(observation.ampere_flows.astype(int))[6])
+
+        if 9 <= self.current_step < 15:
+            action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+
+        if self.current_step == 15:
+            print("all saved flows = ", self.flow_save_line6)
+            assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                                                  1, 1])
+
+
+        self.current_step += 1
+
+        print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
+        return action
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -1290,7 +1357,7 @@ def test_core_Agent_test_SoftOverflowIsBroken():
         if i == 10 or i == 11:
             assert(isinstance(action, IllegalActionException))
         else:
-            assert(action == None)
+            assert(action is None)
 
 
 
@@ -1359,6 +1426,43 @@ def test_core_Agent_test_LineChangePersistence():
     assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
 
 
+def test_core_Agent_test_HardOverflowCoefTest():
+    """This function creates an Agent that checks variable: hard_overflow_coefficient: 1.5 which is # % of line capacity
+     usage above which a line will break bc of hard overflow, check Agent description for more info"""
+    parameters = "./tests/parameters/default14_for_tests_hard_overflow/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = True
+    niter = 15
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_HardOverflowCoefTest(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False, False, False,
+                                False, False, False])
+    for i, action in enumerate(actions_recap):
+        if i in [8, 9, 11, 12]:
+            assert(isinstance(action, IllegalActionException))
+        else:
+            assert(action is None)
+
+
 # test_core_Agent_test_InputProdValues()
 # test_core_Agent_test_InputLoadValues()
 # test_core_Agent_test_limitOfProdsLost()
@@ -1368,8 +1472,9 @@ def test_core_Agent_test_LineChangePersistence():
 # test_core_Agent_test_Loss_Error()
 # test_core_Agent_test_NodeTopoChangePersistance()
 # test_core_Agent_test_LineChangePersistance()
-test_core_Agent_test_SoftOverflowBreakLimit()
+# test_core_Agent_test_SoftOverflowBreakLimit()
 # test_core_Agent_test_SoftOverflowIsBroken()
+test_core_Agent_test_HardOverflowCoefTest()
 
 
 
