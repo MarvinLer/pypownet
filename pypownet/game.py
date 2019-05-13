@@ -796,8 +796,8 @@ class Game(object):
         self.grid.mpc = {k: v for k, v in self.grid.mpc.items() if k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}
 
     def step(self, action, _is_simulation=False):
-        if _is_simulation:
-            assert self.grid.dc_loadflow, "Cheating detected"
+        #if _is_simulation: #let's run everything in the same mode for now because we did not assess its impact
+        #    assert self.grid.dc_loadflow, "Cheating detected"
 
         # Apply action, or raises exception if some broken lines are attempted to be switched on
         try:
@@ -898,7 +898,7 @@ class Game(object):
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
-        self.grid.dc_loadflow = True
+        #self.grid.dc_loadflow = True #let's run everything in the same mode for now because we did not assess its impact
 
         def reload_minus_1_timestep():
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
