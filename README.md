@@ -29,50 +29,44 @@ Official documentation: https://pypownet.readthedocs.io/
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/pypownet:2.1.1
+sudo docker pull marvinler/pypownet:2.2.0
 ```
 
 ## Without using Docker
 ### Requirements:
 *   Python >= 3.6
+
+
+For Octave backend (default is Python backend):
+
 *   Octave >= 4.0.6
 *   Matpower >= 6.0
 
-### Instructions:
-#### Step 1: Install Octave
+### Instructions
 
-To install Octave >= 4.0.0 on Ubuntu >= 14.04:
-```
-sudo add-apt-repository ppa:octave/stable
-sudo apt-get update
-sudo apt-get install octave
-```
-If Octave is already installed on your machine, ensure that its version from `octave --version` is higher than 4.0.0.
+These instructions allow to run the simulator with a Python backend; for Octave backend, please refer to the documentation for installation instructions.
 
-#### Step 2: Install Python3.6
+#### Step 1: Install Python3.6
 ```
 sudo apt-get update
 sudo apt-get install python3.6
 ```
 If you have any trouble with this step, please refer to [the official webpage of Python](https://www.python.org/downloads/release/python-366/).
 
-#### (Step 3 if not already done: Get pypownet)
-Clone the current sources:
+#### (Optional, recommended) Step 1bis: Create a virtual environment
 ```
-git clone https://github.com/MarvinLer/pypownet pypownet
+virtualenv -p python3.6 --system-site-packages venv
+source venv/bin/activate
+```
+
+#### Step 2: Clone pypownet
+```
+git clone https://github.com/MarvinLer/pypownet
 ```
 This should create a folder pypownet with the current sources.
 
-#### Step 4: Get Matpower
-The latest sources of matpower need to be installed for computing loadflows. This can be done using the command that should be run within the parent folder of this file:
-```
-git clone https://github.com/MATPOWER/matpower.git
-```
-
-In any case, you can update the path of matpower download folder within the ```matpower_path.config``` file (prefer absolute path).
-
-#### Step 5: Run the installation script of PyPowNet
-Finally, run the following pip command to install the current simulator (including the Python libraries dependencies):
+#### Step 3: Run the installation script of pypownet
+Finally, run the following Python command to install the current simulator (including the Python libraries dependencies):
 ```
 cd pypownet/
 python3.6 setup.py install
@@ -85,7 +79,7 @@ Experiments can be conducted using the CLI.
 ### Using CLI arguments
 CLI can be used to run simulations:
 ```
-python -m pypownet.main
+python -m pypownet.main -v
 ```
 You can use `python -m pypownet.main --help` for further information about these runners arguments. Example running 1000 iterations (here, ~40 days) of the do-nothing (default) agent on a grid with 14 substations:
 ```
@@ -95,7 +89,7 @@ With this default14/ parameters (emulates a grid with 14 substations, 5 producti
 ## Using Docker
 You can use the command line of the image with shared display (for running the renderer):
 ```
-sudo docker run -it --privileged --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet:2.1.1 sh
+sudo docker run -it --privileged --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" marvinler/pypownet:2.2.0 sh
 ```
 This will open a terminal of the image. The usage is then identical to without docker, by doing the steps within this terminal.
 

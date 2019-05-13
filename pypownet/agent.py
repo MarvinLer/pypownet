@@ -201,7 +201,7 @@ class TreeSearchLineServiceStatus(Agent):
 
         # Also simulate the do nothing action
         if self.verbose:
-            print('    Simulating switch activation line %d' % l, end='')
+            print('    Simulating do-nothing action', end='')
         donothing_action = self.environment.action_space.get_do_nothing_action()
         donothing_simulated_reward = self.environment.simulate(action=donothing_action)
         simulated_rewards.append(donothing_simulated_reward)
@@ -215,8 +215,11 @@ class TreeSearchLineServiceStatus(Agent):
         self.ioman.dump(best_action)
 
         if self.verbose:
-            print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
-                simulated_rewards.index(best_simulated_reward), best_simulated_reward))
+            if simulated_rewards.index(best_simulated_reward) == len(simulated_rewards)-1:
+                print('  Best simulated action: do-nothing')
+            else:
+                print('  Best simulated action: disconnect line %d; expected reward: %.5f' % (
+                    simulated_rewards.index(best_simulated_reward), best_simulated_reward))
 
         return best_action
 

@@ -43,7 +43,8 @@ class IllegalActionException(Exception):
 
     @property
     def is_empty(self):
-        return self.illegal_broken_lines_reconnections is None and self.illegal_oncooldown_lines_switches is None \
+        return self.has_too_much_activations is False and self.illegal_broken_lines_reconnections is None \
+               and self.illegal_oncooldown_lines_switches is None \
                and self.illegal_oncoolown_substations_switches is None
 
 
@@ -252,7 +253,7 @@ class Action(object):
 
 class Game(object):
     def __init__(self, parameters_folder, game_level, chronic_looping_mode, chronic_starting_id,
-                 game_over_mode, renderer_frame_latency=None):
+                 game_over_mode, renderer_frame_latency, without_overflow_cutoff):
         """ Initializes an instance of the game. This class is sufficient to play the game both as human and as AI.
         """
         self.logger = logging.getLogger('pypownet.' + __name__)
@@ -264,10 +265,14 @@ class Game(object):
         self.is_mode_dc = self.__parameters.is_dc_mode()
         # overflows
         self.hard_overflow_coefficient = self.__parameters.get_hard_overflow_coefficient()
+        if without_overflow_cutoff:
+            self.hard_overflow_coefficient = 1e9
         self.n_timesteps_hard_overflow_is_broken = self.__parameters.get_n_timesteps_hard_overflow_is_broken()
         self.n_timesteps_soft_overflow_is_broken = self.__parameters.get_n_timesteps_soft_overflow_is_broken()
         self.n_timesteps_consecutive_soft_overflow_breaks = \
             self.__parameters.get_n_timesteps_consecutive_soft_overflow_breaks()
+        if without_overflow_cutoff:
+            self.n_timesteps_consecutive_soft_overflow_breaks = 1e12
         # maintenance
         self.n_timesteps_horizon_maintenance = self.__parameters.get_n_timesteps_horizon_maintenance()
         # game over
@@ -400,7 +405,6 @@ class Game(object):
     def load_entries_from_timestep_id(self, timestep_id, is_simulation=False, silence=False):
         # Retrieve the Scenario object associated to the desired id
         timestep_entries = self.__chronic.get_timestep_entries(timestep_id)
-        self.current_timestep_entries = timestep_entries
 
         # Loads the next timestep injections: PQ and PV and gen status
         if not is_simulation:
@@ -411,6 +415,8 @@ class Game(object):
                                                prods_v=self.current_timestep_entries.get_planned_prods_v(),
                                                loads_p=self.current_timestep_entries.get_planned_loads_p(),
                                                loads_q=self.current_timestep_entries.get_planned_loads_q(), )
+
+        self.current_timestep_entries = timestep_entries
 
         # Integration of timestep maintenance: disco lines for which current maintenance not 0 (equal to time to wait)
         timestep_maintenance = timestep_entries.get_maintenance()
@@ -494,7 +500,7 @@ class Game(object):
 
         self.load_entries_from_timestep_id(next_timestep_id, is_simulation)
 
-    def _compute_loadflow_cascading(self):
+    def _compute_loadflow_cascading(self, is_simulation=False):
         depth = 0  # Count cascading depth
         is_done = False
         over_thlim_lines = np.full(self.grid.n_lines, False)
@@ -507,7 +513,7 @@ class Game(object):
                 self.grid.compute_loadflow(fname_end='_cascading%d' % depth)
             except pypownet.grid.DivergingLoadflowException as e:
                 e.text += ': cascading emulation of depth %d has diverged' % depth
-                if self.renderer is not None:
+                if self.renderer is not None and not is_simulation:
                     self.render(None, game_over=True, cascading_frame_id=depth, date=self.previous_date,
                                 timestep_id=self.previous_timestep)
                 raise DivergingLoadflowException(e.last_observation, e.text)
@@ -528,6 +534,21 @@ class Game(object):
                 self.timesteps_before_lines_reconnectable[
                     over_hard_thlim_lines] = self.n_timesteps_hard_overflow_is_broken
                 is_done = False
+
+                # Log some info
+                n_cut_off = sum(over_hard_thlim_lines)
+                if not is_simulation:
+                    self.logger.info('  AUTOMATIC HARD OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due to '
+                                     'hard overflow (%s%s of capacity)' %
+                                     ('s' if n_cut_off > 1 else '',
+                                      ', '.join(
+                                          list(map(lambda i: '#%.0f' % i, self.grid.ids_lines[over_hard_thlim_lines]))),
+                                      str(self.n_timesteps_hard_overflow_is_broken),
+                                      's' if self.n_timesteps_hard_overflow_is_broken > 1 else '',
+                                      'resp. ' if n_cut_off > 1 else '',
+                                      ', '.join(list(map(lambda i: '%.0f%%' % i,
+                                                         100. * current_flows_a[over_hard_thlim_lines] / thermal_limits[
+                                                             over_hard_thlim_lines])))))
             # Those lines have been treated so discard them for further depth process
             over_thlim_lines[over_hard_thlim_lines] = False
 
@@ -543,11 +564,24 @@ class Game(object):
                     self.timesteps_before_lines_reconnectable[
                         soft_broken_lines] = self.n_timesteps_soft_overflow_is_broken
                     is_done = False
+
+                    # Log some info
+                    n_cut_off = sum(soft_broken_lines)
+                    if not is_simulation:
+                        self.logger.info('  AUTOMATIC SOFT OVERFLOW CUT-OFF: switching off line%s %s for %s timestep%s due '
+                                         'to soft overflow' %
+                                         ('s' if n_cut_off > 1 else '',
+                                          ', '.join(
+                                              list(map(lambda i: '#%.0f' % i,
+                                                       self.grid.ids_lines[soft_broken_lines]))),
+                                          str(self.n_timesteps_soft_overflow_is_broken),
+                                          's' if self.n_timesteps_hard_overflow_is_broken > 1 else ''))
+
                     # Do not consider those lines anymore
                     over_thlim_lines[soft_broken_lines] = False
 
             depth += 1
-            if self.renderer is not None:
+            if self.renderer is not None and not is_simulation:
                 self.render(None, cascading_frame_id=depth, date=self.previous_date, timestep_id=self.previous_timestep)
 
         # At the end of the cascading failure, decrement timesteps waited by overflowed lines
@@ -563,10 +597,6 @@ class Game(object):
 
         :param action: an instance of pypownet.env.RunEnv.Action
         """
-        # Initialize exception container that gather illegal action moves to account for all eventual action errors
-        # before returning
-        to_be_raised_exception = IllegalActionException('', False, None, None, None)
-
         self.timestep += 1
         # If there is no action, then no need to apply anything on the grid
         if action is None:
@@ -585,6 +615,49 @@ class Game(object):
         action_lines_or_nodes = action.get_lines_or_switches_subaction()
         action_lines_ex_nodes = action.get_lines_ex_switches_subaction()
 
+        try:
+            to_be_raised_exception = self._verify_illegal_action(action)
+        except (IllegalActionException, ValueError) as e:
+            raise e
+
+        # If illegal moves has been caught, raise exception
+        if not to_be_raised_exception.is_empty:
+            raise to_be_raised_exception
+
+        # Compute the destination nodes of all elements + the lines service finale values: actions are switches
+        prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
+        loads_nodes = np.where(action_loads_nodes, 1 - loads_nodes, loads_nodes)
+        lines_or_nodes = np.where(action_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
+        lines_ex_nodes = np.where(action_lines_ex_nodes, 1 - lines_ex_nodes, lines_ex_nodes)
+        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
+                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
+                                              mapping_array=grid_topology_mapping_array)
+
+        new_lines_service = np.where(action_lines_service, 1 - lines_service, lines_service)
+
+        # Apply the newly computed destination topology to the grid
+        self.grid.apply_topology(new_topology)
+        # Apply the newly computed destination topology to the grid
+        self.grid.set_lines_status(new_lines_service)
+
+        # Put activated lines as unactivable for predetermined timestep
+        has_lines_been_changed = action_lines_service == 1
+        self.timesteps_before_lines_reactionable[has_lines_been_changed] = self.n_timesteps_actionned_line_reactionable
+        # Compute and put activated nodes as unactivable for predetermined timestep
+        has_nodes_been_changed = self.get_changed_substations(action)
+        self.timesteps_before_nodes_reactionable[has_nodes_been_changed] = self.n_timesteps_actionned_node_reactionable
+
+    def _verify_illegal_action(self, action):
+        # Initialize exception container that gather illegal action moves to account for all eventual action errors
+        # before returning
+        to_be_raised_exception = IllegalActionException('', False, None, None, None)
+
+        # If there is no action, then no need to apply anything on the grid
+        if action is None:
+            raise ValueError('Cannot play None action')
+
+        action_lines_service = action.get_lines_status_subaction()
+
         # Compute the elements to be switched by the action (ie where >= 1 value is one for substation, or line is 1)
         to_be_switched_substations = self.get_changed_substations(action)
         to_be_switched_lines = action_lines_service == 1
@@ -593,7 +666,7 @@ class Game(object):
         n_switched_substations = sum(to_be_switched_substations)
         n_switched_lines = sum(to_be_switched_lines)
         n_switched_total = n_switched_substations + n_switched_lines
-        if n_switched_substations > self.max_number_actionned_lines \
+        if n_switched_substations > self.max_number_actionned_substations \
                 or n_switched_lines > self.max_number_actionned_lines \
                 or n_switched_total > self.max_number_actionned_total:
             to_be_raised_exception.has_too_much_activations = True
@@ -677,32 +750,14 @@ class Game(object):
                                                            non_actionnable_nodes_as_str, timesteps_to_wait_as_str)
             to_be_raised_exception.illegal_oncoolown_substations_switches = illegal_activating_nodes
 
-        # If illegal moves has been caught, raise exception
-        if not to_be_raised_exception.is_empty:
-            raise to_be_raised_exception
+        return to_be_raised_exception
 
-        # Compute the destination nodes of all elements + the lines service finale values: actions are switches
-        prods_nodes = np.where(action_prods_nodes, 1 - prods_nodes, prods_nodes)
-        loads_nodes = np.where(action_loads_nodes, 1 - loads_nodes, loads_nodes)
-        lines_or_nodes = np.where(action_lines_or_nodes, 1 - lines_or_nodes, lines_or_nodes)
-        lines_ex_nodes = np.where(action_lines_ex_nodes, 1 - lines_ex_nodes, lines_ex_nodes)
-        new_topology = pypownet.grid.Topology(prods_nodes=prods_nodes, loads_nodes=loads_nodes,
-                                              lines_or_nodes=lines_or_nodes, lines_ex_nodes=lines_ex_nodes,
-                                              mapping_array=grid_topology_mapping_array)
-
-        new_lines_service = np.where(action_lines_service, 1 - lines_service, lines_service)
-
-        # Apply the newly computed destination topology to the grid
-        self.grid.apply_topology(new_topology)
-        # Apply the newly computed destination topology to the grid
-        self.grid.set_lines_status(new_lines_service)
-
-        # Put activated lines as unactivable for predetermined timestep
-        has_lines_been_changed = action_lines_service == 1
-        self.timesteps_before_lines_reactionable[has_lines_been_changed] = self.n_timesteps_actionned_line_reactionable
-        # Compute and put activated nodes as unactivable for predetermined timestep
-        has_nodes_been_changed = self.get_changed_substations(action)
-        self.timesteps_before_nodes_reactionable[has_nodes_been_changed] = self.n_timesteps_actionned_node_reactionable
+    def is_action_valid(self, action):
+        try:
+            to_be_raised_exception = self._verify_illegal_action(action)
+        except (IllegalActionException, ValueError):
+            return False
+        return to_be_raised_exception.is_empty
 
     def reset(self):
         """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
@@ -741,14 +796,14 @@ class Game(object):
         self.grid.mpc = {k: v for k, v in self.grid.mpc.items() if k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}
 
     def step(self, action, _is_simulation=False):
-        if _is_simulation:
-            assert self.grid.dc_loadflow, "Cheating detected"
+        #if _is_simulation: #let's run everything in the same mode for now because we did not assess its impact
+        #    assert self.grid.dc_loadflow, "Cheating detected"
 
-        # Apply action, or raises eception if some broken lines are attempted to be switched on
+        # Apply action, or raises exception if some broken lines are attempted to be switched on
         try:
             self.last_action = action  # tmp
             self.apply_action(action)
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, cascading_frame_id=-1)
         except IllegalActionException as e:
             # First, check if the action does not overpass the max number of activated elements, and stop further
@@ -782,7 +837,8 @@ class Game(object):
                     if sum(illegal_oncooldown_nodes_switches) > 0:
                         # put all switches to 0 for illegal oncooldown substation use
                         for substation_changed in substations_changed:
-                            expected_subaction_length = len(action.get_substation_switches(substation_changed, False)[1])
+                            expected_subaction_length = len(
+                                action.get_substation_switches(substation_changed, False)[1])
                             action.set_substation_switches(substation_changed, np.zeros(expected_subaction_length))
                         # self.cancel_action_from_has_been_changed(action, illegal_oncooldown_nodes_switches)  # cancel illegal moves
                         e.text += ' Ignoring node switches of on-cooldown substations: %s.' % \
@@ -799,7 +855,7 @@ class Game(object):
         try:
             # Load next timestep entries, compute one loadflow, then potentially cascading failure
             self.load_entries_from_next_timestep(is_simulation=_is_simulation)
-            self._compute_loadflow_cascading()
+            self._compute_loadflow_cascading(is_simulation=_is_simulation)
         except pypownet.grid.DivergingLoadflowException as e:
             return None, DivergingLoadflowException(e.last_observation, e.text), True
 
@@ -813,7 +869,7 @@ class Game(object):
             flag = TooManyConsumptionsCut('There are %d isolated loads; at most %d tolerated' % (
                 np.sum(are_isolated_loads), self.max_number_loads_game_over))
             done = True
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
         if np.sum(are_isolated_prods) > self.max_number_prods_game_over:
@@ -821,7 +877,7 @@ class Game(object):
             flag = TooManyProductionsCut('There are %d isolated productions; at most %d tolerated' % (
                 np.sum(are_isolated_prods), self.max_number_prods_game_over))
             done = True
-            if self.renderer is not None:
+            if self.renderer is not None and not _is_simulation:
                 self.render(None, game_over=True, cascading_frame_id=None)
             return observation, flag, done
 
@@ -830,21 +886,27 @@ class Game(object):
     def simulate(self, action):
         # Copy variables of a step: timestep id, mpc (~grid), topology (stand-alone in self), and lists of overflows
         before_timestep_id = self.current_timestep_id
+        before_current_date = copy.deepcopy(self.current_date)
         before_mpc = copy.deepcopy(self.grid.mpc)
-        before_topology = copy.deepcopy(self.grid.get_topology())
-        before_n_timesteps_overflowed_lines = self.n_timesteps_soft_overflowed_lines
-        before_timesteps_before_lines_reconnectable = self.timesteps_before_lines_reconnectable
-        before_timesteps_before_lines_reactionable = self.timesteps_before_lines_reactionable
-        before_timesteps_before_nodes_reactionable = self.timesteps_before_nodes_reactionable
+        before_topology = copy.deepcopy(self.grid.topology)
+        before_are_loads = copy.deepcopy(self.grid.are_loads)
+        before_timestep_entries = copy.deepcopy(self.current_timestep_entries)
+        before_n_timesteps_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
+        before_timesteps_before_lines_reconnectable = copy.deepcopy(self.timesteps_before_lines_reconnectable)
+        before_timesteps_before_lines_reactionable = copy.deepcopy(self.timesteps_before_lines_reactionable)
+        before_timesteps_before_nodes_reactionable = copy.deepcopy(self.timesteps_before_nodes_reactionable)
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
-        self.grid.dc_loadflow = True
+        #self.grid.dc_loadflow = True #let's run everything in the same mode for now because we did not assess its impact
 
         def reload_minus_1_timestep():
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
-            self.grid.apply_topology(before_topology)  # Change topo before loading entries (reflects what happened)
-            self.load_entries_from_timestep_id(before_timestep_id, silence=True)
+            self.grid.are_loads = before_are_loads
+            self.current_timestep_id = before_timestep_id
+            self.grid.topology = copy.deepcopy(before_topology)
+            self.current_date = before_current_date
+            self.current_timestep_entries = before_timestep_entries
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
@@ -953,7 +1015,7 @@ class Game(object):
                 "{}. (HINT: install pygame using `pip install pygame` or refer to this package README)".format(e))
 
         # if close:
-        #     pygame.quit()
+        # pygame.quit()
 
         if self.renderer is None:
             self.renderer = initialize_renderer()
@@ -986,23 +1048,28 @@ class Game(object):
         max_number_isolated_loads = self.__parameters.get_max_number_loads_game_over()
         max_number_isolated_prods = self.__parameters.get_max_number_prods_game_over()
 
-        self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status,
-                             self.epoch, self.timestep, self.current_timestep_id if not timestep_id else timestep_id,
-                             prods=prods_values, loads=loads_values, last_timestep_rewards=rewards,
-                             date=self.current_date if date is None else date, are_substations_changed=has_been_changed,
-                             number_loads_cut=sum(are_isolated_loads),
-                             number_prods_cut=sum(are_isolated_prods),
+        # Compute the number of used nodes per substation
+        current_observation = self.export_observation()
+        n_nodes_substations = []
+        for substation_id in self.substations_ids:
+            substation_conf = current_observation.get_nodes_of_substation(substation_id)[0]
+            n_nodes_substations.append(1 + int(len(list(set(substation_conf))) == 2))
+
+        self.renderer.render(lines_capacity_usage, lines_por_values, lines_service_status, self.epoch, self.timestep,
+                             self.current_timestep_id if not timestep_id else timestep_id, prods=prods_values,
+                             loads=loads_values, date=self.current_date if date is None else date,
+                             are_substations_changed=has_been_changed, number_nodes_per_substation=n_nodes_substations,
+                             number_loads_cut=sum(are_isolated_loads), number_prods_cut=sum(are_isolated_prods),
                              number_nodes_splitting=sum(self.last_action.get_node_splitting_subaction())
                              if self.last_action is not None else 0,
                              number_lines_switches=sum(self.last_action.get_lines_status_subaction())
-                             if self.last_action is not None else 0,
-                             distance_initial_grid=distance_ref_grid,
+                             if self.last_action is not None else 0, distance_initial_grid=distance_ref_grid,
                              number_off_lines=sum(self.grid.get_lines_status() == 0),
                              number_unavailable_lines=number_unavailable_lines,
                              number_unactionable_nodes=number_unavailable_nodes,
                              max_number_isolated_loads=max_number_isolated_loads,
-                             max_number_isolated_prods=max_number_isolated_prods,
-                             game_over=game_over, cascading_frame_id=cascading_frame_id)
+                             max_number_isolated_prods=max_number_isolated_prods, game_over=game_over,
+                             cascading_frame_id=cascading_frame_id)
 
         if self.latency:
             sleep(self.latency)

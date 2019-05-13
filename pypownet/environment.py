@@ -3,6 +3,7 @@ __author__ = 'marvinler'
 # Authors: Marvin Lerousseau <marvin.lerousseau@gmail.com>
 # This file is under the LGPL-v3 license and is part of PyPowNet.
 import numpy as np
+from copy import deepcopy
 from enum import Enum
 from collections import OrderedDict
 from gym.spaces import MultiBinary, Box, Dict, Discrete
@@ -63,8 +64,7 @@ class ActionSpace(MultiBinary):
         self.lines_ex_subs_id = lines_ex_subs_id
         self._substations_n_elements = [len(
             self.get_substation_switches_in_action(self.get_do_nothing_action(as_class_Action=True), sub_id)[1]) for
-                                        sub_id in
-                                        self.substations_ids]
+                                        sub_id in self.substations_ids]
 
     def get_do_nothing_action(self, as_class_Action=False):
         """ Creates and returns an action equivalent to a do-nothing: all of the activable switches are 0 i.e.
@@ -123,7 +123,7 @@ class ActionSpace(MultiBinary):
             except ValueError as e:
                 raise e
         else:
-            formatted_action = action
+            formatted_action = deepcopy(action)
 
         prods_switches_subaction_length, loads_switches_subaction_length, lines_or_switches_subaction_length, \
         lines_ex_subaction_length, lines_status_subaction_length = formatted_action.__len__(do_sum=False)
@@ -786,12 +786,13 @@ class Observation(MinimalistACObservation):
 
 class RunEnv(object):
     def __init__(self, parameters_folder, game_level, chronic_looping_mode='natural', start_id=0,
-                 game_over_mode='soft', renderer_latency=None):
+                 game_over_mode='soft', renderer_latency=None, without_overflow_cutoff=False):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
         self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
                                        chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
-                                       game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency)
+                                       game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency,
+                                       without_overflow_cutoff=without_overflow_cutoff)
 
         self.action_space = ActionSpace(*self.game.get_number_elements(),
                                         substations_ids=self.game.get_substations_ids(),
@@ -809,6 +810,9 @@ class RunEnv(object):
 
     def _get_obs(self):
         return self.game.export_observation()
+
+    def is_action_valid(self, action):
+        return self.game.is_action_valid(action)
 
     def step(self, action, do_sum=True):
         """ Performs a game step given an action. The as list pattern is:

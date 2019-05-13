@@ -4,26 +4,30 @@ import sys
 
 
 def main():
-    # Seeks for matpower configuration file, then put it into PYTHONPATH
-    # Add matpower to octave path
-    mp_path_config = 'matpower_path.config'
-    if not os.path.exists(mp_path_config):
-        raise FileNotFoundError('The matpower path configuration file is not found at', mp_path_config)
-    with open(mp_path_config, 'r') as f:
-        relative_path = f.read().splitlines()[0]
+    # Will try to initialize matpower backend, or pass if some dependencies are not found
+    try:
+        # Add matpower to octave path
+        mp_path_config = 'matpower_path.config'
+        if not os.path.exists(mp_path_config):
+            raise FileNotFoundError('The matpower path configuration file is not found at', mp_path_config)
+        with open(mp_path_config, 'r') as f:
+            relative_path = f.read().splitlines()[0]
 
-    matpower_path = os.path.abspath(relative_path)
-    print(relative_path, matpower_path)
-    # Check that the matpower path does exist
-    if not os.path.isdir(matpower_path):
-        raise FileNotFoundError('Matpower folder %s not found' % matpower_path)
+        matpower_path = os.path.abspath(relative_path)
+        print(relative_path, matpower_path)
+        # Check that the matpower path does exist
+        if not os.path.isdir(matpower_path):
+            raise FileNotFoundError('Matpower folder %s not found' % matpower_path)
 
-    # Save matpower path and replace in configuration with absolute path
-    sys.path.append(matpower_path)
-    with open(mp_path_config, 'w') as f:
-        f.write(matpower_path)
+        # Save matpower path and replace in configuration with absolute path
+        sys.path.append(matpower_path)
+        with open(mp_path_config, 'w') as f:
+            f.write(matpower_path)
+    except FileNotFoundError as e:
+        print(e)
+        print('Only PYPOWER backend available')
 
-    # Parse required libraries file into a list of string
+    # Parse required libraries file into a list of string for setup python dependencies installation
     with open('requirements.txt', 'r') as f:
         requirements = f.read().splitlines()
     # Replace all == with ~= for lighting dependencies
@@ -49,7 +53,7 @@ def main():
 
     setup(name='pypownet',
           version='2.2.0',
-          description='A Gym/keras-rl compatible environment simulating large-scale power grids.',
+          description='A power network simulator with a Reinforcement Learning-focused usage.',
           author='Marvin Lerousseau',
           author_email='marvin.lerousseau@gmail.com',
           maintainer='Marvin Lerousseau',
