@@ -91,7 +91,7 @@ class CustomGreedySearch(Agent):
         # For every substation with at least 4 elements, try every possible configuration for the switches
         for substation_id in action_space.substations_ids:
             substation_n_elements = action_space.get_number_elements_of_substation(substation_id)
-            if 6 > substation_n_elements > 3:
+            if 8 > substation_n_elements > 3:
                 # Look through all configurations of n_elements binary vector with first value fixed to 0
                 for configuration in list(itertools.product([0, 1], repeat=substation_n_elements - 1)):
                     new_configuration = [0] + list(configuration)
