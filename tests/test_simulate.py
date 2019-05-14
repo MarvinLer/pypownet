@@ -275,8 +275,8 @@ def test_simulate_Agent_test_SimulateThenAct():
     print("game_overs = ", game_overs)
     print("actions_recap = ", actions_recap)
     assert(niter == len(game_overs) == len(actions_recap))
-    # assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False])
-    # assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
+    assert(list(game_overs) == [False, False, False, False, False, False, False, False, False, False])
+    assert(list(actions_recap) == [None, None, None, None, None, None, None, None, None, None])
 
 
 def test_simulate_Agent_test_RewardError():
@@ -319,6 +319,8 @@ def test_simulate_Agent_test_RewardError():
         print("game_overs = ", game_overs)
         print("actions_recap = ", actions_recap)
         assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False, False])
+        assert(list(actions_recap) == [None, None, None])
 
     for reward in res[1:]:
         assert(reward == res[0])
@@ -363,6 +365,8 @@ def test_simulate_Agent_exhaustive_test_RewardError():
         print("game_overs = ", game_overs)
         print("actions_recap = ", actions_recap)
         assert(niter == len(game_overs) == len(actions_recap))
+        assert(list(game_overs) == [False, False, False])
+        assert(list(actions_recap) == [None, None, None])
 
     for reward in res[1:]:
         assert(reward == res[0])
