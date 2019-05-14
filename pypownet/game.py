@@ -796,8 +796,8 @@ class Game(object):
         self.grid.mpc = {k: v for k, v in self.grid.mpc.items() if k in ['bus', 'gen', 'branch', 'baseMVA', 'version']}
 
     def step(self, action, _is_simulation=False):
-        if _is_simulation:
-            assert self.grid.dc_loadflow, "Cheating detected"
+        #if _is_simulation: #let's run everything in the same mode for now because we did not assess its impact
+        #    assert self.grid.dc_loadflow, "Cheating detected"
 
         # Apply action, or raises exception if some broken lines are attempted to be switched on
         try:
@@ -896,20 +896,22 @@ class Game(object):
         before_timesteps_before_nodes_reactionable = copy.deepcopy(self.timesteps_before_nodes_reactionable)
         before_current_timestep_entries = copy.deepcopy(self.current_timestep_entries)
         before_previous_timestep = self.previous_timestep
-        before_previous_date = copy.deepcopy(self.previous_date)
         before_current_date = copy.deepcopy(self.current_date)
+        before_previous_date = copy.deepcopy(self.previous_date)
         before_n_loads_cut = self.n_loads_cut
         before_n_prods_cut = self.n_prods_cut
         before_grid_filename = self.grid.filename
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
-        self.grid.dc_loadflow = True
+        #self.grid.dc_loadflow = True #let's run everything in the same mode for now because we did not assess its impact
 
         def reload_minus_1_timestep():
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
             self.grid.are_loads = before_are_loads
             self.current_timestep_id = before_timestep_id
+            self.grid.topology = copy.deepcopy(before_grid_topology)
+            self.current_date = before_current_date
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
@@ -917,9 +919,7 @@ class Game(object):
             self.current_timestep_entries = before_current_timestep_entries
             self.previous_timestep = before_previous_timestep
             self.previous_date = before_previous_date
-            self.current_date = before_current_date
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_soft_overflowed_lines
-            self.grid.topology = before_grid_topology
             self.n_loads_cut = before_n_loads_cut
             self.n_prods_cut = before_n_prods_cut
             self.grid.filename = before_grid_filename
