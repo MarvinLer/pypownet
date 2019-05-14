@@ -9,6 +9,12 @@ import math
 import pprint
 
 
+class DoNothing(Agent):
+    def act(self, observation):
+        action_length = self.environment.action_space.action_length
+        return np.zeros(action_length)
+
+
 class CustomGreedySearch(Agent):
     """ This agent is a copy of the Agent.GreedySearch, so it simulates many different things but in the end returns a
     do nothing action, for more information check description of function: test_simulate_Agent_CustomGreedySearch.
@@ -318,6 +324,49 @@ def test_simulate_Agent_test_RewardError():
         assert(reward == res[0])
 
 
+def test_simulate_Agent_exhaustive_test_RewardError():
+    """ Function to test if a reward is the same whether we simulate during our work or not.
+    This function creates first a CustomGreedyAgent that will simulate all possible changes, but do nothing in the end.
+    Then, second instance ==> A do nothing Agent.
+    Finally, we compare the rewards. It must be equal.
+    """
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = True
+    niter = 3
+
+    env_class = RunEnv
+
+    res = []
+
+    for i in range(2):
+        print("############################# current INSTANCE = {} #############################".format(i))
+        # Instantiate environment and agent
+        env = env_class(parameters_folder=parameters, game_level=game_level,
+                        chronic_looping_mode=loop_mode, start_id=start_id,
+                        game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+        if i == 0:
+            agent = CustomGreedySearch(env)
+        else:
+            agent = DoNothing(env)
+        # Instantiate game runner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+        res.append(final_reward)
+        print("Obtained a final reward of {}".format(final_reward))
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+
+    for reward in res[1:]:
+        assert(reward == res[0])
+
 
 def test_simulate_Agent_CustomGreedySearch():
     """This function creates an Agent that does all possible actions while simulating. It checks that within a timestep,
@@ -396,6 +445,7 @@ def test_simulate_Agent_CustomGreedySearch():
 
 # test_simulate_Agent_test_SimulateThenAct()
 # test_simulate_Agent_test_RewardError()
-test_simulate_Agent_CustomGreedySearch()
+test_simulate_Agent_exhaustive_test_RewardError()
+# test_simulate_Agent_CustomGreedySearch()
 
 
