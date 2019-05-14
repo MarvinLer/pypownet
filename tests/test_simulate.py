@@ -9,6 +9,11 @@ import math
 import pprint
 
 
+def get_n_first_lines_from_csv(nb_lines, csv_file_path):
+    content = np.genfromtxt(csv_file_path, np.float32, delimiter=";")
+    return content[1:nb_lines + 1]
+
+
 class DoNothing(Agent):
     def act(self, observation):
         action_length = self.environment.action_space.action_length
@@ -243,6 +248,100 @@ class small_Agent_test_RewardError(Agent):
 
         return action
 
+
+class Agent_test_AccurateConsumptionLoadings(Agent):
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_InputLoadValues created...")
+
+        self.current_step = 1
+        self.line_to_cut = None
+        self.path = "tests/parameters/default14_for_tests/level0/chronics/a/_N_loads_p.csv"
+        self.path_planned = "tests/parameters/default14_for_tests/level0/chronics/a/_N_loads_p_planned.csv"
+        self.abspath = os.path.abspath(self.path)
+        self.abspath_planned = os.path.abspath(self.path_planned)
+        self.from_file_loads_content = get_n_first_lines_from_csv(5, self.abspath)
+        self.from_file_loads_planned_content = get_n_first_lines_from_csv(5, self.abspath_planned)
+        print("loads from file = ", self.from_file_loads_content)
+        print("loads planned from file = ", self.from_file_loads_planned_content)
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+         try:
+             observation = self.environment.observation_space.array_to_observation(observation)
+         except Exception as e:
+             raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        current_load_powers = observation.active_loads
+        print("current_load_powers = ", current_load_powers)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        if self.current_step == 1:
+            expected = self.from_file_loads_content[1]
+            print("expected = ", expected)
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            simulated_load_powers = simulated_obs.active_loads
+            print("simulated load power = ", simulated_load_powers)
+            expected_planned = self.from_file_loads_planned_content[2]
+            for expected_elem, core_elem in zip(expected_planned, simulated_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+        if self.current_step == 2:
+            expected = self.from_file_loads_content[2]
+            print("expected = ", expected)
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            simulated_load_powers = simulated_obs.active_loads
+            print("simulated load power = ", simulated_load_powers)
+            expected_planned = self.from_file_loads_planned_content[3]
+            for expected_elem, core_elem in zip(expected_planned, simulated_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+        if self.current_step == 3:
+            expected = self.from_file_loads_content[3]
+            print("expected = ", expected)
+            for expected_elem, core_elem in zip(expected, current_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            simulated_load_powers = simulated_obs.active_loads
+            print("simulated load power = ", simulated_load_powers)
+            expected_planned = self.from_file_loads_planned_content[4]
+            for expected_elem, core_elem in zip(expected_planned, simulated_load_powers):
+                error_diff = core_elem - expected_elem
+                assert(error_diff == 0.0)
+                print("error diff = ", error_diff)
+
+        self.current_step += 1
+
+        return action
+
+
+
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
@@ -373,7 +472,7 @@ def test_simulate_Agent_exhaustive_test_RewardError():
 
 
 def test_simulate_Agent_CustomGreedySearch():
-    """This function creates an Agent that does all possible actions while simulating. It checks that within a timestep,
+    """This function creates an Agent that does all possible actions while simulating. It checks that WITHIN a timestep,
     the Observation of all Consumptions(Observation.are_loads) are still the same.
     """
     parameters = "./tests/parameters/default14_for_tests/"
@@ -447,9 +546,41 @@ def test_simulate_Agent_CustomGreedySearch():
     assert(list(actions_recap) == [None, None, None])
 
 
+def test_simulate_Agent_test_AccurateConsumptionLoadings():
+    """This function creates an Agent
+    """
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = True
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_AccurateConsumptionLoadings(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+    assert(list(actions_recap) == [None, None, None])
+
+
 # test_simulate_Agent_test_SimulateThenAct()
 # test_simulate_Agent_test_RewardError()
-test_simulate_Agent_exhaustive_test_RewardError()
+# test_simulate_Agent_exhaustive_test_RewardError()
 # test_simulate_Agent_CustomGreedySearch()
-
+test_simulate_Agent_test_AccurateConsumptionLoadings()
 
