@@ -197,6 +197,202 @@ class Agent_test_BasicSubstationTopologyChange(Agent):
         return action
 
 
+class Agent_test_AdvancedSubstationTopologyChange(Agent):
+    """This agent changes all the possible connections on a given node, and checks from Observations that it did occur.
+    Then it tries to switch it back to original default position. We check this way all changes, PRODS, LOADS, OR, EX.
+    Advanced test because there is a back and forth test.
+    This test has a specific folder with n_timesteps_actionned_node_reactionable = 0, in order to be able to change
+    nodes at each time steps"""
+    def __init__(self, environment, node_to_change=None):
+        super().__init__(environment)
+        self.node_to_change = node_to_change
+        self.current_step = 1
+        print("Agent_test_AdvancedSubstationTopologyChange created...")
+        print("#######################################################################################################")
+        print("##################################### NEW NODE {} #####################################".format(
+            self.node_to_change))
+        print("#######################################################################################################")
+
+        action_space = self.environment.action_space
+        # Select a random substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        target_configuration = np.zeros(expected_target_configuration_size)
+        # give a list [0, 0, 0] ==> it generates [1, 0, 0], [0, 1, 0], [0, 0, 1] lists..
+        self.node_topology_generator = create_node_topology_generator(target_configuration)
+        self.all_topologies = []
+        for topo in self.node_topology_generator:
+            self.all_topologies.append(topo)
+        print("All topologies = ", self.all_topologies)
+
+    def act(self, observation):
+        # Because we receive an observation = numpy.ndarray, we have to change it into class Observation
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        ################################################################################################################
+        action_space = self.environment.action_space
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        current_conf, types = observation.get_nodes_of_substation(self.node_to_change)
+        print(f"Step[{self.current_step}]: current conf node [{self.node_to_change}] = {current_conf}")
+        print("types = ", types)
+
+        # Select a substation ID on which to perform node-splitting
+        expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
+        # Choses a new switch configuration (binary array)
+        default_configuration = np.zeros(expected_target_configuration_size)
+
+        if self.current_step == 1:
+            # change to first topo
+            new_conf = self.all_topologies[self.current_step - 1]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, new_conf)
+
+        if self.current_step == 2:
+            # go back to default topo
+            # t = 2, check if substation configurations are identical to t == 1
+            if self.node_to_change == 7:
+                assert(list(current_conf) == [0, 0, 0])
+            else:
+                assert(list(current_conf) == self.all_topologies[self.current_step - 2])
+
+            print(f"Step [{self.current_step}], we go back to configuration: {default_configuration}")
+            final_conf = get_differencial_topology(default_configuration, current_conf)
+            print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 3:
+            # change to second topo
+            if self.node_to_change == 7:
+                assert(list(current_conf) == [0, 0, 0])
+            else:
+                assert(list(current_conf) == list(default_configuration))
+
+            new_conf = self.all_topologies[self.current_step - 2]
+            print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+
+            final_conf = get_differencial_topology(new_conf, current_conf)
+            print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+            action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 4:
+            # go back to default topo
+            # t = 3, check if substation configurations are identical to t == t - 1
+            assert(list(current_conf) == self.all_topologies[self.current_step - 3])
+
+            if len(current_conf) > 2:
+                print(f"Step [{self.current_step}], we test configuration: {default_configuration}")
+
+                final_conf = get_differencial_topology(default_configuration, current_conf)
+                print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 5:
+            # change to third topo
+            assert(list(current_conf) == list(default_configuration))
+
+            if len(current_conf) > 2:
+                new_conf = self.all_topologies[self.current_step - 3]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                print(f"Step [{self.current_step}], so final constructed conf = : {final_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 6:
+            # go back to default topo
+            assert(list(current_conf) == self.all_topologies[self.current_step - 4])
+
+            if len(current_conf) > 3:
+                print(f"Step [{self.current_step}], we test configuration: {default_configuration}")
+                final_conf = get_differencial_topology(default_configuration, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+            elif len(current_conf) == 3: # now reset to 000
+                final_conf = get_differencial_topology(default_configuration, current_conf)
+                print(f"Step [{self.current_step}], we test configuration: {final_conf}")
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        elif self.current_step == 7:
+            # change to fourth topo
+            if len(current_conf) <= 4:
+                assert(list(current_conf) == list(default_configuration))
+                print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
+                                                                                        np.zeros(len(action))).all()))
+                print("========================================================")
+                self.current_step += 1
+                return action
+            else:
+                assert(list(current_conf) == list(default_configuration))
+                new_conf = self.all_topologies[self.current_step - 4]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+        if len(current_conf) > 3:
+            if self.current_step == 8:
+                # go back to default topo
+                assert(list(current_conf) == self.all_topologies[self.current_step - 5])
+                print(f"Step [{self.current_step}], we test configuration: {default_configuration}")
+                final_conf = get_differencial_topology(default_configuration, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+            elif self.current_step == 9:
+                # check that we end in a default [0, ..., 0] config.
+                assert(list(current_conf) == list(default_configuration))
+                # print(observation)
+
+                new_conf = self.all_topologies[self.current_step - 5]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+
+            elif self.current_step == 10:
+                # check we the step - 1 conf has been applied
+                assert(list(current_conf) == self.all_topologies[self.current_step - 6])
+                # go back to default topo
+                print(f"Step [{self.current_step}], we test configuration: {default_configuration}")
+                final_conf = get_differencial_topology(default_configuration, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+                # print(observation)
+
+            elif self.current_step == 11:
+                # check that we end in a default [0, ..., 0] config.
+                assert(list(current_conf) == list(default_configuration))
+                # change to sixth topo
+                new_conf = self.all_topologies[self.current_step - 6]
+                print(f"Step [{self.current_step}], we test configuration: {new_conf}")
+                final_conf = get_differencial_topology(new_conf, current_conf)
+                action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+                # print(observation)
+
+            # elif self.current_step == 12:
+            #     # check we the step - 1 conf has been applied
+            #     assert(list(current_conf) == self.all_topologies[self.current_step - 7])
+            #     # go back to default topo
+            #     print(f"Step [{self.current_step}], we test configuration: {default_configuration}")
+            #     final_conf = get_differencial_topology(default_configuration, current_conf)
+            #     action_space.set_substation_switches_in_action(action, self.node_to_change, final_conf)
+            #
+            # elif self.current_step == 13:
+            #     # check that we end in a default [0, ..., 0] config.
+            #     assert(list(current_conf) == list(default_configuration))
+
+        print("END OF Step [{}], we do nothing : {}".format(self.current_step, np.equal(action.as_array(),
+                                                                                        np.zeros(len(action))).all()))
+        print("========================================================")
+        self.current_step += 1
+        return action
+
+
+
 class Agent_test_MaxNumberActionnedSubstations(Agent):
     """This agent tests the restriction: max_number_actionned_substations = 2
         t = 1, Agent changes the topology of 3 nodes, ==> should be rejected because of the restriction.
@@ -840,6 +1036,57 @@ def test_Agent_test_BasicSubstationTopologyChange():
             assert(list(game_overs) == [False, False, False, False, False, False, False])
 
 
+def test_Agent_test_AdvancedSubstationTopologyChange():
+    """This function creates an Agent that tests all the Topological changes of all the Substations"""
+    # specific folder because we need to be able to change a node's topology at each step.
+    parameters = "./tests/parameters/default14_for_tests_beta/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = True
+    # agent = "RandomLineSwitch"
+    niter = 13
+
+    # for node_to_change in range(1, 15):
+    for node_to_change in [2]:
+        print("############################ current INSTANCE = {} ############################".format(node_to_change))
+        env_class = RunEnv
+
+        # Instantiate environment and agent
+        env = env_class(parameters_folder=parameters, game_level=game_level,
+                        chronic_looping_mode=loop_mode, start_id=start_id,
+                        game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+        agent = Agent_test_AdvancedSubstationTopologyChange(env, node_to_change)
+        # Instantiate game runner and loop
+        runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+        final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+        print("Obtained a final reward of {}".format(final_reward))
+        print("game_overs = ", game_overs)
+        print("actions_recap = ", actions_recap)
+        assert(niter == len(game_overs) == len(actions_recap))
+
+        # if node_to_change == 2:
+        #     for i, action in enumerate(actions_recap):
+        #         if i == 6:
+        #             assert(isinstance(action, DivergingLoadflowException))
+        #         else:
+        #             assert(action is None)
+        # elif node_to_change == 7:
+        #     for i, action in enumerate(actions_recap):
+        #         if i == 0:
+        #             assert(isinstance(action, DivergingLoadflowException))
+        #         else:
+        #             assert(action is None)
+        # else:
+        #     for i, action in enumerate(actions_recap):
+        #         assert(action is None)
+        #     assert(list(game_overs) == [False, False, False, False, False, False, False])
+
+
 def create_node_topology_generator(l):
     for i in range(len(l)):
         res = l.copy()
@@ -868,4 +1115,5 @@ def get_differencial_topology(new_conf, old_conf):
 # test_Agent_test_MaxNumberActionnedLines()
 # test_Agent_test_MaxNumberActionnedNodes()
 # test_Agent_test_BasicSubstationTopologyChange()
+# test_Agent_test_AdvancedSubstationTopologyChange()
 
