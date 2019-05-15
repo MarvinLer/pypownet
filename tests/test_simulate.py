@@ -26,7 +26,7 @@ class CustomGreedySearch(Agent):
     """
     def __init__(self, environment):
         super().__init__(environment)
-        print("Agent_test_LineChangePersistance created...")
+        print("CustomGreedySearch created...")
         self.verbose = True
         self.consos_save = {
             "do_nothing": {
@@ -69,10 +69,9 @@ class CustomGreedySearch(Agent):
         if self.verbose:
             print(' Simulation with no action', end='')
         action = action_space.get_do_nothing_action()
-        reward_aslist, simulated_obs = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
-        reward = sum(reward_aslist)
-        if self.verbose:
-            print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
+        res = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
+        simulated_obs = self.environment.observation_space.array_to_observation(res[0])
+        reward = res[1]
         rewards.append(reward)
         actions.append(action)
         names.append('no action')
@@ -84,10 +83,9 @@ class CustomGreedySearch(Agent):
                 print(' Simulation with switching status of line %d' % l, end='')
             action = action_space.get_do_nothing_action(as_class_Action=True)
             action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
-            reward_aslist, simulated_obs = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
-            reward = sum(reward_aslist)
-            if self.verbose:
-                print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
+            res = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
+            simulated_obs = self.environment.observation_space.array_to_observation(res[0])
+            reward = res[1]
             rewards.append(reward)
             actions.append(action)
             names.append('switching status of line %d' % l)
@@ -107,14 +105,14 @@ class CustomGreedySearch(Agent):
                     action = action_space.get_do_nothing_action(as_class_Action=True)
                     action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
                                                                    new_values=new_configuration)
-                    reward_aslist, simulated_obs = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
-                    reward = sum(reward_aslist)
-                    if self.verbose:
-                        print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
-                    rewards.append(reward)
-                    actions.append(action)
-                    names.append('change in topo of sub. %d with switches %s' % (substation_id,
-                                                                                 repr(new_configuration)))
+                    res = self.environment.simulate(action, do_sum=False, obs_for_tests=True)
+                    if res[0] is not None:
+                        simulated_obs = self.environment.observation_space.array_to_observation(res[0])
+                        reward = res[1]
+                        rewards.append(reward)
+                        actions.append(action)
+                        names.append('change in topo of sub. %d with switches %s' % (substation_id,
+                                                                                     repr(new_configuration)))
                     if simulated_obs is not None:
                         self.consos_save["node_change"][self.current_step].append(simulated_obs.active_loads.astype(int))
 
@@ -126,9 +124,6 @@ class CustomGreedySearch(Agent):
 
         # Dump best action into stored actions file
         self.ioman.dump(best_action)
-
-        if self.verbose:
-            print('Action chosen: ', best_action_name, '; expected reward %.4f' % best_reward)
 
         self.real_consos_save.append(observation.active_loads.astype(int))
         self.current_step += 1
@@ -158,7 +153,6 @@ class Agent_test_LineChangePersistance(Agent):
         assert isinstance(observation, pypownet.environment.Observation)
 
         action_space = self.environment.action_space
-        print(observation)
 
         # Create template of action with no switch activated (do-nothing action)
         action = action_space.get_do_nothing_action(as_class_Action=True)
@@ -170,8 +164,15 @@ class Agent_test_LineChangePersistance(Agent):
             print("we switch off line {}".format(self.line_to_cut))
             action_space.set_lines_status_switch_from_id(action=action, line_id=self.line_to_cut, new_switch_value=1)
             # here we would like to simulate before submitting the action
-            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
-            print("simulated obs = ", simulated_obs)
+            # reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+
+            res = self.environment.simulate(action)
+            # for elem in res:
+            #     print("------> ", elem)
+            # simulated_observation = self.environment.observation_space.array_to_observation(res[0])
+            # print("res = ")
+            # print(simulated_observation)
+            # print("simulated obs = ", simulated_obs)
 
             assert(list(observation.lines_status.astype(int)) == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                                                   1, 1])
@@ -216,8 +217,7 @@ class small_Agent_test_RewardError(Agent):
         action = action_space.get_do_nothing_action(as_class_Action=True)
         # Select a random substation ID on which to perform node-splitting
         print("lines_status = ", list(observation.lines_status.astype(int)))
-        reward = self.environment.simulate(action)
-        print("reward from simulate = ", reward)
+        res = self.environment.simulate(action)
         # Select a random substation ID on which to perform node-splitting
         expected_target_configuration_size = action_space.get_number_elements_of_substation(self.node_to_change)
         # Choses a new switch configuration (binary array)
@@ -232,7 +232,8 @@ class small_Agent_test_RewardError(Agent):
             # here we would like to simulate before submitting the action
             if self.sim_bool:
                 print("***** we simulate *****")
-                reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+                # reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+                res = self.environment.simulate(action)
 
         if self.current_step == 2:
             # we connect the fourth element to busbar 1
@@ -241,7 +242,8 @@ class small_Agent_test_RewardError(Agent):
                                                            new_values=target_configuration)
             if self.sim_bool:
                 print("***** we simulate *****")
-                reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+                # reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+                res = self.environment.simulate(action)
 
         self.current_step += 1
         print("We do nothing : ", np.equal(action.as_array(), np.zeros(len(action))).all())
@@ -293,7 +295,8 @@ class Agent_test_AccurateConsumptionLoadings(Agent):
                 assert(error_diff == 0.0)
                 print("error diff = ", error_diff)
 
-            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            res = self.environment.simulate(action, obs_for_tests=True)
+            simulated_obs = self.environment.observation_space.array_to_observation(res[0])
             simulated_load_powers = simulated_obs.active_loads
             print("simulated load power = ", simulated_load_powers)
             expected_planned = self.from_file_loads_planned_content[2]
@@ -310,7 +313,8 @@ class Agent_test_AccurateConsumptionLoadings(Agent):
                 assert(error_diff == 0.0)
                 print("error diff = ", error_diff)
 
-            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            res = self.environment.simulate(action, obs_for_tests=True)
+            simulated_obs = self.environment.observation_space.array_to_observation(res[0])
             simulated_load_powers = simulated_obs.active_loads
             print("simulated load power = ", simulated_load_powers)
             expected_planned = self.from_file_loads_planned_content[3]
@@ -327,7 +331,8 @@ class Agent_test_AccurateConsumptionLoadings(Agent):
                 assert(error_diff == 0.0)
                 print("error diff = ", error_diff)
 
-            reward, simulated_obs = self.environment.simulate(action, obs_for_tests=True)
+            res = self.environment.simulate(action, obs_for_tests=True)
+            simulated_obs = self.environment.observation_space.array_to_observation(res[0])
             simulated_load_powers = simulated_obs.active_loads
             print("simulated load power = ", simulated_load_powers)
             expected_planned = self.from_file_loads_planned_content[4]
@@ -582,5 +587,5 @@ def test_simulate_Agent_test_AccurateConsumptionLoadings():
 # test_simulate_Agent_test_RewardError()
 # test_simulate_Agent_exhaustive_test_RewardError()
 # test_simulate_Agent_CustomGreedySearch()
-test_simulate_Agent_test_AccurateConsumptionLoadings()
+# test_simulate_Agent_test_AccurateConsumptionLoadings()
 
