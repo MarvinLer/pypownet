@@ -408,6 +408,8 @@ class Game(object):
 
         # Loads the next timestep injections: PQ and PV and gen status
         if not is_simulation:
+            self.current_timestep_entries = timestep_entries  # do not apply for simulation or would reveal planned
+                                                              # injections/maintenance in the outputted observation
             self.grid.load_timestep_injections(timestep_entries)
         else:
             self.grid.load_timestep_injections(timestep_entries,
@@ -415,8 +417,6 @@ class Game(object):
                                                prods_v=self.current_timestep_entries.get_planned_prods_v(),
                                                loads_p=self.current_timestep_entries.get_planned_loads_p(),
                                                loads_q=self.current_timestep_entries.get_planned_loads_q(), )
-
-        self.current_timestep_entries = timestep_entries
 
         # Integration of timestep maintenance: disco lines for which current maintenance not 0 (equal to time to wait)
         timestep_maintenance = timestep_entries.get_maintenance()
@@ -886,15 +886,20 @@ class Game(object):
     def simulate(self, action):
         # Copy variables of a step: timestep id, mpc (~grid), topology (stand-alone in self), and lists of overflows
         before_timestep_id = self.current_timestep_id
-        before_current_date = copy.deepcopy(self.current_date)
         before_mpc = copy.deepcopy(self.grid.mpc)
-        before_topology = copy.deepcopy(self.grid.topology)
+        before_grid_topology = copy.deepcopy(self.grid.topology)
         before_are_loads = copy.deepcopy(self.grid.are_loads)
-        before_timestep_entries = copy.deepcopy(self.current_timestep_entries)
         before_n_timesteps_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
+        before_n_timesteps_soft_overflowed_lines = copy.deepcopy(self.n_timesteps_soft_overflowed_lines)
         before_timesteps_before_lines_reconnectable = copy.deepcopy(self.timesteps_before_lines_reconnectable)
         before_timesteps_before_lines_reactionable = copy.deepcopy(self.timesteps_before_lines_reactionable)
         before_timesteps_before_nodes_reactionable = copy.deepcopy(self.timesteps_before_nodes_reactionable)
+        before_previous_timestep = self.previous_timestep
+        before_current_date = copy.deepcopy(self.current_date)
+        before_previous_date = copy.deepcopy(self.previous_date)
+        before_n_loads_cut = self.n_loads_cut
+        before_n_prods_cut = self.n_prods_cut
+        before_grid_filename = self.grid.filename
 
         # Save grid AC or DC normal mode, and force DC mode for simulate
         before_dc = self.grid.dc_loadflow
@@ -904,13 +909,18 @@ class Game(object):
             self.grid.mpc = before_mpc  # Change grid mpc before apply topo
             self.grid.are_loads = before_are_loads
             self.current_timestep_id = before_timestep_id
-            self.grid.topology = copy.deepcopy(before_topology)
+            self.grid.topology = copy.deepcopy(before_grid_topology)
             self.current_date = before_current_date
-            self.current_timestep_entries = before_timestep_entries
             self.n_timesteps_soft_overflowed_lines = before_n_timesteps_overflowed_lines
             self.timesteps_before_lines_reconnectable = before_timesteps_before_lines_reconnectable
             self.timesteps_before_lines_reactionable = before_timesteps_before_lines_reactionable
             self.timesteps_before_nodes_reactionable = before_timesteps_before_nodes_reactionable
+            self.previous_timestep = before_previous_timestep
+            self.previous_date = before_previous_date
+            self.n_timesteps_soft_overflowed_lines = before_n_timesteps_soft_overflowed_lines
+            self.n_loads_cut = before_n_loads_cut
+            self.n_prods_cut = before_n_prods_cut
+            self.grid.filename = before_grid_filename
             return
 
         # Step the action

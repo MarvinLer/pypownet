@@ -849,12 +849,15 @@ class RunEnv(object):
                                                           flag=reward_flag)
         self.last_rewards = reward_aslist
 
-        if do_sum and not obs_for_tests:
-            return sum(reward_aslist)
-        elif obs_for_tests:
-            return reward_aslist, observation
-        else:
-            return reward_aslist
+        # if do_sum and not obs_for_tests:
+        #     return sum(reward_aslist)
+        # elif obs_for_tests:
+        #     return reward_aslist, observation
+        # else:
+        #     return reward_aslist
+
+        return observation.as_array() if observation is not None else observation, \
+               sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
     def reset(self):
         self.game.reset()
