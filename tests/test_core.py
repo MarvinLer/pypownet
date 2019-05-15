@@ -49,6 +49,49 @@ class Trivial_agent(Agent):
         return action
 
 
+class Agent_test_ObsToArrayAndBack(Agent):
+    # This agent just compares the switch of Observation to Array and from Array to Observation.
+    def __init__(self, environment):
+        super().__init__(environment)
+        print("Agent_test_LineChangePersistance created...")
+
+        self.current_step = 1
+        self.line_to_cut = 9
+
+    def act(self, observation):
+        print("----------------------------------- current step = {} -----------------------------------".format(
+            self.current_step))
+        # This agent needs to manipulate actions using grid contextual information, so the observation object needs
+        # to be of class pypownet.environment.Observation: convert from array or raise error if that is not the case
+        if not isinstance(observation, pypownet.environment.Observation):
+            try:
+                observation = self.environment.observation_space.array_to_observation(observation)
+            except Exception as e:
+                raise e
+        # Sanity check: an observation is a structured object defined in the environment file.
+        assert isinstance(observation, pypownet.environment.Observation)
+
+        action_space = self.environment.action_space
+        # print(observation.as_array())
+        save_obs_array = observation.as_array()
+        new_obs = self.environment.observation_space.array_to_observation(save_obs_array)
+        save_new_obs_array = new_obs.as_array()
+
+        # we parse and compare each element
+        for elem1, elem2 in zip(save_obs_array, save_new_obs_array):
+            # print(elem1, elem2)
+            assert(elem1 == elem2)
+
+        # Create template of action with no switch activated (do-nothing action)
+        action = action_space.get_do_nothing_action(as_class_Action=True)
+
+        if self.current_step == 1:
+            pass
+
+        self.current_step += 1
+
+        return action
+
 class Agent_test_LimitOfProdsLost(Agent):
     """This agent tests the restriction : max_number_prods_game_over: 1
         t = 1, we disconnect the prod on node 1.
@@ -1463,6 +1506,40 @@ def test_core_Agent_test_HardOverflowCoefTest():
             assert(action is None)
 
 
+def test_core_Agent_test_ObsToArrayAndBack():
+    """This function creates an Agent that tests the correct loading of input Prod values"""
+    parameters = "./tests/parameters/default14_for_tests/"
+    print("Parameters used = ", parameters)
+    game_level = "level0"
+    loop_mode = "natural"
+    start_id = 0
+    game_over_mode = "soft"
+    renderer_latency = 1
+    render = False
+    # render = False
+    niter = 3
+
+    env_class = RunEnv
+
+    # Instantiate environment and agent
+    env = env_class(parameters_folder=parameters, game_level=game_level,
+                    chronic_looping_mode=loop_mode, start_id=start_id,
+                    game_over_mode=game_over_mode, renderer_latency=renderer_latency)
+    agent = Agent_test_ObsToArrayAndBack(env)
+    # Instantiate game runner and loop
+    runner = WrappedRunner(env, agent, render, False, False, parameters, game_level, niter)
+    final_reward, game_overs, actions_recap = runner.loop(iterations=niter)
+    print("Obtained a final reward of {}".format(final_reward))
+    print("game_overs = ", game_overs)
+    print("actions_recap = ", actions_recap)
+    assert(niter == len(game_overs) == len(actions_recap))
+    assert(list(game_overs) == [False, False, False])
+    assert(list(actions_recap) == [None, None, None])
+
+
+
+
+test_core_Agent_test_ObsToArrayAndBack()
 # test_core_Agent_test_InputProdValues()
 # test_core_Agent_test_InputLoadValues()
 # test_core_Agent_test_limitOfProdsLost()
@@ -1474,7 +1551,7 @@ def test_core_Agent_test_HardOverflowCoefTest():
 # test_core_Agent_test_LineChangePersistance()
 # test_core_Agent_test_SoftOverflowBreakLimit()
 # test_core_Agent_test_SoftOverflowIsBroken()
-test_core_Agent_test_HardOverflowCoefTest()
+# test_core_Agent_test_HardOverflowCoefTest()
 
 
 
