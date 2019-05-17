@@ -1058,7 +1058,7 @@ def test_core_Agent_test_limitOfLoadsLost():
         t = 1, it disconnects 1 load
         t = 2, it disconnects second load, ==> causes a Game Over
         t = 3, it checks that obs.loads_nodes = [0, 0, ... , 0, 0], ie, that the game reset.
-        This function checks that the game ended because of TooManyProductionsCut"""
+        This function checks that the game ended because of TooManyConsumptionsCut"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
     game_level = "level0"
@@ -1267,7 +1267,7 @@ def test_core_Agent_test_method_obs_are_loads_cut():
 
 
 def test_core_Agent_test_Loss_Error():
-    """This function creates an Agent that compares the expected (from chronics) and real loss (from observation)
+    """This function creates an Agent that compares the expected loss (from chronics) and real loss (from observation)
     for the first 3 iterations"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
@@ -1507,7 +1507,8 @@ def test_core_Agent_test_HardOverflowCoefTest():
 
 
 def test_core_Agent_test_ObsToArrayAndBack():
-    """This function creates an Agent that tests the correct loading of input Prod values"""
+    """This function creates an Agent that tests the transformation of the object Observation into a list ==> and back,
+    transformation from list of observation ==> to object Observation"""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
     game_level = "level0"

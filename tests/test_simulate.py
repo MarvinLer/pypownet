@@ -353,7 +353,8 @@ class Agent_test_AccurateConsumptionLoadings(Agent):
 
 
 def test_simulate_Agent_test_SimulateThenAct():
-    """This function creates an Agent that cut a line and checks for 9 steps that it is still cut"""
+    """This function creates an Agent that cut a line and checks for 9 steps that it is still cut, while using the
+    function env.simulate."""
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
     game_level = "level0"
@@ -388,7 +389,7 @@ def test_simulate_Agent_test_RewardError():
     This function creates a small_Agent_test_RewardError which works for 3 steps.
     first instance ==> the agent simulates in addition to cutting a line and change a node's topology
     second instance ==> the agent just cuts a line and changes a node's topology, without simulation.
-    then we compare the reward. It must be equal.
+    then we compare the reward. They must be equal.
     """
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)
@@ -434,7 +435,7 @@ def test_simulate_Agent_exhaustive_test_RewardError():
     """ Function to test if a reward is the same whether we simulate during our work or not.
     This function creates first a CustomGreedyAgent that will simulate all possible changes, but do nothing in the end.
     Then, second instance ==> A do nothing Agent.
-    Finally, we compare the rewards. It must be equal.
+    Finally, we compare the rewards. They must be equal.
     """
     parameters = "./tests/parameters/default14_for_tests/"
     print("Parameters used = ", parameters)

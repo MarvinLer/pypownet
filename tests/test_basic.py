@@ -1048,8 +1048,9 @@ def test_Agent_test_BasicSubstationTopologyChange():
 
 
 def test_Agent_test_AdvancedSubstationTopologyChange():
-    """This function creates an Agent that tests all the Topological changes of all the Substations"""
-    # specific folder because we need to be able to change a node's topology at each step.
+    """This function creates an Agent that tests all the Topological changes of all the Substations with back and
+     forth intermediate steps. There is a specific folder because we need to be able to change a node's topology at each
+     step. """
     parameters = "./tests/parameters/default14_for_tests_beta/"
     print("Parameters used = ", parameters)
     game_level = "level0"
