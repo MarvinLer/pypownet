@@ -581,9 +581,13 @@ class Renderer(object):
         p75 = np.percentile(data, 75, axis=-1)
         p90 = np.percentile(data, 90, axis=-1)
         p10 = np.percentile(data, 10, axis=-1)
-        ax.fill_between(np.linspace(n_data, 0, num=n_data), p10, p90, color='#16AA16')
-        ax.fill_between(np.linspace(n_data, 0, num=n_data), p25, p75, color='#16DC16')
-        ax.plot(np.linspace(n_data, 0, num=n_data), medians, '#AAFFAA')
+        maxes = np.max(data, axis=-1)
+        mines = np.min(data, axis=-1)
+        ax.fill_between(np.linspace(n_data, 0, num=n_data), p10, p90, color='#16AA16')  # p10 p90 percentiles
+        ax.fill_between(np.linspace(n_data, 0, num=n_data), p25, p75, color='#16DC16')  # p25 p75 percentiles
+        ax.plot(np.linspace(n_data, 0, num=n_data), medians, '#AAFFAA')  # median
+        ax.plot(np.linspace(n_data, 0, num=n_data), maxes, '#339966', '.', linewidth=.75)  # max
+        ax.plot(np.linspace(n_data, 0, num=n_data), mines, '#339966', '.', linewidth=.75)  # min
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_10, '#33cc33')
         # ax.plot(np.linspace(n_data, 0, num=n_data), percentiles_90, '#33cc33')
         # Ticks and labels
@@ -591,10 +595,10 @@ class Renderer(object):
         ax.set_xticks([1, n_timesteps])
         ax.set_xticklabels(['now', left_xlabel])
         ax.set_ylim([0, max(1.05, min(2., np.max([medians, p90, p10]) * 1.05))])
-        ax.set_yticks([0, 1])
-        ax.set_yticklabels(['', '100%'])
+        ax.set_yticks([0, .2, .4, .6, .8, 1])
+        ax.set_yticklabels(['', '20%  ', '', '60%  ', '', '100%'])
         label_color_hexa = '#D2D2D2'
-        ax.tick_params(axis='y', labelsize=6, pad=-22, labelcolor=label_color_hexa, direction='in')
+        ax.tick_params(axis='y', labelsize=6, pad=-23, labelcolor=label_color_hexa, direction='in')
         ax.tick_params(axis='x', labelsize=6, labelcolor=label_color_hexa)
         # Top and right axis
         ax.spines['right'].set_visible(False)
