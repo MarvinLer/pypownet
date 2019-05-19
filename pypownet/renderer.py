@@ -541,21 +541,26 @@ class Renderer(object):
 
         return last_rewards_surface
 
-    def draw_surface_loads_curves(self):
+    def draw_surface_loads_curves(self, n_hours_to_display_top_loadplot, n_hours_to_display_bottom_loadplot):
         # Loads curve surface: retrieve images surfaces, stack them into a common surface, plot horizontal lines
         # at top and bottom of latter surface
+
+        # compute the string number of days
+        n_days_horizon = n_hours_to_display_top_loadplot // 24
         img_loads_curve_week = self.create_plot_loads_curve(
-            n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds),
-            left_xlabel=' 7 days ago  ')
-        img_loads_curve_day = self.create_plot_loads_curve(n_timesteps=int(24 * 3600 // self.timestep_duration_seconds),
-                                                           left_xlabel='24 hours ago')
+            n_timesteps=int(n_hours_to_display_top_loadplot * 3600 // self.timestep_duration_seconds),
+            left_xlabel=' {} day{} ago  '.format(n_days_horizon, 's' if n_days_horizon > 1 else ''))
+        n_hours_horizon = n_hours_to_display_bottom_loadplot
+        img_loads_curve_day = self.create_plot_loads_curve(
+            n_timesteps=int(n_hours_to_display_bottom_loadplot * 3600 // self.timestep_duration_seconds),
+            left_xlabel='{} hours ago'.format(n_hours_horizon))
         loads_curve_surface = pygame.Surface(
             (img_loads_curve_week.get_width(), 2 * img_loads_curve_week.get_height() + 30),
             pygame.SRCALPHA, 32).convert_alpha()
         loads_curve_surface.fill(self.left_menu_tile_color)
         loads_curve_surface.blit(self.bold_white_render('Historical total consumption'), (30, 10))
-        loads_curve_surface.blit(img_loads_curve_day, (0, 30))
-        loads_curve_surface.blit(img_loads_curve_week, (0, 30 + img_loads_curve_day.get_height()))
+        loads_curve_surface.blit(img_loads_curve_week, (0, 30))
+        loads_curve_surface.blit(img_loads_curve_day, (0, 30 + img_loads_curve_week.get_height()))
         gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), 0, (64, 64, 64))
         gfxdraw.hline(loads_curve_surface, 0, loads_curve_surface.get_width(), loads_curve_surface.get_height() - 1,
                       (64, 64, 64))
@@ -837,15 +842,31 @@ class Renderer(object):
         # last_rewards_surface = self.draw_surface_rewards(rewards)
 
         # Loads curve surface
-        loads_curve_surface = self.draw_surface_loads_curves()
+        if self.timestep_duration_seconds > 30 * 60:  # 30 minutes
+            n_hours_to_display_top_loadplot = 7 * 24  # 1 week
+        else:
+            n_hours_to_display_top_loadplot = 3 * 24  # 3 days
+        n_hours_to_display_bottom_loadplot = 1 * 24  # 1 day
+        loads_curve_surface = self.draw_surface_loads_curves(
+            n_hours_to_display_top_loadplot=n_hours_to_display_top_loadplot,
+            n_hours_to_display_bottom_loadplot=n_hours_to_display_bottom_loadplot)
 
         # Relative thermal limits curves
+        # compute the horizon of x abscissa to display on monitoring curves
+        n_hours_to_display = 24  # 1 day
         rtl_curves_surface = self.draw_surface_relative_thermal_limits(
-            n_timesteps=int(24 * 3600 // self.timestep_duration_seconds))
+            n_timesteps=int(n_hours_to_display * 3600 // self.timestep_duration_seconds))
 
         # Number of overflowed lines curves
+        n_hours_to_display = 24  # 1 day
+        n_days_horizon = n_hours_to_display // 24
+        horizon_scale = 'day'
+        if n_days_horizon <= 1:
+            n_days_horizon = n_hours_to_display
+            horizon_scale = 'hour'
         n_overflows_surface = self.draw_surface_n_overflows(
-            n_timesteps=int(7 * 24 * 3600 // self.timestep_duration_seconds))
+            n_timesteps=int(n_hours_to_display * 3600 // self.timestep_duration_seconds),
+            left_xlabel='{} {}{} ago'.format(n_days_horizon, horizon_scale, 's' if n_days_horizon > 1 else ''))
 
         gfxdraw.vline(self.left_menu, self.left_menu_shape[0] - 1, 0, self.left_menu_shape[1], (128, 128, 128))
         # self.left_menu.blit(last_rewards_surface, (0, 50))
