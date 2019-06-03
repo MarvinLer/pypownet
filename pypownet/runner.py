@@ -111,7 +111,7 @@ class Runner(object):
         """
         cumul_rew = 0.0
         for i_episode in range(episodes):
-            observation = self.environment.reset()
+            observation = self.environment.reset() if i_episode != 0 else self.environment.get_observation()
             for i in range(1, iterations + 1):
                 (observation, action, reward, reward_aslist, done) = self.step(observation)
                 cumul_rew += reward

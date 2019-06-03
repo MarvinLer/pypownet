@@ -806,8 +806,9 @@ class RunEnv(object):
 
         self.last_rewards = []
 
-    def _get_obs(self):
-        return self.game.export_observation()
+    def get_observation(self, as_array=True):
+        observation = self.game.export_observation()
+        return observation.as_array() if as_array else observation
 
     def is_action_valid(self, action):
         return self.game.is_action_valid(action)
@@ -852,7 +853,7 @@ class RunEnv(object):
 
     def reset(self):
         self.game.reset()
-        return self._get_obs().as_array()
+        return self.get_observation()
 
     def render(self, game_over=False):
         self.game.render(self.last_rewards, game_over=game_over)
