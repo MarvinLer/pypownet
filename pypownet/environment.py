@@ -809,6 +809,9 @@ class RunEnv(object):
     def get_observation(self, as_array=True):
         observation = self.game.export_observation()
         return observation.as_array() if as_array else observation
+    
+    def _get_obs(self):
+        return self.get_observation(False)
 
     def is_action_valid(self, action):
         return self.game.is_action_valid(action)
