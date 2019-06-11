@@ -29,7 +29,7 @@ Official documentation: https://pypownet.readthedocs.io/
 ## Using Docker
 Retrieve the Docker image:
 ```
-sudo docker pull marvinler/pypownet:2.2.0
+sudo docker pull marvinler/pypownet:2.2.8-light
 ```
 
 ## Without using Docker

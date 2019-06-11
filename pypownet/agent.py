@@ -265,7 +265,7 @@ class GreedySearch(Agent):
         if self.verbose:
             print(' Simulation with no action', end='')
         action = action_space.get_do_nothing_action()
-        reward_aslist = self.environment.simulate(action, do_sum=False)
+        _, reward_aslist, _, _ = self.environment.simulate(action, do_sum=False)
         reward = sum(reward_aslist)
         if self.verbose:
             print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
@@ -279,7 +279,7 @@ class GreedySearch(Agent):
                 print(' Simulation with switching status of line %d' % l, end='')
             action = action_space.get_do_nothing_action(as_class_Action=True)
             action_space.set_lines_status_switch_from_id(action=action, line_id=l, new_switch_value=1)
-            reward_aslist = self.environment.simulate(action, do_sum=False)
+            _, reward_aslist, _, _ = self.environment.simulate(action, do_sum=False)
             reward = sum(reward_aslist)
             if self.verbose:
                 print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
@@ -301,7 +301,7 @@ class GreedySearch(Agent):
                     action = action_space.get_do_nothing_action(as_class_Action=True)
                     action_space.set_substation_switches_in_action(action=action, substation_id=substation_id,
                                                                    new_values=new_configuration)
-                    reward_aslist = self.environment.simulate(action, do_sum=False)
+                    _, reward_aslist, _, _ = self.environment.simulate(action, do_sum=False)
                     reward = sum(reward_aslist)
                     if self.verbose:
                         print('; reward: [', ', '.join(['%.2f' % c for c in reward_aslist]), '] =', reward)
