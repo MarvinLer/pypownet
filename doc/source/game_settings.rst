@@ -255,26 +255,40 @@ As its name indicates, its format should be YAML, which is preferred here over J
 Here is the list of (mandatory) parameters:
 
 :loadflow_backend:
-    backend used by the simulator to compute loadflows; can be "pypower" or "matpower"
-
+   backend used by the simulator to compute loadflows; can be "pypower" or "matpower"
 :loadflow_mode:
-
-    model of loadflow used by the backend to compute loadflow; can be "AC" (alternative current) or "dc" (direct current)
-:max_seconds_per_timestep:  maximum number of seconds allowed for the agent to produce an action at each timestep, before timeout
+   model of loadflow used by the backend to compute loadflow; can be "AC" (alternative current) or "DC" (direct current)
+:max_seconds_per_timestep:
+   *not supported yet*; maximum number of seconds allowed for the agent to produce an action at each timestep, before timeout
 :hard_overflow_coefficient:
-    percentage of thermal limit above which an overflow line is considered in hard-overflow (hard-overflow line instantly break)
+   percentage of thermal limit above which its current ampere value will make a line in hard-overflow (hard-overflowed lines break instantly)
 :n_timesteps_hard_overflow_is_broken:
-    number of timesteps a hard-overflowed line is broken: the line cannot be switched ON for this number of timesteps
+   duration in timesteps a hard-overflowed line is broken: the line needs repairs and cannot be switched ON for this number of timesteps
 :n_timesteps_consecutive_soft_overflow_breaks:
-    number of consecutive timesteps at the end of which a line is overflow (but not hard-overflow) before breaking (heat built-up)
+   number of consecutive timesteps at the end of which an overflowed (but not hard-overflowed) line is breaks (heat build-up)
 :n_timesteps_soft_overflow_is_broken:
-    number of timesteps a soft-overflowed line is broken: the line cannot be switched ON for this number of timesteps
+   duration in timesteps a soft-overflowed line is broken: the line needs repairs and cannot be switched ON for this number of timesteps
 :n_timesteps_horizon_maintenance:
-    number of maximum timesteps to loop up in the planned maintenance: maintenance expected at further timesteps are not taken into account in the previsions sent to the agents
+   number of future timesteps for which previsions of maintenance are provided in an Observation
 :max_number_prods_game_over:
-    maximum number of isolated productions tolerated before game over; a stricly higher number of isolated production provokes a game over
+   maximum (inclusive) number of isolated productions tolerated before a game over signal is raised
 :max_number_loads_game_over:
-    maximum number of isolated consumptions tolerated before game over; a stricly higher number of isolated loads provokes a game over
+   maximum (inclusive) number of isolated consumptions tolerated before a game over signal is raised
+:n_timesteps_actionned_line_reactionable:
+   cooldown in timesteps on the activations of lines: number of timesteps to wait before a controler-activated line (switched ON or OFF) can be activated again by the controler
+:n_timesteps_actionned_node_reactionable:
+   cooldown in timesteps on the activations of substations: number of timesteps to wait before a controler-activated substation (any node-splitting operation) can be activated again by the controler
+:n_timesteps_pending_line_reactionable_when_overflowed:
+   *not supported yet*
+:n_timesteps_pending_node_reactionable_when_overflowed:
+   *not supported yet*
+:max_number_actionned_substations:
+   per timestep maximum (inclusive) number of separated controler-activated substations (ie with at least one node-splitting operation): an action with strictly more activated substations than this value is replaced by a do-nothing action
+:max_number_actionned_lines:
+   per timestep maximum (inclusive) number of separated controler-activated lines (ie switched ON or OFF): an action with strictly more activated lines than this value is replaced by a do-nothing action
+:max_number_actionned_total:
+   per timestep maximum (inclusive) number of separated controler-activated lines+substations: an action with strictly more activated lines+substations than this value is replaced by a do-nothing action
+
 
 Here is the default **configuration.yaml** (produced by the template-creater script):
 
@@ -282,24 +296,33 @@ Here is the default **configuration.yaml** (produced by the template-creater scr
    :linenos:
    :caption: configuration.yaml
 
-    loadflow_backend: pypower
-    #loadflow_backend: matpower
+   loadflow_backend: pypower
+   #loadflow_backend: matpower
 
-    loadflow_mode: AC  # alternative current: more precise model but longer to process
-    #loadflow_mode: DC  # direct current: more simplist and faster model
+   loadflow_mode: AC  # alternative current: more precise model but longer to process
+   #loadflow_mode: DC  # direct current: more simplist and faster model
 
-    max_seconds_per_timestep: 1.0  # time in seconds before player is timedout
+   max_seconds_per_timestep: 1.0  # time in seconds before player is timedout
 
-    hard_overflow_coefficient: 1.5  # % of line capacity usage above which a line will break bc of hard overflow
-    n_timesteps_hard_overflow_is_broken: 10  # number of timesteps a hard overflow broken line is broken
+   hard_overflow_coefficient: 1.5  # % of line capacity usage above which a line will break bc of hard overflow
+   n_timesteps_hard_overflow_is_broken: 10  # number of timesteps a hard overflow broken line is broken
 
-    n_timesteps_consecutive_soft_overflow_breaks: 3  # number of consecutive timesteps for a line to be overflowed b4 break
-    n_timesteps_soft_overflow_is_broken: 5  # number of timesteps a soft overflow broken line is broken
+   n_timesteps_consecutive_soft_overflow_breaks: 3  # number of consecutive timesteps for a line to be overflowed b4 break
+   n_timesteps_soft_overflow_is_broken: 5  # number of timesteps a soft overflow broken line is broken
 
-    n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for planned maintenance prevision
+   n_timesteps_horizon_maintenance: 20  # number of immediate future timesteps for planned maintenance prevision
 
-    max_number_prods_game_over: 10  # number of tolerated isolated productions before game over
-    max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
+   max_number_prods_game_over: 10  # number of tolerated isolated productions before game over
+   max_number_loads_game_over: 10  # number of tolerated isolated loads before game over
+
+   n_timesteps_actionned_line_reactionable: 3  # number of consecutive timesteps before a switched line can be switched again
+   n_timesteps_actionned_node_reactionable: 3  # number of consecutive timesteps before a topology-changed node can be changed again
+   n_timesteps_pending_line_reactionable_when_overflowed: 1 # number of cons. timesteps before a line waiting to be reactionable is reactionable if it is overflowed
+   n_timesteps_pending_node_reactionable_when_overflowed: 1 # number of cons. timesteps before a none waiting to be reactionable is reactionable if it has an overflowed line
+
+   max_number_actionned_substations: 7  # max number of changes tolerated in number of substations per timestep; actions with more than max_number_actionned_substations have at least one 1 value are replaced by do-nothing action
+   max_number_actionned_lines: 10  # max number of changes tolerated in number of lines per timestep; actions with more than max_number_actionned_lines are switched are replaced by do-nothing action
+   max_number_actionned_total: 15  # combination of 2 previous parameters; actions with more than max_number_total_actionned elements (substation or line) have a switch are replaced by do-nothing action
 
 
 .. _reward_signal:
