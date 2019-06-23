@@ -1,5 +1,5 @@
 # Usage
-Run `pytest` in the root folder of of pypownet repository to execute all of the provided tests.
+Run `pytest` in the root folder of of pypownet repository to execute all of the provided tests. Additionally you can run `pytest --verbose --continue-on-collection-errors` to print some further information.
 
 If the module is not installed, run `pip install pytest` beforehand.
 

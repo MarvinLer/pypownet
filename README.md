@@ -119,9 +119,14 @@ sphinx-build -b html ./source ./build
 ```
 The html will be available within the folder [doc/build](doc/build/index.html).
 
+# Tests
+pypownet is provided with series of tests developped by @ZergD and RTE. These tests are designed to verify some behavior of the game as a whole, including some expected grid values based on perfectly controlled injections/topology. Tests can be run with `pytest` in the current directory.
+
+(Here)[tests/README.md] for more information about the testing module.
+
 # License information
 
-Copyright 2017-2018 RTE and INRIA (France)
+Copyright 2017-2019 RTE and INRIA (France)
 
     RTE: http://www.rte-france.com
     INRIA: https://www.inria.fr/
