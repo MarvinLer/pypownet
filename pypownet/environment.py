@@ -145,6 +145,8 @@ class ActionSpace(MultiBinary):
         return formatted_action
 
     def get_number_elements_of_substation(self, substation_id):
+        # Sanity check
+        assert(substation_id in self.substations_ids)
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
     def get_substation_switches_in_action(self, action, substation_id, concatenated_output=True):
@@ -206,7 +208,7 @@ class ActionSpace(MultiBinary):
         :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
         input action
-        :return: the modified action; /!\ WARNING /!\: the input action is not modified in place if of array type: ensure that
+        :return: the modified action; WARNING: the input action is not modified in place if of array type: ensure that
         you catch the returned action as the modified action.
         """
         if not isinstance(action, pypownet.game.Action):

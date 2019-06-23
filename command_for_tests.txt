@@ -1,0 +1,10 @@
+# to execute at the root of pypownet, inside pypownet folder.
+
+pytest --verbose --continue-on-collection-errors
+
+
+
+
+# other options
+pytest --verbose --disable-warnings
+pytest --verbose --disable-warnings --continue-on-collection-errors
