@@ -787,12 +787,34 @@ class Observation(MinimalistACObservation):
 class RunEnv(object):
     def __init__(self, parameters_folder, game_level, chronic_looping_mode='natural', start_id=0,
                  game_over_mode='soft', renderer_latency=None, without_overflow_cutoff=False):
+        """ Instantiate the game Environment based on the specified parameters.
+        Saves class object arguments and declares to be instantiated environment object. The function subcontracts
+        the initialization of objects to self.reset. """
+        # save parameters
+        self.parameters_folder = parameters_folder
+        self.game_level = game_level
+        self.chronic_looping_mode = chronic_looping_mode
+        self.start_id = start_id
+        self.game_over_mode = game_over_mode
+        self.renderer_latency = renderer_latency
+        self.without_overflow_cutoff = without_overflow_cutoff
+
+        self.game = None
+        self.action_space = None
+        self.observation_space = None
+        self.reward_signal = None
+        self.last_rewards = None
+
+        self.reset()
+
+    def reset(self):
         """ Instantiate the game Environment based on the specified parameters. """
         # Instantiate game & action space
-        self.game = pypownet.game.Game(parameters_folder=parameters_folder, game_level=game_level,
-                                       chronic_looping_mode=chronic_looping_mode, chronic_starting_id=start_id,
-                                       game_over_mode=game_over_mode, renderer_frame_latency=renderer_latency,
-                                       without_overflow_cutoff=without_overflow_cutoff)
+        self.game = pypownet.game.Game(parameters_folder=self.parameters_folder, game_level=self.game_level,
+                                       chronic_looping_mode=self.chronic_looping_mode,
+                                       chronic_starting_id=self.start_id, game_over_mode=self.game_over_mode,
+                                       renderer_frame_latency=self.renderer_latency,
+                                       without_overflow_cutoff=self.without_overflow_cutoff)
 
         self.action_space = ActionSpace(*self.game.get_number_elements(),
                                         substations_ids=self.game.get_substations_ids(),
@@ -805,8 +827,9 @@ class RunEnv(object):
                                                   self.game.n_timesteps_horizon_maintenance)
 
         self.reward_signal = self.game.get_reward_signal_class()
-
         self.last_rewards = []
+
+        return self.get_observation(True)  # in pypownet, the convention is to return any env objects as arrays
 
     def get_observation(self, as_array=True):
         observation = self.game.export_observation()
@@ -856,8 +879,8 @@ class RunEnv(object):
         return observation.as_array() if observation is not None else observation, \
                sum(reward_aslist) if do_sum else reward_aslist, done, reward_flag
 
-    def reset(self):
-        self.game.reset()
+    def process_game_over(self):
+        self.game.process_game_over()
         return self.get_observation()
 
     def render(self, game_over=False):

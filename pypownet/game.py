@@ -759,9 +759,10 @@ class Game(object):
             return False
         return to_be_raised_exception.is_empty
 
-    def reset(self):
-        """ Resets the game: put the grid topology to the initial one. Besides, if restart is True, then the game will
-        load the first set of injections (i)_{t0}, otherwise the next set of injections of the chronics (i)_{t+1}
+    def process_game_over(self):
+        """ Handles game over behavior of the game: put the grid topology to the initial one
+        + if restart is True, then the game will load the first set of injections (i)_{t0},
+        otherwise the next set of injections of the chronics (i)_{t+1}.
         """
         self.reset_grid()
         self.epoch += 1
@@ -776,7 +777,7 @@ class Game(object):
             self._compute_loadflow_cascading()
         # If after reset there is a diverging loadflow, then recall reset w/o penalty (not the player's fault)
         except pypownet.grid.DivergingLoadflowException:
-            self.reset()
+            self.process_game_over()
 
     def reset_grid(self):
         """ Reinitialized the grid by applying the initial topology to the current state (topology).

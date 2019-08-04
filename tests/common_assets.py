@@ -21,7 +21,7 @@ class WrappedRunner(Runner):
         # Update the environment with the chosen action
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
         if done:
-            observation = self.environment.reset()
+            observation = self.environment.process_game_over()
         elif info:
             self.logger.warning(info.text)
 
@@ -34,18 +34,18 @@ class WrappedRunner(Runner):
 
         return observation, action, reward, reward_aslist, done, info
 
-    def loop(self, iterations, episodes=1):
+    def loop(self, iterations, epochs=1):
         """
         Runs the simulator for the given number of iterations time the number of episodes.
         :param iterations: int of number of iterations per episode
-        :param episodes: int of number of episodes, each resetting the environment at the beginning
+        :param epochs: int of number of episodes, each resetting the environment at the beginning
         :return:
         """
         cumul_rew = 0.0
         dones = []
         infos = []
-        for i_episode in range(episodes):
-            observation = self.environment.reset()
+        for i_episode in range(epochs):
+            observation = self.environment.process_game_over()
             for i in range(1, iterations + 1):
                 (observation, action, reward, reward_aslist, done, info) = self.step(observation)
                 cumul_rew += reward

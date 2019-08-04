@@ -84,7 +84,7 @@ class Runner(object):
         observation, reward_aslist, done, info = self.environment.step(action, do_sum=False)
         if done:
             self.logger.warning('\b\b\bGAME OVER! Resetting grid... (hint: %s)' % info.text)
-            observation = self.environment.reset()
+            observation = self.environment.process_game_over()
         elif info:
             self.logger.warning(info.text)
 
@@ -102,22 +102,27 @@ class Runner(object):
 
         return observation, action, reward, reward_aslist, done
 
-    def loop(self, iterations, episodes=1):
+    def loop(self, iterations, epochs=1):
         """
         Runs the simulator for the given number of iterations time the number of episodes.
         :param iterations: int of number of iterations per episode
-        :param episodes: int of number of episodes, each resetting the environment at the beginning
+        :param epochs: int of number of episodes, each resetting the environment at the beginning
         :return:
         """
         cumul_rew = 0.0
-        for i_episode in range(episodes):
-            observation = self.environment.reset() if i_episode != 0 else self.environment.get_observation()
-            for i in range(1, iterations + 1):
+        for i_episode in range(epochs):
+            # clean restart of environment at the beginning of each epoch
+            self.logger.warning('Resetting environment...')
+            observation = self.environment.reset()
+            for i_iter in range(1, iterations + 1):
                 (observation, action, reward, reward_aslist, done) = self.step(observation)
                 cumul_rew += reward
+
+                # save some info in txt and csv loggers
                 self.logger.info("step %d/%d - reward: %.2f; cumulative reward: %.2f" %
-                                 (i, iterations, reward, cumul_rew))
-                self.dump_machinelogs(i, done, reward, reward_aslist, cumul_rew, self.environment.get_current_datetime())
+                                 (i_iter, iterations, reward, cumul_rew))
+                self.dump_machinelogs(i_iter, done, reward, reward_aslist, cumul_rew,
+                                      self.environment.get_current_datetime())
 
         return cumul_rew
 
