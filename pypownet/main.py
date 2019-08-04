@@ -36,6 +36,9 @@ parser.add_argument('-r', '--render', action='store_true',
 parser.add_argument('-la', '--latency', type=float, default=None,
                     help='time to sleep after each frame plot of the renderer (in seconds); note: there are multiple'
                          ' frame plots per timestep (at least 2, varies)')
+parser.add_argument('--seed', type=int, metavar='SEED', default=None,
+                    help='seed used to initiate a random state for "random" loop mode only once at the beginning of '
+                         'the script')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='display live info of the current experiment including reward, cumulative reward')
 parser.add_argument('-vv', '--vverbose', action='store_true',
@@ -56,7 +59,7 @@ def main():
     env = env_class(parameters_folder=args.parameters, game_level=args.level,
                     chronic_looping_mode=args.loop_mode, start_id=args.start_id,
                     game_over_mode=game_over_mode, renderer_latency=args.latency,
-                    without_overflow_cutoff=without_overflow_cutoff)
+                    without_overflow_cutoff=without_overflow_cutoff, seed=args.seed)
     agent = agent_class(env)
     # Instantiate game runner and loop
     runner = Runner(env, agent, args.render, args.verbose, args.vverbose, args.parameters, args.level, args.niter)

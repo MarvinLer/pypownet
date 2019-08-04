@@ -277,7 +277,7 @@ class ChronicLooper(object):
             len(self.chronics), os.path.basename(self.chronics_folder), self.looping_mode,
             os.path.basename(self.chronics[start_id])))
 
-        self.next_chronic_id = start_id
+        self.next_chronic_id = start_id if self.looping_mode != 'random' else np.random.choice(len(self.chronics))
         self.current_chronic_name = None
 
     def get_next_chronic_folder(self):

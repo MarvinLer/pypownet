@@ -786,7 +786,7 @@ class Observation(MinimalistACObservation):
 
 class RunEnv(object):
     def __init__(self, parameters_folder, game_level, chronic_looping_mode='natural', start_id=0,
-                 game_over_mode='soft', renderer_latency=None, without_overflow_cutoff=False):
+                 game_over_mode='soft', renderer_latency=None, without_overflow_cutoff=False, seed=None):
         """ Instantiate the game Environment based on the specified parameters.
         Saves class object arguments and declares to be instantiated environment object. The function subcontracts
         the initialization of objects to self.reset. """
@@ -804,6 +804,9 @@ class RunEnv(object):
         self.observation_space = None
         self.reward_signal = None
         self.last_rewards = None
+
+        if seed is not None:
+            np.random.seed(seed)
 
         self.reset()
 
