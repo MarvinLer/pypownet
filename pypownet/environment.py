@@ -150,17 +150,18 @@ class ActionSpace(MultiBinary):
         return self._substations_n_elements[np.where(self.substations_ids == substation_id)[0][0]]
 
     def get_substation_switches_in_action(self, action, substation_id, concatenated_output=True):
-        """ From the input action, retrieves the list of value of the switch (0 or 1) of the switches on which each
+        """
+        From the input action, retrieves the list of value of the switch (0 or 1) of the switches on which each
         element of the substation with input id. This function also computes the type of element associated to each
         switch value of the returned switches-value list.
 
         :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
-        input action.
+            input action.
         :param concatenated_output: False to return an array per elementype, True to return a single concatenated array
         :return: a switch-values list (binary list) in the order: production (<=1), loads (<=1), lines origins, lines
-        extremities; also returns a ElementType list of same size, where each value indicates the type of element
-        associated to each first-returned list values.
+            extremities; also returns a ElementType list of same size, where each value indicates the type of element
+            associated to each first-returned list values.
         """
         if not isinstance(action, pypownet.game.Action):
             try:
@@ -207,9 +208,9 @@ class ActionSpace(MultiBinary):
 
         :param action: input action whether a numpy array or an element of class pypownet.game.Action.
         :param substation_id: an integer of the id of the substation to retrieve the switches of its elements in the
-        input action
+            input action
         :return: the modified action; WARNING: the input action is not modified in place if of array type: ensure that
-        you catch the returned action as the modified action.
+            you catch the returned action as the modified action.
         """
         if not isinstance(action, pypownet.game.Action):
             try:
@@ -605,10 +606,10 @@ class Observation(MinimalistACObservation):
         returned nodes-value list.
 
         :param substation_id: an integer of the id of the substation to retrieve the nodes on which its elements are
-        wired
+            wired
         :return: a nodes-values list in the order: production (<=1), loads (<=1), lines origins, lines extremities;
-        also returns a ElementType list of same size, where each value indicates the type of element associated to
-        each first-returned list values.
+            also returns a ElementType list of same size, where each value indicates the type of element associated to
+            each first-returned list values.
         """
         assert substation_id in self.substations_ids, \
             'Substation with id {} does not exist; available substations: {}'.format(substation_id,
@@ -644,7 +645,7 @@ class Observation(MinimalistACObservation):
         corresponding lines.
 
         :param substation_id: an integer of the id of the substation to retrieve the nodes on which its elements are
-        wired
+            wired
         :return: (consistently fixed-order list of binary (0 or 1) values, list of ids of other end substations)
         """
         assert substation_id in self.substations_ids, \

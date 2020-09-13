@@ -248,7 +248,7 @@ class Grid(object):
 
         :return: 0 for failed computation, 1 for success
         :raise DivergingLoadflowException: if the loadflow did not converge, raise diverging exception (could be because
-        of grid not connexe, or voltages issues, or angle issues etc).
+            of grid not connexe, or voltages issues, or angle issues etc).
         """
         self._synchronize_bus_types(self.mpc, self.are_loads, self.new_slack_bus)
         try:
