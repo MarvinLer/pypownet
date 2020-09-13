@@ -227,15 +227,15 @@ Precisally, an observation is composed of 1 **datetime** object (the current sim
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
 |            | initial_lines_ex_nodes               | binary    | The initial (reference) node on which each production is connected within their corresponding substations. |
 +------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-|            | lines_status                         | int       | ID of the substation on which the loads (consumers) are wired.                                             |
+|            | lines_status                         | binary    | Whether the lines are connected/ON (1) or disconnected/OFF (0)                                             |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-|            | ampere_flows                         | >=0 float | Real power consumed by the demands of the grid (MW).                                                       |
+|            | ampere_flows                         | >=0 float | Total ampere flowing inside lines                                                                          |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-| line       | thermal_limits                       | float     | Reactive power consumed by the demands of the grid (Mvar).                                                 |
+| line       | thermal_limits                       | >0 float  | Each line thermal limit in Ampere over which the line overflows                                            |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-|            | timesteps_before_lines_reconnectable | >0 float  | Voltage magnitude of the demands of the grid (per-unit V).                                                 |
+|            | timesteps_before_lines_reconnectable | >=0 int   | Number of timesteps before each line can be reconnected                                                    |
 +            +--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
-|            | timesteps_before_planned_maintenance | binary    | The node on which each load is connected within their corresponding substations.                           |
+|            | timesteps_before_planned_maintenance | >=0 int   | Number of timesteps before a line will be disconnected by going into maintenance                           |
 +------------+--------------------------------------+-----------+------------------------------------------------------------------------------------------------------------+
 
 All of these lists containers (also including the *datetime* field) can be retrieved from an **Observation** ``observation`` with ``observation.name`` where name is one of the previous names (+ ``observation.datetime``) e.g.:
