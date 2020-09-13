@@ -46,6 +46,7 @@ Also, the simulator possess a runner module for easily benchmarking new controle
    :caption: Miscellaneous
 
    changelog.rst
+   api_reference.rst
 
 * :ref:`genindex`
 * :ref:`modindex`

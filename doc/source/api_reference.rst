@@ -1,3 +1,6 @@
+API reference
+========================
+
 Module agent
 ------------
 .. automodule:: pypownet.agent
