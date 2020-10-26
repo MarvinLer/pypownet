@@ -46,13 +46,9 @@ def main():
     # Parameters static files in relative files
     param_folder = 'parameters/'
     param_envs = [os.path.join(dp, f) for dp, dn, fn in os.walk(param_folder) for f in fn]
-    print('\n'.join(list(map(str, [(os.path.dirname(rel_path), rel_path) for rel_path in
-                      param_envs + ['matpower_path.config'] if os.path.isfile(rel_path) and not '__pycache__' in rel_path]))))
-    print([(os.path.dirname(rel_path), rel_path) for rel_path in
-                      param_envs + ['matpower_path.config'] if os.path.isfile(rel_path) and not '__pycache__' in rel_path])
 
     setup(name='pypownet',
-          version='2.2.0',
+          version='2.2.9',
           description='A power network simulator with a Reinforcement Learning-focused usage.',
           author='Marvin Lerousseau',
           author_email='marvin.lerousseau@gmail.com',
@@ -62,7 +58,8 @@ def main():
           license='LGPLv3',
           download_url='https://github.com/marvinler/pypownet',
           data_files=[(os.path.dirname(rel_path), [rel_path]) for rel_path in
-                      param_envs + ['matpower_path.config'] if os.path.isfile(rel_path) and not '__pycache__' in rel_path],
+                      param_envs + ['matpower_path.config'] if
+                      os.path.isfile(rel_path) and not '__pycache__' in rel_path],
           entry_points={'console_scripts': ['pypownet=pypownet.command_line:main']}, )
 
 
