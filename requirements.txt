@@ -7,5 +7,5 @@ oct2py==4.0.6
 pygame==1.9.4
 scipy==1.1.0
 PYPOWER==5.1.4
-PyYAML==5.1
+PyYAML>=5.4
 pytest==4.4.0
