@@ -1,4 +1,4 @@
-setuptools==40.0.0
+setuptools==65.5.1
 matplotlib==2.2.2
 recommonmark==0.4.0
 gym==0.12.0
